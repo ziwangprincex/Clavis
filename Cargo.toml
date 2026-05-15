@@ -1,0 +1,42 @@
+[workspace]
+
+[package]
+name = "clavis"
+version = "1.0.0"
+description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
+edition = "2021"
+rust-version = "1.75"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = ["dialog-all", "fs-all", "window-start-dragging"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+typst = "0.11"
+typst-syntax = "0.11"
+typst-svg = "0.11"
+typst-pdf = "0.11"
+fontdb = "0.16"
+typst-assets = { version = "0.11", features = ["fonts"] }
+comemo = "0.4"
+chrono = "0.4"
+parking_lot = "0.12"
+once_cell = "1"
+tempfile = "3"
+which = "6"
+base64 = "0.22"
+tokio = { version = "1", features = ["process", "io-util", "rt", "macros", "time", "sync"] }
+regex = "1"
+uuid = { version = "1", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = 3
+lto = false
+codegen-units = 16
+strip = true
