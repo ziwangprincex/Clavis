@@ -17,7 +17,7 @@ Clavis 是一个基于 Tauri 的桌面文档编辑器，支持 Markdown、LaTeX 
 
 ## 发布文件
 
-- `target/release/bundle/dmg/Clavis_1.0.0_aarch64.dmg`
+- Release：v0.1.0.dmg
 
 ## 说明
 
