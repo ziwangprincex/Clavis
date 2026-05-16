@@ -595,7 +595,16 @@ pub async fn compile_latex(
         "none" => None,
         "bibtex" => Some("bibtex"),
         "biber" => Some("biber"),
-        _ => detect_bib_kind(&opts.source),
+        _ => {
+            let mut detected = detect_bib_kind(&opts.source);
+            if detected.is_none() {
+                for pf in &opts.project_files {
+                    detected = detect_bib_kind(&pf.content);
+                    if detected.is_some() { break; }
+                }
+            }
+            detected
+        }
     };
 
     let started = std::time::Instant::now();
@@ -1195,7 +1204,9 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
             let raw = raw.strip_prefix("./").unwrap_or(raw);
             // Build candidate paths with possible extensions
             let exts: &[&str] = match hint {
-                ResolveHint::Bib => &[".bib"],
+                ResolveHint::Bib => {
+                    if raw.ends_with(".bib") { &[""] } else { &[".bib", ""] }
+                }
                 ResolveHint::Class => {
                     if raw.contains('.') { &[""] } else { &[".cls", ""] }
                 }
