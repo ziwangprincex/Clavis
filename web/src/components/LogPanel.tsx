@@ -1,0 +1,72 @@
+import { useCompileStore } from '../store';
+import styles from './LogPanel.module.css';
+
+export interface LogPanelProps {
+  /** Called when user clicks a "L<line>" jump link in an error row. */
+  onJumpToLine?: (line: number) => void;
+  /** Called when user clicks "Install <pkg>" for a missing-file diag. */
+  onInstallPackage?: (pkg: string) => void;
+}
+
+export function LogPanel({ onJumpToLine, onInstallPackage }: LogPanelProps) {
+  const { errors, logLines, logTail } = useCompileStore();
+
+  return (
+    <div className={styles.root}>
+      <div className={styles.header}>
+        <span className={styles.title}>Compile Log</span>
+        <span className={styles.errCount}>
+          {errors.length} {errors.length === 1 ? 'issue' : 'issues'}
+        </span>
+      </div>
+
+      <div className={styles.errors}>
+        {errors.length === 0 ? (
+          <div className={styles.muted}>No errors.</div>
+        ) : (
+          errors.map((err, i) => (
+            <div key={i} className={`${styles.row} ${styles[`kind-${err.kind ?? 'error'}`] ?? ''}`}>
+              {typeof err.line === 'number' && err.line > 0 ? (
+                <a
+                  className={styles.jump}
+                  onClick={() => onJumpToLine?.(err.line!)}
+                >
+                  L{err.line}
+                </a>
+              ) : (
+                <span className={styles.muted}>--</span>
+              )}
+              <span className={styles.kindLabel}>{err.kind || 'error'}</span>
+              <span className={styles.message}>{err.message}</span>
+              {err.kind === 'missing-file' && err.package && (
+                <button
+                  className={styles.installBtn}
+                  onClick={() => onInstallPackage?.(err.package!)}
+                >
+                  Install {err.package}
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <details className={styles.rawDetails}>
+        <summary>Raw output ({logLines.length} lines)</summary>
+        <pre className={styles.raw}>
+          {logLines.map((l, i) => (
+            <span key={i} className={styles[`stream-${l.stream}`]}>
+              [{l.run}] {l.text}
+            </span>
+          ))}
+          {logTail && (
+            <>
+              {'\n--- summary log tail ---\n'}
+              {logTail}
+            </>
+          )}
+        </pre>
+      </details>
+    </div>
+  );
+}

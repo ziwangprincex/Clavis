@@ -1,0 +1,53 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  font-size: 12px;
+  min-width: 200px;
+  width: 240px;
+}
+
+.section {
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sectionHeader:hover {
+  background: var(--panel-soft);
+}
+
+.caret {
+  color: var(--text-dim);
+  font-size: 9px;
+  width: 12px;
+}
+
+.sectionTitle {
+  flex: 1;
+}
+
+.sectionBody {
+  padding: 4px 0;
+  max-height: 340px;
+  overflow-y: auto;
+}

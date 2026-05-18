@@ -1,0 +1,38 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.item:hover {
+  background: var(--panel-soft);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}

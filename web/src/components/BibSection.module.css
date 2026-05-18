@@ -1,0 +1,59 @@
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter {
+  margin: 4px 8px;
+  padding: 4px 6px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.item:hover {
+  background: var(--panel-soft);
+}
+
+.key {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.error {
+  padding: 8px 12px;
+  color: var(--error);
+  font-size: 11px;
+}

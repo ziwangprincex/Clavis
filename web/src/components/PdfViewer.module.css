@@ -1,0 +1,159 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  position: relative;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn {
+  background: var(--panel-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.info {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  min-width: 56px;
+  text-align: center;
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.pages {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.pages.invert canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.pages.sepia canvas {
+  filter: sepia(0.6) brightness(0.95);
+}
+
+.page {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  position: relative;
+  cursor: crosshair;
+}
+
+.page canvas {
+  display: block;
+}
+
+/* Text layer positioned exactly on top of the canvas. The pdfjs stylesheet
+ * (pdf_viewer.css) handles per-span positioning via inline styles & the
+ * --scale-factor variable; we just need the absolute container itself. */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+}
+
+/* Match highlights — yellow tint for all matches, orange for the active one.
+ * These wrap individual text fragments inside the pdfjs <span> structure. */
+.match {
+  background: rgba(255, 235, 0, 0.55);
+  color: transparent;
+  border-radius: 2px;
+}
+
+.matchActive {
+  background: rgba(255, 138, 0, 0.85);
+  outline: 1px solid rgba(255, 80, 0, 0.9);
+}
+
+/* Finder bar */
+.finder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.finderInput {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 12px;
+  min-width: 120px;
+}
+
+.finderInfo {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  min-width: 40px;
+  text-align: center;
+}
+
+.finderCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.empty,
+.error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.error {
+  color: var(--error);
+  padding: 16px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+}

@@ -1,0 +1,11 @@
+.splitter {
+  flex: 0 0 4px;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.1s ease;
+}
+
+.splitter:hover,
+.splitter:active {
+  background: var(--accent);
+}

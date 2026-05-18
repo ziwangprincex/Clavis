@@ -1,0 +1,134 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.errCount {
+  color: var(--text-muted);
+}
+
+.errors {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.muted {
+  padding: 8px 12px;
+  color: var(--text-muted);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  border-left: 3px solid transparent;
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.kind-error {
+  border-left-color: var(--error);
+}
+
+.kind-warning {
+  border-left-color: var(--warning);
+}
+
+.kind-missing-file,
+.kind-missing-ref {
+  border-left-color: var(--accent);
+}
+
+.kind-badbox {
+  border-left-color: var(--text-dim);
+}
+
+.jump {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  min-width: 36px;
+}
+
+.jump:hover {
+  text-decoration: underline;
+}
+
+.kindLabel {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  min-width: 80px;
+}
+
+.message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.installBtn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.installBtn:hover {
+  background: var(--accent-hover);
+}
+
+.rawDetails {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  max-height: 200px;
+  overflow: auto;
+}
+
+.rawDetails summary {
+  padding: 4px 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.raw {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  color: var(--text-dim);
+}
+
+.stream-stderr {
+  color: var(--error);
+}
+
+.stream-info {
+  color: var(--accent);
+}

@@ -17,13 +17,19 @@ Install once on the Mac:
    source $HOME/.cargo/env
    ```
 
-3. **Homebrew + librsvg** (for icon generation)
+3. **Node.js 18+ and npm** (the frontend is a Vite + React + TypeScript project)
+   ```
+   brew install node
+   ```
+   Or download an installer from https://nodejs.org/.
+
+4. **Homebrew + librsvg** (for icon generation)
    ```
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    brew install librsvg
    ```
 
-4. **MacTeX** (only required to *use* Clavis for LaTeX — not for building)
+5. **MacTeX** (only required to *use* Clavis for LaTeX — not for building)
    ```
    brew install --cask mactex
    ```
@@ -39,13 +45,18 @@ chmod +x build-macos.sh
 
 The script will:
 
-1. Verify Rust + Xcode are installed
-2. Install `tauri-cli` if missing
-3. Generate `icons/icon.icns` from `icons/icon.png` (if needed)
-4. Run `cargo tauri build` — produces a release binary + .dmg
-5. Print the path to the resulting `.dmg`
+1. Verify Rust + Node + Xcode are installed
+2. Install web dependencies (`npm ci` if `web/package-lock.json` is present, else `npm install`)
+3. Install `tauri-cli` if missing
+4. Generate `icons/icon.icns` from `icons/icon.png` (if needed)
+5. Run `cargo tauri build` — this triggers the configured `beforeBuildCommand`
+   (`npm --prefix web run build`) to produce the static frontend at
+   `web/dist/`, then bundles it into the Rust binary and produces the `.dmg`
+6. Print the path to the resulting `.dmg`
 
 First build takes **5–15 minutes** depending on machine speed (compiles the entire Rust dependency tree and the Tauri runtime). Subsequent builds are seconds.
+
+> **Note**: The shipped `.dmg` is fully self-contained. Node and npm are only used at build time to compile the frontend; they are **not** required on the end user's machine.
 
 ## Output
 
@@ -65,7 +76,14 @@ If you double-click instead of right-click → Open, macOS will refuse with "Cla
 ## Troubleshooting
 
 ### "Failed to execute beforeBuildCommand"
-Our `tauri.conf.json` has empty `beforeBuildCommand`/`beforeDevCommand`, so this should not happen. If it does, ensure those keys are still empty.
+The frontend build (`npm --prefix web run build`) failed. Run it manually to see the underlying error:
+```
+cd web && npm install && npm run build
+```
+Common causes: stale `node_modules` after pulling — delete `web/node_modules` and re-run `npm install`.
+
+### "npm: command not found"
+Install Node.js 18+ — see prerequisites above.
 
 ### Icon generation fails with "rsvg-convert not found"
 ```

@@ -1,0 +1,12 @@
+.host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.host :global(.cm-editor) {
+  flex: 1;
+  height: 100%;
+}

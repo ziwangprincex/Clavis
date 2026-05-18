@@ -1,0 +1,77 @@
+.menu {
+  position: absolute;
+  top: 36px;
+  /* Right-aligned roughly under the Recent button. App provides the
+     positioning anchor via a wrapper. */
+  right: 200px;
+  min-width: 280px;
+  max-width: 460px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 800;
+  overflow: hidden;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.item:hover {
+  background: var(--panel-soft);
+}
+
+.short {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.full {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.clearBtn {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text-muted);
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.clearBtn:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}

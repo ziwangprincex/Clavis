@@ -1,0 +1,131 @@
+.root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* The preview surface stays a "paper" feel: in light theme it's the page
+   * white; in dark theme it stays light so rendered Markdown / Typst output
+   * resembles the published document users will eventually share. */
+  --bg: #ffffff;
+  --bg-elevated: #fafafa;
+  --panel: #f4f4f4;
+  --panel-soft: #ececec;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --text: #1c1c1c;
+  --text-muted: rgba(0, 0, 0, 0.55);
+  --text-dim: rgba(0, 0, 0, 0.30);
+
+  background: var(--bg);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+.preview {
+  padding: 24px 32px;
+  max-width: 880px;
+  width: 100%;
+  margin: 0 auto;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.markdown :global(h1),
+.markdown :global(h2),
+.markdown :global(h3) {
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+}
+
+.markdown :global(h1) {
+  font-size: 1.8em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.markdown :global(h2) {
+  font-size: 1.4em;
+}
+
+.markdown :global(h3) {
+  font-size: 1.15em;
+}
+
+.markdown :global(p) {
+  margin: 0.6em 0;
+}
+
+.markdown :global(pre) {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.markdown :global(code) {
+  background: var(--panel);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.markdown :global(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown :global(blockquote) {
+  border-left: 3px solid var(--border-strong);
+  margin: 0.6em 0;
+  padding: 0 12px;
+  color: var(--text-muted);
+}
+
+.markdown :global(a) {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown :global(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown :global(table) {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+}
+
+.markdown :global(th),
+.markdown :global(td) {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+
+.markdown :global(img) {
+  max-width: 100%;
+}
+
+.typstSvg :global(svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+.notice {
+  padding: 24px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.error {
+  padding: 16px 24px;
+  color: var(--error);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}

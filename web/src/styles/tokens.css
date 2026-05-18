@@ -1,0 +1,91 @@
+/* Design tokens — macOS-native ("Apple") look-and-feel.
+ *
+ * - Colors are pulled from Apple's published HIG palette (system blue,
+ *   system gray, etc.) so a Tauri webview on macOS visually matches the
+ *   surrounding OS chrome.
+ * - Light & dark variants are both defined; switch via [data-theme="light"]
+ *   or [data-theme="dark"] on <html>. data-theme="auto" should be resolved
+ *   by JS (see App.tsx) into one of the two before rendering, since CSS
+ *   `prefers-color-scheme` would force one direction without user override. */
+
+:root,
+:root[data-theme='dark'] {
+  /* Backgrounds (translucent on macOS — we approximate with solid here) */
+  --bg: #1e1e1e;
+  --bg-elevated: #2a2a2a;
+  --bg-overlay: rgba(0, 0, 0, 0.55);
+
+  /* Toolbar / sidebar surface — slightly frosted */
+  --panel: rgba(40, 40, 42, 0.78);
+  --panel-solid: #28282a;
+  --panel-soft: rgba(255, 255, 255, 0.05);
+
+  /* Subtle separators (NSColor.separator equivalent) */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Text */
+  --text: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(235, 235, 245, 0.60);
+  --text-dim: rgba(235, 235, 245, 0.30);
+
+  /* Accents (Apple system colors) */
+  --accent: #0a84ff; /* systemBlue dark */
+  --accent-hover: #409cff;
+  --error: #ff453a;
+  --warning: #ffd60a;
+  --ok: #30d158;
+
+  /* Selection */
+  --selection: rgba(10, 132, 255, 0.32);
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro',
+    'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'SF Pro', 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'Menlo', 'JetBrains Mono', 'Cascadia Code',
+    Consolas, monospace;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Shadows (subtle, like Apple) */
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
+
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-elevated: #f5f5f7;
+  --bg-overlay: rgba(0, 0, 0, 0.20);
+
+  --panel: rgba(246, 246, 248, 0.78);
+  --panel-solid: #f6f6f8;
+  --panel-soft: rgba(0, 0, 0, 0.04);
+
+  --border: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.18);
+
+  --text: rgba(0, 0, 0, 0.88);
+  --text-muted: rgba(60, 60, 67, 0.60);
+  --text-dim: rgba(60, 60, 67, 0.30);
+
+  --accent: #007aff; /* systemBlue light */
+  --accent-hover: #0064d2;
+  --error: #ff3b30;
+  --warning: #ff9500;
+  --ok: #34c759;
+
+  --selection: rgba(0, 122, 255, 0.20);
+
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  color-scheme: light;
+}

@@ -1,0 +1,56 @@
+/* Minimal pdf.js text-layer styles, extracted from
+ * pdfjs-dist/web/pdf_viewer.css. We only need the rules that position the
+ * text spans on top of the canvas; the rest of pdf_viewer.css (dialogs,
+ * find-bar UI, page chrome, etc.) is for the full pdfjs viewer and would
+ * inflate our bundle by ~300KB.
+ *
+ * The pdfjs TextLayer class sets per-span inline styles (left/top/font-size,
+ * --scale-factor, etc.) which these rules wire together. Don't edit values
+ * here without testing against pdfjs-dist version updates. */
+
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 0;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role='img'] {
+  user-select: none;
+  cursor: default;
+}

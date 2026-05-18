@@ -337,6 +337,26 @@ fn parse_diags(log: &str) -> Vec<LatexDiag> {
     out
 }
 
+/// Append `extras` (e.g. diagnostics harvested from bibtex/biber) into `base`,
+/// dropping duplicates that already exist in `base`. Order is preserved:
+/// LaTeX-side diagnostics first, then any unique bib-side ones.
+fn merge_diags(mut base: Vec<LatexDiag>, extras: &[LatexDiag]) -> Vec<LatexDiag> {
+    for e in extras {
+        let dup = base.iter().any(|b| {
+            b.kind == e.kind && b.package == e.package && b.message == e.message
+        });
+        if !dup {
+            base.push(LatexDiag {
+                line: e.line,
+                message: e.message.clone(),
+                kind: e.kind,
+                package: e.package.clone(),
+            });
+        }
+    }
+    base
+}
+
 fn strip_known_ext(name: &str) -> String {
     let n = name.trim();
     for ext in [".sty", ".cls", ".bst", ".def", ".cfg", ".fd", ".tfm", ".tex", ".ltx"] {
@@ -571,6 +591,13 @@ pub async fn compile_latex(
     let outdir_arg = format!("-output-directory={}", workdir.display());
 
     let mut log_full = String::new();
+    // Output of the *most recent* LaTeX run only. Errors/warnings are parsed
+    // from this so that stale diagnostics from earlier passes (e.g. "Citation
+    // undefined" before BibTeX has produced .bbl) don't leak into the final
+    // error panel.
+    let mut last_latex_out = String::new();
+    // Diagnostics harvested from bibtex/biber output (kept across runs).
+    let mut bib_diags: Vec<LatexDiag> = Vec::new();
     let mut runs: u32 = 0;
     let max_runs = opts.max_runs.max(1).min(8);
     let mut font_dirs: Vec<PathBuf> = Vec::new();
@@ -640,6 +667,7 @@ pub async fn compile_latex(
             }
         };
         log_full.push_str(&out);
+        last_latex_out = out.clone();
 
         let success = code == 0 && workdir.join(MAIN_PDF).exists();
 
@@ -656,7 +684,17 @@ pub async fn compile_latex(
                         };
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
                         match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs).await {
-                            Ok((_c, bo)) => log_full.push_str(&bo),
+                            Ok((_c, bo)) => {
+                                // Harvest persistent diagnostics from bib runner output
+                                // (e.g. "I couldn't open database file ..."). LaTeX runs
+                                // after this won't reproduce them, so capture here.
+                                for d in parse_diags(&bo) {
+                                    if d.kind == "missing-ref" || d.kind == "missing-file" {
+                                        bib_diags.push(d);
+                                    }
+                                }
+                                log_full.push_str(&bo);
+                            }
                             Err(e) => log_full.push_str(&format!("\n[clavis] {bib_name} failed: {e}\n")),
                         }
                         bib_done = true;
@@ -673,7 +711,7 @@ pub async fn compile_latex(
         if !opts.auto_rerun {
             // Single shot mode: stop after first run regardless of warnings.
             let _ = window.emit("latex-done", serde_json::json!({ "ok": success, "runs": runs }));
-            let errors = parse_diags(&log_full);
+            let errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
             let pdf = if success { read_pdf(&workdir) } else { None };
             return Ok(CompileResult {
                 ok: success && pdf.is_some(),
@@ -698,7 +736,7 @@ pub async fn compile_latex(
     let success = workdir.join(MAIN_PDF).exists();
     let _ = window.emit("latex-done", serde_json::json!({ "ok": success, "runs": runs }));
 
-    let errors = parse_diags(&log_full);
+    let errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
     let pdf = if success { read_pdf(&workdir) } else { None };
     Ok(CompileResult {
         ok: success && pdf.is_some(),

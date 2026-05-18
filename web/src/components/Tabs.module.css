@@ -1,0 +1,91 @@
+.bar {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 4px 4px 0;
+  gap: 2px;
+}
+
+.empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.tab:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.tab.active {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.langTag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  background: var(--panel-soft);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.tab.active .langTag {
+  background: var(--accent);
+  color: #fff;
+}
+
+.title {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dirty {
+  color: var(--accent);
+  font-size: 10px;
+}
+
+.close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.close:hover {
+  background: var(--border);
+  color: var(--text);
+}
