@@ -3,6 +3,7 @@
 
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
+mod bib;
 mod latex;
 mod settings;
 mod typst_world;

@@ -21,6 +21,7 @@ import { SAMPLES } from './samples/samples';
 import { SymbolsPanel } from './components/SymbolsPanel';
 import { RecentMenu } from './components/RecentMenu';
 import { Splitter } from './components/Splitter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import styles from './App.module.css';
 
 // Lazy-loaded — these pull in CodeMirror 6 (~590KB) and pdfjs-dist (~410KB)
@@ -292,11 +293,11 @@ export function App() {
     }
     setStatusText('Auto-compile scheduled…');
     setStatusKind('info');
-    console.info('[auto] scheduled (800ms)');
+    console.info('[auto] scheduled (300ms)');
     autoCompileTimerRef.current = window.setTimeout(() => {
       console.info('[auto] firing compileNow');
       void compileNow();
-    }, 800);
+    }, 300);
     return () => {
       if (autoCompileTimerRef.current) {
         clearTimeout(autoCompileTimerRef.current);
@@ -541,27 +542,31 @@ export function App() {
               style={editorWidth ? { flex: `0 0 ${editorWidth}px` } : undefined}
             >
               <Suspense fallback={<div className={styles.lazyFallback}>Loading editor…</div>}>
-                <EditorPane
-                  onReady={api => {
-                    editorApiRef.current = api;
-                  }}
-                />
+                <ErrorBoundary>
+                  <EditorPane
+                    onReady={api => {
+                      editorApiRef.current = api;
+                    }}
+                  />
+                </ErrorBoundary>
               </Suspense>
             </div>
             <Splitter onDragStart={startEditorDrag} onDrag={dragEditor} onDragEnd={endEditorDrag} />
             <div className={styles.previewPane}>
               <Suspense fallback={<div className={styles.lazyFallback}>Loading preview…</div>}>
-                {lang === 'latex' ? (
-                  <PdfViewer
-                    onSyncTexBackward={(page, x, y) =>
-                      syncTexBackwardFromPdf(page, x, y, line =>
-                        editorApiRef.current?.scrollToLine(line),
-                      )
-                    }
-                  />
-                ) : (
-                  <PreviewPane />
-                )}
+                <ErrorBoundary>
+                  {lang === 'latex' ? (
+                    <PdfViewer
+                      onSyncTexBackward={(page, x, y) =>
+                        syncTexBackwardFromPdf(page, x, y, line =>
+                          editorApiRef.current?.scrollToLine(line),
+                        )
+                      }
+                    />
+                  ) : (
+                    <PreviewPane />
+                  )}
+                </ErrorBoundary>
               </Suspense>
             </div>
           </div>

@@ -48,9 +48,19 @@ export function Tabs({ onCloseTab }: TabsProps) {
         <div
           key={t.id}
           role="tab"
+          tabIndex={t.id === activeTabId ? 0 : -1}
           aria-selected={t.id === activeTabId}
           className={`${styles.tab} ${t.id === activeTabId ? styles.active : ''}`}
           onClick={() => setActive(t.id)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setActive(t.id);
+            } else if (e.key === 'Delete' || (e.key === 'w' && (e.ctrlKey || e.metaKey))) {
+              e.preventDefault();
+              onClose(e as unknown as React.MouseEvent, t.id);
+            }
+          }}
           title={t.filePath ?? '(unsaved)'}
         >
           <span className={styles.langTag}>{LANG_LABEL[t.lang]}</span>

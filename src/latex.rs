@@ -413,11 +413,12 @@ async fn run_streaming(
             os_font_dir_parts.push(dir.clone());
         }
     }
+    let sep = if cfg!(windows) { ";" } else { ":" };
     let os_font_dir = os_font_dir_parts
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
         .collect::<Vec<_>>()
-        .join(":" );
+        .join(sep);
     cmd.args(args)
         .current_dir(cwd)
         .env("PATH", enriched_path())
@@ -435,20 +436,22 @@ async fn run_streaming(
     let mut combined = String::new();
 
     // Stream stdout
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(&'static str, String)>();
+    // Bounded channel: senders await when receiver falls behind so a chatty
+    // engine (thousands of log lines) can't balloon RSS.
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(&'static str, String)>(1024);
     let tx2 = tx.clone();
     tokio::spawn(async move {
         let mut r = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = r.next_line().await {
             let _ = win_out.emit("latex-log", LogLine { run: run_idx, stream: "stdout", text: line.clone() });
-            let _ = tx.send(("stdout", line));
+            if tx.send(("stdout", line)).await.is_err() { break; }
         }
     });
     tokio::spawn(async move {
         let mut r = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = r.next_line().await {
             let _ = win_err.emit("latex-log", LogLine { run: run_idx, stream: "stderr", text: line.clone() });
-            let _ = tx2.send(("stderr", line));
+            if tx2.send(("stderr", line)).await.is_err() { break; }
         }
     });
 
@@ -840,7 +843,19 @@ pub fn export_latex_pdf(
     if !src.exists() {
         return Err("main.pdf not found — compile may have failed".to_string());
     }
-    std::fs::copy(&src, &target_path).map_err(|e| format!("copy failed: {e}"))?;
+    let target = std::path::PathBuf::from(&target_path);
+    if !target.is_absolute() {
+        return Err("target_path must be absolute".to_string());
+    }
+    // Reject writes into the compile workdir; that dir is auto-cleaned.
+    if let Ok(canon_target_parent) = target.parent().ok_or(())
+        .and_then(|p| std::fs::canonicalize(p).map_err(|_| ()))
+    {
+        if canon_target_parent.starts_with(dir.path()) {
+            return Err("cannot export into the compile workdir".to_string());
+        }
+    }
+    std::fs::copy(&src, &target).map_err(|e| format!("copy failed: {e}"))?;
     Ok(())
 }
 
@@ -1399,150 +1414,9 @@ fn write_local_cjk_font_shim(workdir: &Path, source: &str, has_local_fonts: bool
 
 
 // ---------------- BibTeX entry parsing ----------------
+// Parser lives in `crate::bib`; this thin command just forwards.
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BibEntry {
-    pub key: String,
-    pub entry_type: String,
-    pub title: Option<String>,
-    pub author: Option<String>,
-    pub year: Option<String>,
-    pub source_file: String,
-    pub source_line: u32,
-}
-
-/// Parse a list of .bib files and return all entries.
-/// Lightweight (no nom-bibtex): recognises @type{key, field = {...} | "...", ...}.
 #[tauri::command]
-pub fn parse_bib(bib_paths: Vec<String>) -> Vec<BibEntry> {
-    let mut out = Vec::new();
-    for path in bib_paths {
-        let Ok(text) = std::fs::read_to_string(&path) else { continue };
-        parse_bib_text(&text, &path, &mut out);
-    }
-    out
-}
-
-fn parse_bib_text(text: &str, source: &str, out: &mut Vec<BibEntry>) {
-    let bytes = text.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        // Find next '@'
-        while i < bytes.len() && bytes[i] != b'@' { i += 1; }
-        if i >= bytes.len() { break; }
-        let entry_start = i;
-        i += 1;
-        // entry type (letters)
-        let type_start = i;
-        while i < bytes.len() && (bytes[i] as char).is_ascii_alphabetic() { i += 1; }
-        let entry_type = std::str::from_utf8(&bytes[type_start..i]).unwrap_or("").to_ascii_lowercase();
-        if entry_type.is_empty() || matches!(entry_type.as_str(), "comment" | "preamble" | "string") {
-            continue;
-        }
-        // skip ws + '{'
-        while i < bytes.len() && (bytes[i] as char).is_whitespace() { i += 1; }
-        if i >= bytes.len() || bytes[i] != b'{' { continue; }
-        i += 1;
-        // citation key — up to first ',' or '}'
-        let key_start = i;
-        while i < bytes.len() && bytes[i] != b',' && bytes[i] != b'}' && bytes[i] != b'\n' {
-            i += 1;
-        }
-        let key = std::str::from_utf8(&bytes[key_start..i]).unwrap_or("").trim().to_string();
-        if key.is_empty() { continue; }
-        // line number of '@'
-        let source_line = (text[..entry_start].bytes().filter(|&b| b == b'\n').count() as u32) + 1;
-        // Collect body up to matching '}'
-        let body_start = i;
-        let mut depth = 1i32;
-        while i < bytes.len() && depth > 0 {
-            match bytes[i] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                _ => {}
-            }
-            i += 1;
-        }
-        if depth != 0 { continue; }
-        let body = &text[body_start..(i - 1)];
-        let title = extract_field(body, "title");
-        let author = extract_field(body, "author");
-        let year = extract_field(body, "year").or_else(|| extract_field(body, "date"));
-        out.push(BibEntry {
-            key,
-            entry_type,
-            title,
-            author,
-            year,
-            source_file: source.to_string(),
-            source_line,
-        });
-    }
-}
-
-/// Extract a single field value. Handles `field = {value}` or `field = "value"`.
-fn extract_field(body: &str, name: &str) -> Option<String> {
-    let lower = body.to_ascii_lowercase();
-    let needle_eq = format!("{name}");
-    // Find name followed (after optional ws) by '='.
-    let mut search_from = 0usize;
-    loop {
-        let idx = lower[search_from..].find(&needle_eq)?;
-        let pos = search_from + idx;
-        // Must be at start of body or preceded by non-alphanumeric (so "subtitle" doesn't match "title").
-        let prev_ok = pos == 0 || !body.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        let after = pos + needle_eq.len();
-        // Must be followed by optional ws then '='.
-        let mut j = after;
-        while j < body.len() && body.as_bytes()[j].is_ascii_whitespace() { j += 1; }
-        if prev_ok && j < body.len() && body.as_bytes()[j] == b'=' {
-            j += 1;
-            while j < body.len() && body.as_bytes()[j].is_ascii_whitespace() { j += 1; }
-            return Some(read_brace_or_quoted(body, j));
-        }
-        search_from = pos + needle_eq.len();
-        if search_from >= lower.len() { return None; }
-    }
-}
-
-fn read_brace_or_quoted(body: &str, start: usize) -> String {
-    let bytes = body.as_bytes();
-    if start >= bytes.len() { return String::new(); }
-    match bytes[start] {
-        b'{' => {
-            let mut depth = 1i32;
-            let mut i = start + 1;
-            while i < bytes.len() && depth > 0 {
-                match bytes[i] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                if depth == 0 { break; }
-                i += 1;
-            }
-            clean_value(&body[(start + 1)..i])
-        }
-        b'"' => {
-            let mut i = start + 1;
-            while i < bytes.len() && bytes[i] != b'"' { i += 1; }
-            clean_value(&body[(start + 1)..i])
-        }
-        _ => {
-            // bare value (number/word)
-            let mut i = start;
-            while i < bytes.len() && bytes[i] != b',' && bytes[i] != b'}' && bytes[i] != b'\n' {
-                i += 1;
-            }
-            clean_value(body[start..i].trim())
-        }
-    }
-}
-
-fn clean_value(s: &str) -> String {
-    // Drop redundant {...} braces, collapse whitespace.
-    let trimmed = s.trim();
-    let stripped = trimmed.trim_matches(|c| c == '{' || c == '}');
-    stripped.split_whitespace().collect::<Vec<_>>().join(" ")
+pub fn parse_bib(bib_paths: Vec<String>) -> Vec<crate::bib::BibEntry> {
+    crate::bib::parse_bib_files(bib_paths)
 }

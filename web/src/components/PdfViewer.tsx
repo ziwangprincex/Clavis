@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { TextLayer } from 'pdfjs-dist';
 import { ensurePdfjs } from '../pdf/pdfjs';
 import { usePdfStore, useSettingsStore } from '../store';
 // We import a minimal subset of pdfjs's textLayer CSS — see ../pdf/textLayer.css.
@@ -199,9 +200,12 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     const doc = docRef.current;
     if (!container || !doc) return;
     const seq = ++renderSeqRef.current;
+    // Preserve scroll so recompiles don't yank the user back to page 1.
+    const savedScrollTop = container.scrollTop;
+    const savedScrollLeft = container.scrollLeft;
     container.innerHTML = '';
     const dpr = window.devicePixelRatio || 1;
-    const pdfjs = ensurePdfjs();
+    ensurePdfjs();
 
     // Phase 1: lay out empty page placeholders sized to each page's viewport.
     // We need true sizes for correct scroll height & IntersectionObserver math,
@@ -263,7 +267,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
 
         try {
           const textContent = await page.getTextContent();
-          const tl = new (pdfjs as unknown as { TextLayer: new (opts: unknown) => { render: () => Promise<void> } }).TextLayer({
+          const tl = new TextLayer({
             textContentSource: textContent,
             container: textLayerDiv,
             viewport,
@@ -321,6 +325,23 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     for (const p of pages) observer.observe(p.wrap);
     observerRef.current?.disconnect();
     observerRef.current = observer;
+    // Restore scroll now that layout is committed. Clamp so we don't overshoot
+    // when a shorter document replaced a longer one.
+    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    container.scrollTop = Math.min(savedScrollTop, maxTop);
+    container.scrollLeft = savedScrollLeft;
+    // Fast path: paint the page under the current scroll position immediately
+    // rather than waiting for the observer's next microtask. Cuts perceived
+    // compile→visible latency by ~1 frame on recompile.
+    const probeY = container.scrollTop + container.clientHeight / 3;
+    for (const p of pages) {
+      const top = p.wrap.offsetTop;
+      const bot = top + p.wrap.offsetHeight;
+      if (probeY >= top && probeY < bot) {
+        void paint(p.index, p.wrap, p.viewport);
+        break;
+      }
+    }
   }, [zoom, findQuery, applyHighlights]);
 
   function onScroll() {

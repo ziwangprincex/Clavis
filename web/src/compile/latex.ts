@@ -21,9 +21,17 @@ function base64ToBytes(b64: string): Uint8Array {
 }
 
 let inFlight = false;
+let pendingRerun = false;
 
 export async function runLatexCompile(): Promise<CompileResult | null> {
-  if (inFlight) return null;
+  // Coalesce: if a compile is already running, mark that a fresh run is wanted
+  // and return. When the current run finishes, it re-invokes itself once with
+  // the latest content. This turns "typed while compiling → dropped" into
+  // "typed while compiling → one more compile with the newest text".
+  if (inFlight) {
+    pendingRerun = true;
+    return null;
+  }
   inFlight = true;
 
   const tabs = useTabsStore.getState();
@@ -35,6 +43,7 @@ export async function runLatexCompile(): Promise<CompileResult | null> {
   const tab = tabs.tabs.find(t => t.id === tabs.activeTabId);
   if (!tab || tab.lang !== 'latex') {
     inFlight = false;
+    pendingRerun = false;
     return null;
   }
 
@@ -111,5 +120,12 @@ export async function runLatexCompile(): Promise<CompileResult | null> {
     offLog();
     offRun();
     inFlight = false;
+    // If new content arrived mid-flight, run once more with the latest text.
+    if (pendingRerun) {
+      pendingRerun = false;
+      // Fire-and-forget: caller of the outer invocation already received its
+      // result; this second run pushes the fresh PDF into the store when done.
+      void runLatexCompile();
+    }
   }
 }

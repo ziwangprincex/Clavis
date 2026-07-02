@@ -29,7 +29,7 @@ export function OutlineSection({ onJumpToLine }: OutlineSectionProps) {
     <ul className={styles.list}>
       {items.map((item, i) => (
         <li
-          key={i}
+          key={`${item.line}-${item.level}-${i}`}
           className={styles.item}
           style={{ paddingLeft: 8 + item.level * 12 }}
           onClick={() => onJumpToLine?.(item.line)}

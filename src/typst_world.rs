@@ -114,8 +114,9 @@ impl SimpleWorld {
     pub fn set_source(&mut self, text: String) {
         let src = Source::new(self.main_id, text);
         self.sources.insert(self.main_id, src);
-        // Reset memoization so changed source actually re-evaluates
-        comemo::evict(0);
+        // Advance memoization one generation so stale entries eventually drop
+        // without wiping the whole cache (which would defeat incremental compile).
+        comemo::evict(30);
     }
 }
 
