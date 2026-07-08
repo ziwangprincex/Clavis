@@ -277,25 +277,17 @@ export function App() {
   // tabs are inserted at boot — only edits / tab switches should trigger.
   const autoCompileSkipFirstRef = useRef(true);
   useEffect(() => {
-    if (!autoCompile) {
-      console.info('[auto] disabled');
-      return;
-    }
+    if (!autoCompile) return;
     if (lang !== 'latex') return;
     if (!activeTab) return;
     if (autoCompileSkipFirstRef.current) {
       autoCompileSkipFirstRef.current = false;
-      console.info('[auto] skipping first run after mount');
       return;
     }
     if (autoCompileTimerRef.current) {
       clearTimeout(autoCompileTimerRef.current);
     }
-    setStatusText('Auto-compile scheduled…');
-    setStatusKind('info');
-    console.info('[auto] scheduled (300ms)');
     autoCompileTimerRef.current = window.setTimeout(() => {
-      console.info('[auto] firing compileNow');
       void compileNow();
     }, 300);
     return () => {
@@ -326,6 +318,37 @@ export function App() {
       }
     } catch (e) {
       console.error('export PDF failed', e);
+      setStatusText('Export failed');
+      setStatusKind('error');
+    }
+  }
+
+  async function exportTypstPdf() {
+    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+    if (!tab || tab.lang !== 'typst') return;
+    try {
+      setStatusText('Compiling PDF…');
+      setStatusKind('info');
+      const r = await ipc.compileTypstPdf(tab.content);
+      if (!r.ok || !r.pdfBase64) {
+        setStatusText(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed');
+        setStatusKind('error');
+        return;
+      }
+      const target = await dialogSave({
+        defaultPath: tab.filePath ? tab.filePath.replace(/\.typ$/i, '.pdf') : undefined,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (typeof target === 'string') {
+        await ipc.saveBinaryFile(target, r.pdfBase64);
+        setStatusText('PDF exported');
+        setStatusKind('ok');
+      } else {
+        setStatusText('Ready');
+        setStatusKind('info');
+      }
+    } catch (e) {
+      console.error('export Typst PDF failed', e);
       setStatusText('Export failed');
       setStatusKind('error');
     }
@@ -442,6 +465,13 @@ export function App() {
         run: exportLatexPdf,
       }),
       reg({
+        id: 'typst.exportPdf',
+        name: 'Export PDF (Typst)',
+        shortcut: 'Ctrl+Shift+E',
+        when: () => lang === 'typst',
+        run: exportTypstPdf,
+      }),
+      reg({
         id: 'latex.setMain',
         name: 'Set current file as project main',
         when: () => lang === 'latex' && !!useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath,
@@ -480,6 +510,7 @@ export function App() {
       } else if (mod && e.shiftKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         if (lang === 'latex') void exportLatexPdf();
+        else if (lang === 'typst') void exportTypstPdf();
       }
     }
     window.addEventListener('keydown', onKey);
@@ -500,6 +531,7 @@ export function App() {
         onSynctexForward={() => syncTexForwardFromEditor(editorApiRef.current?.cursorLine() ?? 1)}
         onSetMain={setProjectMain}
         onExportLatexPdf={exportLatexPdf}
+        onExportTypstPdf={exportTypstPdf}
         onOpenFile={openFileDialog}
         onOpenFolder={openFolder}
         onSave={() => saveActiveTab()}

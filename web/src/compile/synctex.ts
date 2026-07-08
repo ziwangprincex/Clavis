@@ -21,7 +21,7 @@ export async function syncTexForwardFromEditor(line: number): Promise<SyncTexFor
   if (!tab?.latexWorkdirToken) return null;
   try {
     const r = (await ipc.synctexForward(tab.latexWorkdirToken, line, 0)) as SyncTexForwardResult;
-    if (r?.page) usePdfStore.getState().setCurrentPage(r.page);
+    if (r?.page) usePdfStore.getState().requestScroll(r.page, r.y ?? null);
     return r;
   } catch (e) {
     console.error('synctex forward failed', e);

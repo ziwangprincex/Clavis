@@ -18,6 +18,9 @@
 
 .title {
   font-weight: 600;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 .errCount {

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
 import { ensurePdfjs } from '../pdf/pdfjs';
+import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore } from '../store';
 // We import a minimal subset of pdfjs's textLayer CSS — see ../pdf/textLayer.css.
 import '../pdf/textLayer.css';
@@ -33,6 +34,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
   const setCurrentPage = usePdfStore(s => s.setCurrentPage);
   const numPages = usePdfStore(s => s.numPages);
   const currentPage = usePdfStore(s => s.currentPage);
+  const scrollRequest = usePdfStore(s => s.scrollRequest);
 
   const pdfBg = useSettingsStore(s => s.settings.pdf_bg_color);
   const pdfDarkMode = useSettingsStore(s => s.settings.pdf_dark_mode);
@@ -344,6 +346,22 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     }
   }, [zoom, findQuery, applyHighlights]);
 
+  // Honor external scroll requests (forward SyncTeX: editor line → PDF spot).
+  useEffect(() => {
+    if (!scrollRequest) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const wrap = container.querySelector<HTMLDivElement>(
+      `.${styles.page}[data-page="${scrollRequest.page}"]`,
+    );
+    if (!wrap) return;
+    // SyncTeX y is in PDF points (72 dpi); page DOM is CSS px (96 dpi) × zoom.
+    const yPx = scrollRequest.y != null ? scrollRequest.y * zoom * (96 / 72) : 0;
+    container.scrollTop = Math.max(0, wrap.offsetTop + yPx - container.clientHeight / 3);
+    setCurrentPage(scrollRequest.page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollRequest]);
+
   function onScroll() {
     const container = containerRef.current;
     const doc = docRef.current;
@@ -381,7 +399,9 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const page = Number(wrap.dataset.page) || 1;
-    onSyncTexBackward(page, x / zoom, y / zoom);
+    // SyncTeX expects PDF points (72 dpi); page CSS pixels are 96 dpi × zoom.
+    const cssToPt = 72 / 96;
+    onSyncTexBackward(page, (x / zoom) * cssToPt, (y / zoom) * cssToPt);
   }
 
   function scrollToPage(n: number) {
@@ -453,7 +473,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
         <button className={styles.btn} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
           −
         </button>
-        <span className={styles.info}>{Math.round((zoom * 100) / 1.5)}%</span>
+        <span className={styles.info}>{Math.round(zoom * 100)}%</span>
         <button className={styles.btn} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
           +
         </button>
@@ -464,7 +484,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           disabled={!bytes}
           title="Find in PDF (Ctrl+F)"
         >
-          🔍
+          <IconSearch size={13} />
         </button>
       </div>
 
@@ -520,11 +540,11 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
         </div>
       )}
 
-      {error ? (
-        <div className={styles.error}>{error}</div>
-      ) : !bytes ? (
-        <div className={styles.empty}>(no PDF — compile to render)</div>
-      ) : (
+      {/* The scroll container must stay mounted even while an error or the
+        * empty state is showing — renderAll() writes into containerRef, and a
+        * remount between a failed load and the next successful one would leave
+        * the viewer permanently blank. Overlays sit on top instead. */}
+      <div className={styles.body}>
         <div
           ref={containerRef}
           className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
@@ -533,7 +553,16 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           onWheel={onWheel}
           onClick={onPageClick}
         />
-      )}
+        {error ? (
+          <div className={styles.overlay}>
+            <div className={styles.error}>{error}</div>
+          </div>
+        ) : !bytes ? (
+          <div className={styles.overlay}>
+            <div className={styles.empty}>(no PDF — compile to render)</div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

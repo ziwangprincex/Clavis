@@ -42,6 +42,12 @@ pub struct Settings {
     pub pane_sidebar_width: u32,
     #[serde(default)]
     pub pane_editor_width: u32,
+    /// Frontend-owned settings this struct doesn't model explicitly
+    /// (ui_theme, ui_font_*, pdf_bg_color, editor_tab_size, …). Without this
+    /// catch-all, serde would silently drop them on save and every UI
+    /// preference would reset on restart.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 fn default_engine() -> String { "pdflatex".to_string() }
@@ -74,6 +80,7 @@ impl Default for Settings {
             recent_files: Vec::new(),
             pane_sidebar_width: 0,
             pane_editor_width: 0,
+            extra: serde_json::Map::new(),
         }
     }
 }

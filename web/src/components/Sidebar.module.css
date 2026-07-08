@@ -7,10 +7,12 @@
   font-size: 12px;
   min-width: 200px;
   width: 240px;
+  padding: 6px 6px 12px;
+  gap: 2px;
 }
 
 .section {
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
 }
 
 .sectionHeader {
@@ -18,22 +20,23 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 6px 12px;
+  padding: 7px 12px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-family: var(--font-sans);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  letter-spacing: 0.01em;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
+  border-radius: 6px;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .sectionHeader:hover {
   background: var(--panel-soft);
+  color: var(--text);
 }
 
 .caret {

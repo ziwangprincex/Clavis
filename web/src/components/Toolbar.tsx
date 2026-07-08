@@ -1,11 +1,24 @@
-// Toolbar — header strip with language switcher, LaTeX/Typst-specific
-// controls, and global file/settings buttons.
+// Toolbar — macOS-style unified title bar: language segmented control,
+// contextual compile controls, icon buttons, and a status capsule.
 //
-// Behaviour-wise this is the legacy <header class="toolbar"> in
-// ui-legacy/index.html lines ~22-65 — but driven by props rather than DOM ids,
-// so different tabs can swap their language without the toolbar caring.
+// The whole strip is a Tauri drag region (window can be moved by grabbing
+// empty space); every interactive control opts out via CSS
+// `-webkit-app-region: no-drag` on its class.
 
 import type { Lang } from '../store';
+import {
+  IconClock,
+  IconCommand,
+  IconDoc,
+  IconExport,
+  IconFolder,
+  IconGear,
+  IconPin,
+  IconPlay,
+  IconSave,
+  IconSigma,
+  IconTarget,
+} from './icons';
 import styles from './Toolbar.module.css';
 
 export interface ToolbarProps {
@@ -36,110 +49,155 @@ export interface ToolbarProps {
   statusMeta?: string;
 }
 
+const LANGS: { value: Lang; label: string }[] = [
+  { value: 'markdown', label: 'Markdown' },
+  { value: 'latex', label: 'LaTeX' },
+  { value: 'typst', label: 'Typst' },
+];
+
 export function Toolbar(props: ToolbarProps) {
   const { lang, onLangChange } = props;
 
   return (
     <header className={styles.toolbar} data-tauri-drag-region>
-      <div className={styles.brand} data-tauri-drag-region>Clavis</div>
+      <div className={styles.brand} data-tauri-drag-region>
+        Clavis
+      </div>
 
-      <div className={styles.langSwitch} data-tauri-drag-region>
-        <label>Language:</label>
-        <select value={lang} onChange={e => onLangChange(e.target.value as Lang)}>
-          <option value="markdown">Markdown</option>
-          <option value="latex">LaTeX</option>
-          <option value="typst">Typst</option>
-        </select>
+      {/* Language switcher — macOS segmented control */}
+      <div className={styles.segmented} role="tablist" aria-label="Language">
+        {LANGS.map(l => (
+          <button
+            key={l.value}
+            role="tab"
+            aria-selected={lang === l.value}
+            className={`${styles.segment} ${lang === l.value ? styles.segmentActive : ''}`}
+            onClick={() => onLangChange(l.value)}
+          >
+            {l.label}
+          </button>
+        ))}
       </div>
 
       {lang === 'latex' && (
-        <div className={styles.latexControls}>
-          <label className={styles.muted}>Engine:</label>
+        <div className={styles.group}>
           <select
+            className={styles.select}
             value={props.latexEngine ?? 'pdflatex'}
             onChange={e => props.onLatexEngineChange?.(e.target.value)}
+            title="LaTeX engine"
           >
             <option value="pdflatex">pdflatex</option>
             <option value="xelatex">xelatex</option>
             <option value="lualatex">lualatex</option>
           </select>
-          <button className={styles.btn} onClick={props.onCompile} title="Compile (Ctrl+B)">
-            Compile
+
+          <button className={styles.primaryBtn} onClick={props.onCompile} title="Compile (⌘B)">
+            <IconPlay size={12} />
+            <span>Compile</span>
           </button>
-          <label className={styles.checkbox}>
-            <input
-              type="checkbox"
-              checked={props.autoCompile ?? false}
-              onChange={e => props.onAutoCompileChange?.(e.target.checked)}
-            />
-            Auto
+
+          <label className={styles.switchWrap} title="Recompile automatically while typing">
+            <span
+              className={`${styles.switch} ${props.autoCompile ? styles.switchOn : ''}`}
+              role="switch"
+              aria-checked={props.autoCompile ?? false}
+              tabIndex={0}
+              onClick={() => props.onAutoCompileChange?.(!props.autoCompile)}
+              onKeyDown={e => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  props.onAutoCompileChange?.(!props.autoCompile);
+                }
+              }}
+            >
+              <span className={styles.knob} />
+            </span>
+            <span className={styles.switchLabel}>Auto</span>
           </label>
+
+          <span className={styles.divider} />
+
           <button
-            className={styles.btn}
+            className={styles.iconBtn}
             onClick={props.onSynctexForward}
-            title="Jump to PDF (Ctrl+Alt+J)"
+            title="Jump to PDF (⌘⌥J)"
           >
-            →PDF
+            <IconTarget />
           </button>
           <button
-            className={styles.btn}
+            className={styles.iconBtn}
             onClick={props.onSetMain}
             title="Set current file as project main"
           >
-            Set main
+            <IconPin />
           </button>
           <button
-            className={styles.btn}
+            className={styles.iconBtn}
             onClick={props.onExportLatexPdf}
-            title="Export compiled PDF (Ctrl+Shift+E)"
+            title="Export compiled PDF (⌘⇧E)"
           >
-            Export PDF
+            <IconExport />
           </button>
         </div>
       )}
 
       {lang === 'typst' && (
-        <div className={styles.typstControls}>
+        <div className={styles.group}>
           <button
-            className={styles.btn}
+            className={styles.iconBtn}
             onClick={props.onExportTypstPdf}
-            title="Export PDF (Ctrl+Shift+E)"
+            title="Export PDF (⌘⇧E)"
           >
-            Export PDF
+            <IconExport />
           </button>
         </div>
       )}
 
-      <button className={styles.btn} onClick={props.onOpenFile} title="Open file (Ctrl+O)">
-        Open
-      </button>
-      <button className={styles.btn} onClick={props.onOpenFolder} title="Open folder (Ctrl+Shift+O)">
-        Open folder
-      </button>
-      <button className={styles.btn} onClick={props.onToggleRecent} title="Recent files">
-        Recent ▾
-      </button>
-      <button className={styles.btn} onClick={props.onSave} title="Save (Ctrl+S)">
-        Save
-      </button>
-      <button className={styles.btn} onClick={props.onToggleSymbols} title="Math symbols">
-        ∑
-      </button>
-      <button
-        className={styles.btn}
-        onClick={props.onOpenCommandPalette}
-        title="Command palette (Ctrl+Shift+P)"
-      >
-        ⌘P
-      </button>
-      <button className={styles.btn} onClick={props.onOpenSettings} title="Settings">
-        Settings
-      </button>
+      <div className={styles.spacer} data-tauri-drag-region />
 
-      <div className={`${styles.status} ${props.statusKind ? styles[props.statusKind] : ''}`} data-tauri-drag-region>
-        {props.status ?? 'Ready'}
+      <div
+        className={`${styles.statusCapsule} ${props.statusKind ? styles[props.statusKind] : ''}`}
+        data-tauri-drag-region
+      >
+        <span className={styles.statusDot} />
+        <span className={styles.statusText}>{props.status ?? 'Ready'}</span>
+        {props.statusMeta && <span className={styles.statusMeta}>{props.statusMeta}</span>}
       </div>
-      {props.statusMeta && <div className={styles.statusMeta} data-tauri-drag-region>{props.statusMeta}</div>}
+
+      <span className={styles.divider} />
+
+      <div className={styles.group}>
+        <button className={styles.iconBtn} onClick={props.onOpenFile} title="Open file (⌘O)">
+          <IconDoc />
+        </button>
+        <button
+          className={styles.iconBtn}
+          onClick={props.onOpenFolder}
+          title="Open folder (⌘⇧O)"
+        >
+          <IconFolder />
+        </button>
+        <button className={styles.iconBtn} onClick={props.onToggleRecent} title="Recent files">
+          <IconClock />
+        </button>
+        <button className={styles.iconBtn} onClick={props.onSave} title="Save (⌘S)">
+          <IconSave />
+        </button>
+        <button className={styles.iconBtn} onClick={props.onToggleSymbols} title="Math symbols">
+          <IconSigma />
+        </button>
+        <button
+          className={styles.iconBtn}
+          onClick={props.onOpenCommandPalette}
+          title="Command palette (⌘⇧P)"
+        >
+          <IconCommand />
+        </button>
+        <button className={styles.iconBtn} onClick={props.onOpenSettings} title="Settings">
+          <IconGear />
+        </button>
+      </div>
     </header>
   );
 }

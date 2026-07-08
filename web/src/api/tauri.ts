@@ -203,6 +203,8 @@ export const ipc = {
 
   // --- Filesystem ---
   scanFolderShallow: (root: string) => invoke<TreeNode>('scan_folder_shallow', { root }),
+  saveBinaryFile: (path: string, base64: string) =>
+    invoke<void>('save_binary_file', { path, base64 }),
 };
 
 // ---------- Event helpers ----------

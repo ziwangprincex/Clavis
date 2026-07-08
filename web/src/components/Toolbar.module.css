@@ -1,19 +1,21 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
+  gap: 8px;
+  padding: 0 12px;
+  height: 46px;
+  flex: 0 0 46px;
   background: var(--panel);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
   user-select: none;
   -webkit-app-region: drag;
-  min-height: 38px;
 }
 
+/* Leave room for the macOS traffic lights (title bar is overlaid). */
 :global(.is-mac) .toolbar {
-  padding-left: 78px;
+  padding-left: 84px;
 }
 
 .brand {
@@ -21,82 +23,234 @@
   font-weight: 600;
   font-size: 13px;
   color: var(--text);
-  margin: 0 8px 0 4px;
+  margin-right: 4px;
   letter-spacing: -0.01em;
 }
 
-.langSwitch,
-.latexControls,
-.typstControls {
+.spacer {
+  flex: 1;
+  align-self: stretch;
+}
+
+.group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.langSwitch label,
-.latexControls label,
-.muted {
+.divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+  margin: 0 4px;
+}
+
+/* ---- Segmented control (language switcher) ---- */
+
+.segmented {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  background: var(--panel-soft);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 1px;
+}
+
+.segment {
+  border: none;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 3px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.checkbox {
+.segment:hover {
+  color: var(--text);
+}
+
+.segmentActive {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-theme='light'] .segmentActive,
+:global([data-theme='light']) .segmentActive {
+  background: #ffffff;
+}
+
+/* ---- Buttons ---- */
+
+.iconBtn {
+  -webkit-app-region: no-drag;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  background: transparent;
   color: var(--text-muted);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.btn {
-  -webkit-app-region: no-drag;
+.iconBtn:hover {
   background: var(--panel-soft);
   color: var(--text);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 3px 9px;
-  font-size: 12px;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-.btn:hover {
+.iconBtn:active {
   background: var(--border);
 }
 
-.btn:active {
-  background: var(--border-strong);
+.primaryBtn {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.12s ease, transform 0.06s ease;
 }
 
-.toolbar select,
-.toolbar input[type='checkbox'] {
+.primaryBtn:hover {
+  background: var(--accent-hover);
+}
+
+.primaryBtn:active {
+  transform: scale(0.97);
+}
+
+/* ---- Compact select ---- */
+
+.select {
   -webkit-app-region: no-drag;
-  background: var(--bg);
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--panel-soft);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  font-size: 11px;
+  border-radius: 6px;
+  padding: 3px 22px 3px 9px;
+  font-size: 12px;
   font-family: var(--font-sans);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
 }
 
-.toolbar input[type='checkbox'] {
-  accent-color: var(--accent);
+.select:hover {
+  border-color: var(--border-strong);
 }
 
-.status {
-  margin-left: auto;
+/* ---- macOS toggle switch ---- */
+
+.switchWrap {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.switch {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--border-strong);
+  transition: background-color 0.18s ease;
+  flex: none;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.switchOn {
+  background: var(--ok);
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.18s ease;
+}
+
+.switchOn .knob {
+  transform: translateX(12px);
+}
+
+.switchLabel {
   font-size: 11px;
   color: var(--text-muted);
-  -webkit-app-region: no-drag;
 }
 
-.status.ok {
+/* ---- Status capsule ---- */
+
+.statusCapsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--panel-soft);
+  max-width: 320px;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex: none;
+  transition: background-color 0.2s ease;
+}
+
+.statusCapsule.ok .statusDot {
+  background: var(--ok);
+}
+
+.statusCapsule.error .statusDot {
+  background: var(--error);
+}
+
+.statusText {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusCapsule.ok .statusText {
   color: var(--ok);
 }
 
-.status.error {
+.statusCapsule.error .statusText {
   color: var(--error);
 }
 

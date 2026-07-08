@@ -140,10 +140,23 @@ fn scan_folder(root: String) -> Result<TreeNode, String> {
         node
     }
     fn skip_name(name: &str) -> bool {
-        let _ = name;
-        false
+        matches!(
+            name,
+            "node_modules" | ".git" | ".svn" | ".hg" | ".DS_Store" | "__pycache__"
+        )
     }
     Ok(walk(root_path, 0, &mut counter, MAX_NODES, MAX_DEPTH))
+}
+
+/// Write base64-encoded bytes to an arbitrary path the user picked in a save
+/// dialog. Used by the Typst "Export PDF" flow, which gets its bytes from
+/// `compile_typst_pdf` rather than a workdir on disk.
+#[tauri::command]
+fn save_binary_file(path: String, base64: String) -> Result<(), String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64.as_bytes())
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())
 }
 
 /// Scan only the current folder level so the UI can lazy-load children on demand.
@@ -221,6 +234,7 @@ fn main() {
             list_typst_fonts,
             scan_folder,
             scan_folder_shallow,
+            save_binary_file,
             latex::compile_latex,
             latex::synctex_forward,
             latex::synctex_backward,

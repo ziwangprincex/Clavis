@@ -71,7 +71,7 @@ macOS 的一键构建脚本见 [`BUILD_MACOS.md`](BUILD_MACOS.md)。
 - LaTeX 推荐使用 XeLaTeX（对中文和自定义字体支持最好）
 - 如果项目里有本地字体或资源，Clavis 会一并打包到临时编译目录
 - 命令面板：`Ctrl+Shift+P`（macOS: `Cmd+Shift+P`）
-- 编译：`Ctrl+R`
+- 编译：`Ctrl+B`（macOS: `Cmd+B`）
 
 ## 说明
 
