@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { hasTauri, dialogOpen, dialogSave, events } from './api/tauri';
+import { hasTauri, dialogOpen, dialogSave, dialogConfirm, events } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
@@ -16,6 +16,12 @@ import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab } from './files/files';
+import {
+  restoreSession,
+  scheduleSessionSave,
+  flushSessionSave,
+  syncAutosaveInterval,
+} from './files/session';
 import { ipc } from './api/tauri';
 import { SAMPLES } from './samples/samples';
 import { SymbolsPanel } from './components/SymbolsPanel';
@@ -178,11 +184,13 @@ export function App() {
     settings.ui_color_overrides,
   ]);
 
-  // Boot: load persisted settings, seed three sample tabs (one per language)
-  // so the UI is not empty on first launch.
+  // Boot: load persisted settings, then restore the previous session (crash
+  // recovery). Only if there's nothing to restore do we seed sample tabs.
   useEffect(() => {
     if (hasTauri()) loadSettings();
-    if (useTabsStore.getState().tabs.length === 0) {
+    if (useTabsStore.getState().tabs.length > 0) return;
+
+    function seedSampleTabs() {
       const mdId = newTabId();
       const texId = newTabId();
       const typId = newTabId();
@@ -215,7 +223,32 @@ export function App() {
       });
       seedTabs.setActive(mdId);
     }
+
+    void (async () => {
+      const restored = hasTauri() ? await restoreSession() : false;
+      if (!restored && useTabsStore.getState().tabs.length === 0) {
+        seedSampleTabs();
+      }
+    })();
   }, [loadSettings, addTab]);
+
+  // Persist the session (debounced) whenever tabs change, and flush on unload
+  // so an OS-level close doesn't lose the last few edits.
+  useEffect(() => {
+    if (!hasTauri()) return;
+    const unsub = useTabsStore.subscribe(() => scheduleSessionSave());
+    const onBeforeUnload = () => flushSessionSave();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      unsub();
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, []);
+
+  // Start/stop the disk-autosave interval when the setting changes.
+  useEffect(() => {
+    syncAutosaveInterval();
+  }, [settings.autosave_enabled]);
 
   // Subscribe to OS file-drop so dropping a file/folder on the window opens it.
   useEffect(() => {
@@ -329,7 +362,7 @@ export function App() {
     try {
       setStatusText('Compiling PDF…');
       setStatusKind('info');
-      const r = await ipc.compileTypstPdf(tab.content);
+      const r = await ipc.compileTypstPdf(tab.content, tab.filePath);
       if (!r.ok || !r.pdfBase64) {
         setStatusText(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed');
         setStatusKind('error');
@@ -396,6 +429,19 @@ export function App() {
       if (!distro?.manager || distro.manager === 'none') {
         setStatusText(`No package manager available for ${distro?.name ?? 'unknown distro'}`);
         setStatusKind('error');
+        return;
+      }
+      // Installing a TeX package runs an external command (tlmgr/miktex/mpm)
+      // that fetches and installs software. Require explicit user consent
+      // naming the exact package and manager before doing so.
+      const consented = await dialogConfirm(
+        `Install the TeX package "${pkg}" using ${distro.manager}?\n\n` +
+          `This runs an external command that downloads and installs software on your system.`,
+        { title: 'Install TeX package' },
+      );
+      if (!consented) {
+        setStatusText(`Install of ${pkg} cancelled`);
+        setStatusKind('info');
         return;
       }
       setStatusText(`Installing ${pkg} via ${distro.manager}…`);

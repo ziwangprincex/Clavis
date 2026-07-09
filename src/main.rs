@@ -35,7 +35,11 @@ struct TypstPdfResult {
 }
 
 #[tauri::command]
-fn compile_typst(state: tauri::State<'_, Arc<AppState>>, source: String) -> TypstResult {
+fn compile_typst(
+    state: tauri::State<'_, Arc<AppState>>,
+    source: String,
+    doc_path: Option<String>,
+) -> TypstResult {
     let mut guard = state.world.lock();
     if guard.is_none() {
         match typst_world::SimpleWorld::new() {
@@ -46,6 +50,7 @@ fn compile_typst(state: tauri::State<'_, Arc<AppState>>, source: String) -> Typs
         }
     }
     let world = guard.as_mut().unwrap();
+    world.set_root_from_doc(doc_path.as_deref());
     world.set_source(source);
 
     match typst_world::compile_to_svg(world) {
@@ -55,7 +60,11 @@ fn compile_typst(state: tauri::State<'_, Arc<AppState>>, source: String) -> Typs
 }
 
 #[tauri::command]
-fn compile_typst_pdf(state: tauri::State<'_, Arc<AppState>>, source: String) -> TypstPdfResult {
+fn compile_typst_pdf(
+    state: tauri::State<'_, Arc<AppState>>,
+    source: String,
+    doc_path: Option<String>,
+) -> TypstPdfResult {
     let mut guard = state.world.lock();
     if guard.is_none() {
         match typst_world::SimpleWorld::new() {
@@ -64,6 +73,7 @@ fn compile_typst_pdf(state: tauri::State<'_, Arc<AppState>>, source: String) -> 
         }
     }
     let world = guard.as_mut().unwrap();
+    world.set_root_from_doc(doc_path.as_deref());
     world.set_source(source);
 
     match typst_world::compile_to_pdf(world) {
@@ -159,6 +169,30 @@ fn save_binary_file(path: String, base64: String) -> Result<(), String> {
     std::fs::write(&path, bytes).map_err(|e| e.to_string())
 }
 
+/// Read a UTF-8 text file the user opened via the file dialog / recent list.
+///
+/// These three commands replace the Tauri JS `fs` API so the frontend has no
+/// direct filesystem capability: the `fs` allowlist is removed entirely and all
+/// reads/writes funnel through Rust, where they can be audited and (later)
+/// gated by a path policy. Paths still come from user-driven dialogs.
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))
+}
+
+/// Write UTF-8 text to a path the user chose (save / save-as dialog).
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| format!("{path}: {e}"))
+}
+
+/// Test whether a path exists (used to decide save-vs-save-as, recent-file pruning).
+#[tauri::command]
+fn path_exists(path: String) -> bool {
+    std::path::Path::new(&path).exists()
+}
+
+
 /// Scan only the current folder level so the UI can lazy-load children on demand.
 #[tauri::command]
 fn scan_folder_shallow(root: String) -> Result<TreeNode, String> {
@@ -235,18 +269,23 @@ fn main() {
             scan_folder,
             scan_folder_shallow,
             save_binary_file,
-            latex::compile_latex,
-            latex::synctex_forward,
-            latex::synctex_backward,
-            latex::cleanup_workdir,
-            latex::export_latex_pdf,
-            latex::read_latex_log,
-            latex::collect_project_files,
-            latex::detect_distro,
-            latex::install_package,
+            read_text_file,
+            write_text_file,
+            path_exists,
+            latex::compile::compile_latex,
+            latex::synctex::synctex_forward,
+            latex::synctex::synctex_backward,
+            latex::workdir::cleanup_workdir,
+            latex::workdir::export_latex_pdf,
+            latex::workdir::read_latex_log,
+            latex::project::collect_project_files,
+            latex::distro::detect_distro,
+            latex::distro::install_package,
             latex::parse_bib,
             settings::get_settings,
             settings::set_settings,
+            settings::load_session,
+            settings::save_session,
             settings::detect_latex_engines,
             settings::detect_bib_engines,
         ])

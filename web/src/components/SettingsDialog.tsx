@@ -253,6 +253,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               />
               Enable browser spellcheck (English)
             </label>
+            <label className={styles.inline}>
+              <input
+                type="checkbox"
+                checked={draft.autosave_enabled}
+                onChange={e => update('autosave_enabled', e.target.checked)}
+              />
+              Autosave open files to disk (every 30s)
+            </label>
             <label>
               Tab size (spaces)
               <input

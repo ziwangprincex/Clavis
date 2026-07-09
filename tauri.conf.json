@@ -21,18 +21,6 @@
         "ask": true,
         "confirm": true
       },
-      "fs": {
-        "all": false,
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true,
-        "createDir": true,
-        "removeFile": true,
-        "removeDir": true,
-        "renameFile": true,
-        "exists": true,
-        "scope": ["**"]
-      },
       "window": {
         "all": false,
         "startDragging": true

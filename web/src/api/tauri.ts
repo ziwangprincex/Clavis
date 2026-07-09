@@ -29,13 +29,6 @@ interface TauriGlobal {
     message: (msg: string, opts?: unknown) => Promise<void>;
     confirm: (msg: string, opts?: unknown) => Promise<boolean>;
   };
-  fs: {
-    readTextFile: (path: string) => Promise<string>;
-    writeTextFile: (path: string, contents: string) => Promise<void>;
-    readBinaryFile: (path: string) => Promise<Uint8Array>;
-    writeBinaryFile: (path: string, contents: Uint8Array) => Promise<void>;
-    exists: (path: string) => Promise<boolean>;
-  };
 }
 
 declare global {
@@ -95,12 +88,24 @@ export function dialogSave(opts?: SaveDialogOptions): Promise<string | null> {
   return tauri().dialog.save(opts);
 }
 
+/** Native yes/no confirmation dialog. Returns true if the user confirmed. */
+export function dialogConfirm(message: string, opts?: { title?: string }): Promise<boolean> {
+  return tauri().dialog.confirm(message, opts);
+}
+
 // ---------- FS helpers ----------
+//
+// These route through Rust commands (read_text_file / write_text_file /
+// path_exists) rather than Tauri's JS `fs` API. The `fs` allowlist has been
+// removed from tauri.conf.json, so the webview has no direct filesystem
+// capability — all reads/writes are auditable Rust commands. Paths still
+// originate from user-driven open/save dialogs.
 
 export const fs = {
-  readTextFile: (path: string) => tauri().fs.readTextFile(path),
-  writeTextFile: (path: string, contents: string) => tauri().fs.writeTextFile(path, contents),
-  exists: (path: string) => tauri().fs.exists(path),
+  readTextFile: (path: string) => invoke<string>('read_text_file', { path }),
+  writeTextFile: (path: string, contents: string) =>
+    invoke<void>('write_text_file', { path, contents }),
+  exists: (path: string) => invoke<boolean>('path_exists', { path }),
 };
 
 // ---------- Domain types ----------
@@ -170,6 +175,8 @@ export const ipc = {
   // --- Settings ---
   getSettings: () => invoke<AppSettings>('get_settings'),
   setSettings: (settings: AppSettings) => invoke<void>('set_settings', { settings }),
+  loadSession: () => invoke<string>('load_session'),
+  saveSession: (data: string) => invoke<void>('save_session', { data }),
   detectLatexEngines: () => invoke<Record<string, string>>('detect_latex_engines'),
   detectBibEngines: () => invoke<Record<string, string>>('detect_bib_engines'),
 
@@ -195,10 +202,10 @@ export const ipc = {
     invoke<unknown>('synctex_backward', { workdirToken, page, x, y }),
 
   // --- Typst ---
-  compileTypst: (source: string) =>
-    invoke<{ ok: boolean; svg?: string; error?: string }>('compile_typst', { source }),
-  compileTypstPdf: (source: string) =>
-    invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source }),
+  compileTypst: (source: string, docPath?: string | null) =>
+    invoke<{ ok: boolean; svg?: string; error?: string }>('compile_typst', { source, docPath }),
+  compileTypstPdf: (source: string, docPath?: string | null) =>
+    invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath }),
   listTypstFonts: () => invoke<string[]>('list_typst_fonts'),
 
   // --- Filesystem ---

@@ -86,20 +86,29 @@ impl Default for Settings {
 }
 
 fn settings_path(app: &AppHandle) -> Option<PathBuf> {
-    let base = tauri::api::path::config_dir()?;
-    let dir = base.join("clavis");
-    let _ = std::fs::create_dir_all(&dir);
+    let dir = clavis_config_dir()?;
     let new_path = dir.join("settings.json");
     // One-shot migration from the previous "tritypeset" name. If our file doesn't
     // exist yet but the legacy one does, copy it across silently.
     if !new_path.exists() {
-        let legacy = base.join("tritypeset").join("settings.json");
-        if legacy.exists() {
-            let _ = std::fs::copy(&legacy, &new_path);
+        if let Some(base) = tauri::api::path::config_dir() {
+            let legacy = base.join("tritypeset").join("settings.json");
+            if legacy.exists() {
+                let _ = std::fs::copy(&legacy, &new_path);
+            }
         }
     }
     let _ = app; // currently unused but reserved
     Some(new_path)
+}
+
+/// The `<config_dir>/clavis` directory, created if missing. Shared by settings
+/// and session persistence so they live side by side.
+pub fn clavis_config_dir() -> Option<PathBuf> {
+    let base = tauri::api::path::config_dir()?;
+    let dir = base.join("clavis");
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir)
 }
 
 fn load_from_disk(app: &AppHandle) -> Settings {
@@ -122,6 +131,35 @@ pub fn get_settings(app: AppHandle) -> Settings {
 #[tauri::command]
 pub fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     save_to_disk(&app, &settings)
+}
+
+// ---------------- Session persistence ----------------
+//
+// The session (open tabs + their content + active tab) is persisted as an
+// opaque JSON string owned entirely by the frontend. Rust just reads/writes the
+// blob to `<config_dir>/clavis/session.json`, so the session schema can evolve
+// without touching Rust. This backs crash recovery / restore-on-launch.
+
+fn session_path() -> Option<PathBuf> {
+    Some(clavis_config_dir()?.join("session.json"))
+}
+
+/// Return the persisted session JSON blob, or an empty string if none exists.
+#[tauri::command]
+pub fn load_session() -> String {
+    session_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .unwrap_or_default()
+}
+
+/// Persist the session JSON blob. Written atomically (temp file + rename) so a
+/// crash mid-write can't truncate an existing good session.
+#[tauri::command]
+pub fn save_session(data: String) -> Result<(), String> {
+    let p = session_path().ok_or_else(|| "no config dir available".to_string())?;
+    let tmp = p.with_extension("json.tmp");
+    std::fs::write(&tmp, data.as_bytes()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Serialize)]

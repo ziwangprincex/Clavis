@@ -26,6 +26,8 @@ export interface Settings {
   recent_files: string[];
   pane_sidebar_width: number;
   pane_editor_width: number;
+  /** Periodically write dirty, file-backed tabs to disk. Opt-in. */
+  autosave_enabled: boolean;
 
   // ----- UI-level customisation (consumed by App, not by Rust) -----
   /** App chrome theme: dark | light | auto (follow OS). */
@@ -64,6 +66,7 @@ export const defaultSettings: Settings = {
   recent_files: [],
   pane_sidebar_width: 0,
   pane_editor_width: 0,
+  autosave_enabled: false,
 
   ui_theme: 'auto',
   ui_font_family:
