@@ -132,7 +132,79 @@ fn read_brace_or_quoted(body: &str, start: usize) -> String {
 }
 
 fn clean_value(s: &str) -> String {
-    let trimmed = s.trim();
-    let stripped = trimmed.trim_matches(|c| c == '{' || c == '}');
+    // Remove *all* TeX grouping braces, not just edge ones: bib values commonly
+    // brace sub-spans for case protection, e.g. `{A Study of {Things}}`.
+    let stripped: String = s.chars().filter(|&c| c != '{' && c != '}').collect();
     stripped.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(text: &str) -> Vec<BibEntry> {
+        let mut out = Vec::new();
+        parse_bib_text(text, "test.bib", &mut out);
+        out
+    }
+
+    #[test]
+    fn parses_braced_and_quoted_fields() {
+        let e = parse(
+            r#"@article{smith2020,
+                title = {A Study of {Things}},
+                author = "Smith, John and Doe, Jane",
+                year = 2020
+            }"#,
+        );
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].key, "smith2020");
+        assert_eq!(e[0].entry_type, "article");
+        assert_eq!(e[0].title.as_deref(), Some("A Study of Things"));
+        assert_eq!(e[0].author.as_deref(), Some("Smith, John and Doe, Jane"));
+        assert_eq!(e[0].year.as_deref(), Some("2020"));
+        assert_eq!(e[0].source_line, 1);
+    }
+
+    #[test]
+    fn skips_comment_preamble_string_entries() {
+        let e = parse(
+            r#"@comment{ignored}
+            @string{acm = "ACM"}
+            @preamble{"\newcommand"}
+            @book{real, title = {Real}}"#,
+        );
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].key, "real");
+        assert_eq!(e[0].entry_type, "book");
+    }
+
+    #[test]
+    fn date_falls_back_for_year() {
+        let e = parse(r#"@misc{k, date = {2023-05-01}}"#);
+        assert_eq!(e[0].year.as_deref(), Some("2023-05-01"));
+    }
+
+    #[test]
+    fn nested_braces_do_not_terminate_entry_early() {
+        let e = parse(r#"@article{k, title = {A {nested {deep}} title}, year = {1999}}"#);
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].title.as_deref(), Some("A nested deep title"));
+        assert_eq!(e[0].year.as_deref(), Some("1999"));
+    }
+
+    #[test]
+    fn reports_correct_source_line_for_second_entry() {
+        let e = parse("@article{a, year={2000}}\n\n@book{b, year={2001}}");
+        assert_eq!(e.len(), 2);
+        assert_eq!(e[1].key, "b");
+        assert_eq!(e[1].source_line, 3);
+    }
+
+    #[test]
+    fn field_substring_is_not_matched() {
+        // "yearbook" should not be picked up as the "year" field.
+        let e = parse(r#"@misc{k, yearbook = {nope}, year = {2010}}"#);
+        assert_eq!(e[0].year.as_deref(), Some("2010"));
+    }
 }

@@ -649,6 +649,12 @@ pub async fn compile_latex(
         let args: Vec<&str> = vec![
             "-interaction=nonstopmode",
             "-halt-on-error",
+            // Security: never let an untrusted .tex run external commands via
+            // \write18. This must not depend on the user's TeX distribution
+            // default (which may be `shell_escape = t`). Accepted by TeX Live
+            // (pdf/xe/lua) and MiKTeX. If shell-escape is ever exposed as an
+            // option it MUST default off with an explicit danger prompt.
+            "-no-shell-escape",
             synctex_arg,
             "-file-line-error",
             &outdir_arg,
@@ -1419,4 +1425,85 @@ fn write_local_cjk_font_shim(workdir: &Path, source: &str, has_local_fonts: bool
 #[tauri::command]
 pub fn parse_bib(bib_paths: Vec<String>) -> Vec<crate::bib::BibEntry> {
     crate::bib::parse_bib_files(bib_paths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_safe_relpath_accepts_nested_relative() {
+        assert!(is_safe_relpath("main.tex"));
+        assert!(is_safe_relpath("chapters/intro.tex"));
+        assert!(is_safe_relpath("a/b/c/fig.png"));
+    }
+
+    #[test]
+    fn is_safe_relpath_rejects_traversal_and_absolute() {
+        assert!(!is_safe_relpath(""));
+        assert!(!is_safe_relpath("../secret"));
+        assert!(!is_safe_relpath("a/../../etc/passwd"));
+        assert!(!is_safe_relpath("./main.tex")); // CurDir component rejected
+        #[cfg(unix)]
+        assert!(!is_safe_relpath("/etc/passwd"));
+        #[cfg(windows)]
+        {
+            assert!(!is_safe_relpath("C:\\Windows\\system.ini"));
+            assert!(!is_safe_relpath("\\\\server\\share\\f"));
+        }
+    }
+
+    #[test]
+    fn extract_missing_pkg_strips_extension() {
+        assert_eq!(
+            extract_missing_pkg("File `tikz.sty' not found."),
+            Some("tikz".to_string())
+        );
+        assert_eq!(
+            extract_missing_pkg("File `foo/bar.cls' not found"),
+            Some("foo/bar".to_string())
+        );
+        assert_eq!(extract_missing_pkg("no missing file here"), None);
+    }
+
+    #[test]
+    fn classify_message_detects_kinds() {
+        assert_eq!(classify_message("File `x.sty' not found").0, "missing-file");
+        assert_eq!(classify_message("LaTeX Warning: something").0, "warning");
+        assert_eq!(classify_message("Overfull \\hbox (10pt too wide)").0, "badbox");
+        assert_eq!(classify_message("Undefined control sequence").0, "error");
+    }
+
+    #[test]
+    fn rerun_signal_matches_known_phrases() {
+        assert!(rerun_signal("LaTeX Warning: Rerun to get cross-references right."));
+        assert!(rerun_signal("Label(s) may have changed. Rerun to get them right."));
+        assert!(rerun_signal("Citation `foo' undefined"));
+        assert!(!rerun_signal("Everything is fine."));
+    }
+
+    #[test]
+    fn parse_diags_file_line_error_wrapper() {
+        let log = "./main.tex:42: Undefined control sequence.";
+        let d = parse_diags(log);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].line, Some(42));
+        assert_eq!(d[0].kind, "error");
+    }
+
+    #[test]
+    fn parse_diags_missing_file_and_warning() {
+        let log = "! LaTeX Error: File `tikz.sty' not found.\n\
+                   LaTeX Warning: Reference `fig1' on input line 7.";
+        let d = parse_diags(log);
+        assert!(d.iter().any(|x| x.kind == "missing-file" && x.package.as_deref() == Some("tikz")));
+        assert!(d.iter().any(|x| x.kind == "warning" && x.line == Some(7)));
+    }
+
+    #[test]
+    fn parse_diags_dedups_identical() {
+        let log = "! Undefined control sequence.\n! Undefined control sequence.";
+        let d = parse_diags(log);
+        assert_eq!(d.len(), 1);
+    }
 }
