@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { hasTauri, dialogOpen, dialogSave, dialogConfirm, events } from './api/tauri';
+import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
@@ -16,12 +16,11 @@ import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab } from './files/files';
-import {
-  restoreSession,
-  scheduleSessionSave,
-  flushSessionSave,
-  syncAutosaveInterval,
-} from './files/session';
+import { restoreSession } from './files/session';
+import { useAppTheme } from './hooks/useAppTheme';
+import { useSessionPersistence } from './hooks/useSessionPersistence';
+import { useFileDrop } from './hooks/useFileDrop';
+import { usePaneLayout } from './hooks/usePaneLayout';
 import { ipc } from './api/tauri';
 import { SAMPLES } from './samples/samples';
 import { SymbolsPanel } from './components/SymbolsPanel';
@@ -65,124 +64,26 @@ export function App() {
 
   const editorApiRef = useRef<EditorPaneRef | null>(null);
   const autoCompileTimerRef = useRef<number | null>(null);
-  const mainRef = useRef<HTMLDivElement>(null);
-  const workAreaRef = useRef<HTMLDivElement>(null);
-
-  // Pane widths (live state). Persisted to settings on drag end.
-  const [sidebarWidth, setSidebarWidth] = useState<number>(0); // 0 means "use default"
-  const [editorWidth, setEditorWidth] = useState<number>(0);
 
   const [workspaceFolder, setWorkspaceFolder] = useState<string | null>(null);
   const [folderRefreshKey, setFolderRefreshKey] = useState(0);
 
-  // Initialise pane widths from persisted settings once they load.
-  useEffect(() => {
-    if (settings.pane_sidebar_width > 80) setSidebarWidth(settings.pane_sidebar_width);
-    if (settings.pane_editor_width > 120) setEditorWidth(settings.pane_editor_width);
-  }, [settings.pane_sidebar_width, settings.pane_editor_width]);
+  // Pane widths + drag handlers (owns mainRef / workAreaRef).
+  const {
+    mainRef,
+    workAreaRef,
+    sidebarWidth,
+    editorWidth,
+    startSidebarDrag,
+    dragSidebar,
+    endSidebarDrag,
+    startEditorDrag,
+    dragEditor,
+    endEditorDrag,
+  } = usePaneLayout(settings);
 
-  function startSidebarDrag() {
-    /* nothing — width state already current */
-  }
-  function dragSidebar(clientX: number) {
-    const main = mainRef.current;
-    if (!main) return;
-    const left = main.getBoundingClientRect().left;
-    const next = Math.max(160, Math.min(640, clientX - left));
-    setSidebarWidth(next);
-  }
-  function endSidebarDrag() {
-    void useSettingsStore.getState().patchAndSave({ pane_sidebar_width: sidebarWidth });
-  }
-
-  function startEditorDrag() {
-    /* nothing */
-  }
-  function dragEditor(clientX: number) {
-    const work = workAreaRef.current;
-    if (!work) return;
-    const left = work.getBoundingClientRect().left;
-    const next = Math.max(200, Math.min(work.clientWidth - 200, clientX - left));
-    setEditorWidth(next);
-  }
-  function endEditorDrag() {
-    void useSettingsStore.getState().patchAndSave({ pane_editor_width: editorWidth });
-  }
-  // Apply UI theme + font + accent color to :root whenever settings change.
-  // This drives every CSS variable consumed by tokens.css and component
-  // module styles. Keeping it in App.tsx (not buried in a hook file) makes
-  // the connection between settings and global look obvious.
-  useEffect(() => {
-    const root = document.documentElement;
-
-    function resolve(): 'dark' | 'light' {
-      if (settings.ui_theme === 'auto') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-      return settings.ui_theme;
-    }
-
-    function apply() {
-      const resolved = resolve();
-      root.setAttribute('data-theme', resolved);
-
-      // Editor theme follows app theme: pick a sensible default for whichever
-      // mode we're in. Users who explicitly chose another editor theme keep it
-      // — we only swap when the saved theme matches the "default of the other
-      // mode", so manual choices stick.
-      const currentEditorTheme = useSettingsStore.getState().settings.editor_theme;
-      if (resolved === 'light' && currentEditorTheme === 'vscode-dark') {
-        useSettingsStore.getState().patch({ editor_theme: 'vscode-light' });
-      } else if (resolved === 'dark' && currentEditorTheme === 'vscode-light') {
-        useSettingsStore.getState().patch({ editor_theme: 'vscode-dark' });
-      }
-    }
-
-    apply();
-
-    // If user picked "auto", listen to OS color-scheme changes.
-    if (settings.ui_theme === 'auto') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      const onChange = () => apply();
-      mq.addEventListener('change', onChange);
-      // Cleanup follows in the *next* dependency run via this returned fn.
-      // Other style mutations below still need to happen even when not auto.
-      // We split out font/accent mutations into a separate effect for clarity.
-      return () => mq.removeEventListener('change', onChange);
-    }
-  }, [settings.ui_theme]);
-
-  // Apply font + accent + arbitrary color overrides separately so toggling
-  // theme doesn't waste a re-run on these.
-  useEffect(() => {
-    const root = document.documentElement;
-
-    if (settings.ui_font_family) {
-      root.style.setProperty('--font-sans', settings.ui_font_family);
-    }
-    document.body.style.fontSize = `${settings.ui_font_size}px`;
-
-    if (settings.ui_accent_color) {
-      root.style.setProperty('--accent', settings.ui_accent_color);
-    } else {
-      root.style.removeProperty('--accent');
-    }
-
-    const ov = settings.ui_color_overrides ?? {};
-    const knownKeys: string[] = (root.dataset.clavisOverrideKeys ?? '').split(',').filter(Boolean);
-    for (const key of knownKeys) {
-      if (!(key in ov)) root.style.removeProperty(`--${key}`);
-    }
-    for (const [key, value] of Object.entries(ov)) {
-      if (value) root.style.setProperty(`--${key}`, value);
-    }
-    root.dataset.clavisOverrideKeys = Object.keys(ov).join(',');
-  }, [
-    settings.ui_font_family,
-    settings.ui_font_size,
-    settings.ui_accent_color,
-    settings.ui_color_overrides,
-  ]);
+  // Apply UI theme / fonts / accent / color overrides to :root.
+  useAppTheme(settings);
 
   // Boot: load persisted settings, then restore the previous session (crash
   // recovery). Only if there's nothing to restore do we seed sample tabs.
@@ -232,41 +133,12 @@ export function App() {
     })();
   }, [loadSettings, addTab]);
 
-  // Persist the session (debounced) whenever tabs change, and flush on unload
-  // so an OS-level close doesn't lose the last few edits.
-  useEffect(() => {
-    if (!hasTauri()) return;
-    const unsub = useTabsStore.subscribe(() => scheduleSessionSave());
-    const onBeforeUnload = () => flushSessionSave();
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      unsub();
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }, []);
+  // Persist session (debounced) on tab changes + flush on unload; manage the
+  // opt-in disk-autosave interval.
+  useSessionPersistence(settings.autosave_enabled);
 
-  // Start/stop the disk-autosave interval when the setting changes.
-  useEffect(() => {
-    syncAutosaveInterval();
-  }, [settings.autosave_enabled]);
-
-  // Subscribe to OS file-drop so dropping a file/folder on the window opens it.
-  useEffect(() => {
-    if (!hasTauri()) return;
-    let off: (() => void) | undefined;
-    events.onFileDrop(paths => {
-      if (!paths?.length) return;
-      const first = paths[0];
-      // Heuristic: directories don't have an extension. Better would be to
-      // call fs.exists or stat, but the legacy code took the same shortcut.
-      const looksLikeDir = !/\.[^\\/]+$/.test(first);
-      if (looksLikeDir) setWorkspaceFolder(first);
-      else void openFileByPath(first);
-    }).then(unlisten => {
-      off = unlisten;
-    });
-    return () => off?.();
-  }, []);
+  // OS file-drop: files open, folders become the workspace.
+  useFileDrop(setWorkspaceFolder);
 
   async function openFolder() {
     if (!hasTauri()) return;
