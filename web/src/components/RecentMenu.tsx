@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useSettingsStore } from '../store';
+import { IconFolder } from './icons';
 import styles from './RecentMenu.module.css';
 
 export interface RecentMenuProps {
@@ -68,7 +69,7 @@ export function RecentMenu({ open, onClose, onPickPath, onPickFolder, onClear }:
                     }}
                     title={p}
                   >
-                    <span className={styles.short}>📁 {shorten(p)}</span>
+                    <span className={styles.short}><IconFolder size={12} /> {shorten(p)}</span>
                     <span className={styles.full}>{p}</span>
                   </li>
                 ))}

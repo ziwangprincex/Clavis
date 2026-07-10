@@ -48,6 +48,9 @@
 .short {
   color: var(--text);
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .full {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ipc, type TreeNode } from '../api/tauri';
+import { IconFolder } from './icons';
 import styles from './FolderTreeSection.module.css';
 
 export interface FolderTreeSectionProps {
@@ -83,7 +84,7 @@ export function FolderTreeSection({
     <div className={styles.root}>
       <div className={styles.header}>
         <span className={styles.name}>{rootPath ? root?.name ?? '…' : '(none)'}</span>
-        <button className={styles.btn} onClick={onOpenFolder} title="Open folder">📁</button>
+        <button className={styles.btn} onClick={onOpenFolder} title="Open folder"><IconFolder size={13} /></button>
         <button className={styles.btn} onClick={onRefresh} title="Rescan">⟳</button>
         {rootPath && (
           <button className={styles.btn} onClick={onCloseFolder} title="Close folder">×</button>
