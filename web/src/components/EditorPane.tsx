@@ -52,11 +52,17 @@ export interface EditorPaneRef {
 export interface EditorPaneProps {
   /** Optional ref-like callback to expose imperative methods to the parent. */
   onReady?: (api: EditorPaneRef) => void;
+  /** Ctrl/Cmd+click on \input{...}/\include{...} (LaTeX). Receives the raw path
+   *  and whether the macro is import-family. */
+  onOpenInclude?: (raw: string, isImport: boolean) => void;
 }
 
-export function EditorPane({ onReady }: EditorPaneProps) {
+export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<EditorController | null>(null);
+  // Keep the latest onOpenInclude reachable from the once-created controller.
+  const onOpenIncludeRef = useRef(onOpenInclude);
+  onOpenIncludeRef.current = onOpenInclude;
 
   const activeTabId = useTabsStore(s => s.activeTabId);
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
@@ -92,6 +98,8 @@ export function EditorPane({ onReady }: EditorPaneProps) {
           isDirty: wasDirty || (tab?.content ?? '') !== doc,
         });
       },
+      onOpenInclude: (raw: string, isImport: boolean) =>
+        onOpenIncludeRef.current?.(raw, isImport),
     });
     controllerRef.current = ctrl;
     onReady?.({

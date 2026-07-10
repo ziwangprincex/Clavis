@@ -29,6 +29,24 @@ interface TauriGlobal {
     message: (msg: string, opts?: unknown) => Promise<void>;
     confirm: (msg: string, opts?: unknown) => Promise<boolean>;
   };
+  updater: {
+    checkUpdate: () => Promise<UpdateStatus>;
+    installUpdate: () => Promise<void>;
+  };
+  process: {
+    relaunch: () => Promise<void>;
+  };
+}
+
+/** Result of updater.checkUpdate() (mirrors @tauri-apps/api/updater). */
+export interface UpdateManifest {
+  version: string;
+  date?: string;
+  body?: string;
+}
+export interface UpdateStatus {
+  shouldUpdate: boolean;
+  manifest?: UpdateManifest;
 }
 
 declare global {
@@ -64,6 +82,23 @@ export function getAppVersion(): Promise<string> {
   return tauri().app.getVersion();
 }
 
+// ---------- Updater ----------
+
+/** Ask the Tauri updater whether a newer signed release is available. */
+export function checkUpdate(): Promise<UpdateStatus> {
+  return tauri().updater.checkUpdate();
+}
+
+/** Download + verify + install the pending update (call after checkUpdate). */
+export function installUpdate(): Promise<void> {
+  return tauri().updater.installUpdate();
+}
+
+/** Relaunch the app (used after installUpdate to boot into the new version). */
+export function relaunch(): Promise<void> {
+  return tauri().process.relaunch();
+}
+
 // ---------- Dialog helpers ----------
 
 export interface OpenDialogOptions {
@@ -91,6 +126,11 @@ export function dialogSave(opts?: SaveDialogOptions): Promise<string | null> {
 /** Native yes/no confirmation dialog. Returns true if the user confirmed. */
 export function dialogConfirm(message: string, opts?: { title?: string }): Promise<boolean> {
   return tauri().dialog.confirm(message, opts);
+}
+
+/** Native informational dialog (single OK button). */
+export function dialogMessage(message: string, opts?: { title?: string }): Promise<void> {
+  return tauri().dialog.message(message, opts);
 }
 
 // ---------- FS helpers ----------
@@ -135,6 +175,8 @@ export interface LatexDiag {
   line: number | null;
   message: string;
   kind: string;
+  /** Source file the diagnostic refers to (project-relative), if reported. */
+  file?: string;
   package?: string;
 }
 
@@ -153,7 +195,10 @@ export interface BibEntry {
   title?: string;
   author?: string;
   year?: string;
-  fields: Record<string, string>;
+  /** Absolute path of the .bib file this entry was parsed from. */
+  sourceFile: string;
+  /** 1-based line of the entry's `@type{...` within its .bib file. */
+  sourceLine: number;
 }
 
 export interface TreeNode {
@@ -161,6 +206,48 @@ export interface TreeNode {
   path: string;
   isDir: boolean;
   children: TreeNode[];
+}
+
+// --- Multi-file project + SyncTeX + distro shapes (mirror the Rust structs;
+//     serde serializes them camelCase). Kept precise so the IPC boundary is
+//     type-checked — a loose `unknown` here is exactly what let the SyncTeX
+//     `file` vs `inputFile` field-name bug slip through. ---
+
+export interface CollectedFile {
+  relPath: string;
+  absPath: string;
+  content: string;
+  isBib: boolean;
+  binaryBase64?: string | null;
+}
+
+export interface CollectResult {
+  rootRel: string;
+  files: CollectedFile[];
+  warnings: string[];
+}
+
+export interface SyncTexHit {
+  page: number;
+  x: number;
+  y: number;
+  h: number;
+  v: number;
+  w: number;
+  height: number;
+}
+
+export interface SyncTexEdit {
+  line: number;
+  column: number;
+  inputFile: string;
+}
+
+export interface DistroInfo {
+  name: string;
+  manager: string;
+  managerPath?: string | null;
+  version?: string | null;
 }
 
 export interface AppSettings {
@@ -187,19 +274,19 @@ export const ipc = {
   readLatexLog: (workdirToken: string) =>
     invoke<string>('read_latex_log', { workdirToken }),
   collectProjectFiles: (root: string) =>
-    invoke<{ files: unknown[]; warnings: string[] }>('collect_project_files', { root }),
+    invoke<CollectResult>('collect_project_files', { root }),
   detectDistro: (enginePath?: string) =>
-    invoke<unknown>('detect_distro', { enginePath }),
+    invoke<DistroInfo>('detect_distro', { enginePath }),
   installPackage: (manager: string, name: string) =>
-    invoke<unknown>('install_package', { manager, name }),
+    invoke<void>('install_package', { manager, name }),
   parseBib: (bibPaths: string[]) =>
     invoke<BibEntry[]>('parse_bib', { bibPaths }),
   cleanupWorkdir: (workdirToken: string) =>
     invoke<void>('cleanup_workdir', { workdirToken }),
   synctexForward: (workdirToken: string, line: number, column: number) =>
-    invoke<unknown>('synctex_forward', { workdirToken, line, column }),
+    invoke<SyncTexHit>('synctex_forward', { workdirToken, line, column }),
   synctexBackward: (workdirToken: string, page: number, x: number, y: number) =>
-    invoke<unknown>('synctex_backward', { workdirToken, page, x, y }),
+    invoke<SyncTexEdit>('synctex_backward', { workdirToken, page, x, y }),
 
   // --- Typst ---
   compileTypst: (source: string, docPath?: string | null) =>

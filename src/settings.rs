@@ -39,6 +39,8 @@ pub struct Settings {
     #[serde(default)]
     pub recent_files: Vec<String>,
     #[serde(default)]
+    pub recent_folders: Vec<String>,
+    #[serde(default)]
     pub pane_sidebar_width: u32,
     #[serde(default)]
     pub pane_editor_width: u32,
@@ -78,6 +80,7 @@ impl Default for Settings {
             editor_theme_overrides: HashMap::new(),
             editor_spellcheck: false,
             recent_files: Vec::new(),
+            recent_folders: Vec::new(),
             pane_sidebar_width: 0,
             pane_editor_width: 0,
             extra: serde_json::Map::new(),

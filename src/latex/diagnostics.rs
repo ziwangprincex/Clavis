@@ -39,7 +39,10 @@ fn classify_message(msg: &str) -> (&'static str, Option<String>) {
 
 pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
     use regex::Regex;
-    let re_file_line = Regex::new(r"^(?:\./)?[^:\n]*\.tex:(\d+):\s*(.*)$").unwrap();
+    // Capture the source filename too (group 1) — in a multi-file project the
+    // engine emits the real file, e.g. "./chapters/intro.tex:12:", not always
+    // main.tex. Group 2 = line, group 3 = message.
+    let re_file_line = Regex::new(r"^(?:\./)?([^:\n]*\.tex):(\d+):\s*(.*)$").unwrap();
     let re_latex_err = Regex::new(r"^! LaTeX Error:\s*(.*)$").unwrap();
     let re_package_err = Regex::new(r"^! Package\s+([A-Za-z0-9._-]+)\s+Error:\s*(.*)$").unwrap();
     let re_font_err = Regex::new(r"^! Font\s+([A-Za-z0-9._-]+)\s+Error:\s*(.*)$").unwrap();
@@ -54,17 +57,20 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
     let mut out = Vec::new();
     for line in log.lines() {
         if let Some(c) = re_file_line.captures(line) {
-            // -file-line-error wraps almost every diagnostic as "main.tex:N: ...";
-            // classify by the inner message, not by the wrapper.
-            let line_no = c.get(1).and_then(|m| m.as_str().parse().ok());
-            let msg = c.get(2).map_or("", |m| m.as_str()).trim().to_string();
+            // -file-line-error wraps almost every diagnostic as "file.tex:N: ...";
+            // classify by the inner message, not by the wrapper. Keep the file so
+            // the UI can jump to the right source in a multi-file project.
+            let file = c.get(1).map(|m| m.as_str().to_string());
+            let line_no = c.get(2).and_then(|m| m.as_str().parse().ok());
+            let msg = c.get(3).map_or("", |m| m.as_str()).trim().to_string();
             let (kind, package) = classify_message(&msg);
-            out.push(LatexDiag { line: line_no, message: msg, kind, package });
+            out.push(LatexDiag { line: line_no, file, message: msg, kind, package });
         } else if let Some(c) = re_file_not_found.captures(line) {
             let raw = c.get(1).map(|m| m.as_str()).unwrap_or("");
             let pkg = strip_known_ext(raw);
             out.push(LatexDiag {
                 line: None,
+                file: None,
                 message: format!("File `{raw}' not found"),
                 kind: "missing-file",
                 package: Some(pkg),
@@ -73,6 +79,7 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
             let raw = c.get(1).map(|m| m.as_str()).unwrap_or("?").to_string();
             out.push(LatexDiag {
                 line: None,
+                file: None,
                 message: format!("MiKTeX: package {raw} not installed"),
                 kind: "missing-file",
                 package: Some(raw),
@@ -80,23 +87,24 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
         } else if let Some(c) = re_latex_err.captures(line) {
             let msg = c.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
             let (kind, package) = classify_message(&msg);
-            out.push(LatexDiag { line: None, message: msg, kind, package });
+            out.push(LatexDiag { line: None, file: None, message: msg, kind, package });
         } else if let Some(c) = re_package_err.captures(line) {
             let package = c.get(1).map(|m| m.as_str().to_string());
             let msg = c.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
             let (kind, _) = classify_message(&msg);
-            out.push(LatexDiag { line: None, message: format!("Package {} Error: {}", package.as_deref().unwrap_or("?"), msg), kind, package });
+            out.push(LatexDiag { line: None, file: None, message: format!("Package {} Error: {}", package.as_deref().unwrap_or("?"), msg), kind, package });
         } else if let Some(c) = re_font_err.captures(line) {
             let package = c.get(1).map(|m| m.as_str().to_string());
             let msg = c.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            out.push(LatexDiag { line: None, message: format!("Font {} Error: {}", package.as_deref().unwrap_or("?"), msg), kind: "missing-file", package });
+            out.push(LatexDiag { line: None, file: None, message: format!("Font {} Error: {}", package.as_deref().unwrap_or("?"), msg), kind: "missing-file", package });
         } else if let Some(c) = re_generic_err.captures(line) {
             let msg = c.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
             let (kind, package) = classify_message(&msg);
-            out.push(LatexDiag { line: None, message: msg, kind, package });
+            out.push(LatexDiag { line: None, file: None, message: msg, kind, package });
         } else if let Some(c) = re_warn.captures(line) {
             out.push(LatexDiag {
                 line: c.get(2).and_then(|m| m.as_str().parse().ok()),
+                file: None,
                 message: c.get(1).map(|m| m.as_str().to_string()).unwrap_or_default(),
                 kind: "warning",
                 package: None,
@@ -104,6 +112,7 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
         } else if re_badbox.is_match(line) {
             out.push(LatexDiag {
                 line: None,
+                file: None,
                 message: line.trim().to_string(),
                 kind: "badbox",
                 package: None,
@@ -111,13 +120,20 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
         } else if let Some(c) = re_bibtex_db.captures(line) {
             out.push(LatexDiag {
                 line: None,
+                file: None,
                 message: format!("Missing bibliography database: {}", c.get(1).map(|m| m.as_str()).unwrap_or("?")),
                 kind: "missing-ref",
                 package: None,
             });
         }
     }
-    out.dedup_by(|a, b| a.kind == b.kind && a.package == b.package && a.message == b.message);
+    // Dedup adjacent identical diagnostics. Include file+line so that the same
+    // message at different locations (e.g. "Undefined control sequence" in two
+    // chapters) is NOT collapsed — each keeps its own jump target.
+    out.dedup_by(|a, b| {
+        a.kind == b.kind && a.package == b.package && a.message == b.message
+            && a.file == b.file && a.line == b.line
+    });
     out
 }
 
@@ -132,6 +148,7 @@ pub(crate) fn merge_diags(mut base: Vec<LatexDiag>, extras: &[LatexDiag]) -> Vec
         if !dup {
             base.push(LatexDiag {
                 line: e.line,
+                file: e.file.clone(),
                 message: e.message.clone(),
                 kind: e.kind,
                 package: e.package.clone(),
@@ -213,6 +230,17 @@ mod tests {
         assert_eq!(d.len(), 1);
         assert_eq!(d[0].line, Some(42));
         assert_eq!(d[0].kind, "error");
+        assert_eq!(d[0].file.as_deref(), Some("main.tex"));
+    }
+
+    #[test]
+    fn parse_diags_captures_subfile_path() {
+        // Multi-file: the engine reports the real file, not always main.tex.
+        let log = "./chapters/intro.tex:12: Undefined control sequence.";
+        let d = parse_diags(log);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].line, Some(12));
+        assert_eq!(d[0].file.as_deref(), Some("chapters/intro.tex"));
     }
 
     #[test]

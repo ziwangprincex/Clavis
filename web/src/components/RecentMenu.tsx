@@ -8,12 +8,15 @@ export interface RecentMenuProps {
   open: boolean;
   onClose: () => void;
   onPickPath: (path: string) => void;
+  /** Open a recent workspace folder. */
+  onPickFolder?: (path: string) => void;
   /** Called when user clicks "Clear list" */
   onClear?: () => void;
 }
 
-export function RecentMenu({ open, onClose, onPickPath, onClear }: RecentMenuProps) {
+export function RecentMenu({ open, onClose, onPickPath, onPickFolder, onClear }: RecentMenuProps) {
   const recent = useSettingsStore(s => s.settings.recent_files ?? []);
+  const recentFolders = useSettingsStore(s => s.settings.recent_folders ?? []);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside.
@@ -43,28 +46,58 @@ export function RecentMenu({ open, onClose, onPickPath, onClear }: RecentMenuPro
     return parts.slice(-2).join('/');
   }
 
+  const nothing = recent.length === 0 && recentFolders.length === 0;
+
   return (
     <div ref={wrapRef} className={styles.menu} role="menu">
-      {recent.length === 0 ? (
-        <div className={styles.empty}>No recent files</div>
+      {nothing ? (
+        <div className={styles.empty}>No recent items</div>
       ) : (
         <>
-          <ul className={styles.list}>
-            {recent.map((p, i) => (
-              <li
-                key={i}
-                className={styles.item}
-                onClick={() => {
-                  onPickPath(p);
-                  onClose();
-                }}
-                title={p}
-              >
-                <span className={styles.short}>{shorten(p)}</span>
-                <span className={styles.full}>{p}</span>
-              </li>
-            ))}
-          </ul>
+          {recentFolders.length > 0 && onPickFolder && (
+            <>
+              <div className={styles.groupLabel}>Folders</div>
+              <ul className={styles.list}>
+                {recentFolders.map((p, i) => (
+                  <li
+                    key={`d${i}`}
+                    className={styles.item}
+                    onClick={() => {
+                      onPickFolder(p);
+                      onClose();
+                    }}
+                    title={p}
+                  >
+                    <span className={styles.short}>📁 {shorten(p)}</span>
+                    <span className={styles.full}>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {recent.length > 0 && (
+            <>
+              {recentFolders.length > 0 && onPickFolder && (
+                <div className={styles.groupLabel}>Files</div>
+              )}
+              <ul className={styles.list}>
+                {recent.map((p, i) => (
+                  <li
+                    key={`f${i}`}
+                    className={styles.item}
+                    onClick={() => {
+                      onPickPath(p);
+                      onClose();
+                    }}
+                    title={p}
+                  >
+                    <span className={styles.short}>{shorten(p)}</span>
+                    <span className={styles.full}>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           {onClear && (
             <button
               className={styles.clearBtn}

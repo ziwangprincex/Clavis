@@ -39,6 +39,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import type { Lang } from '../store';
 import { snippetsForLang, snippetToCM6 } from '../completions/snippets';
+import { inputLinkExtension } from './inputLinks';
 
 // Minimal Typst syntax (StreamLanguage).
 const typstStream = StreamLanguage.define({
@@ -256,6 +257,10 @@ export interface EditorOptions {
   indentWithSpaces?: boolean;
   onChange?: (doc: string) => void;
   onCursor?: (pos: number) => void;
+  /** Ctrl/Cmd+click on an \input{...}/\include{...} target (LaTeX only).
+   *  Receives the resolved raw path and whether the macro is import-family;
+   *  caller resolves + opens it. */
+  onOpenInclude?: (raw: string, isImport: boolean) => void;
 }
 
 /** Wrapper around CodeMirror EditorView with a textarea-shaped API. */
@@ -268,6 +273,7 @@ export class EditorController {
   private spellCompartment = new Compartment();
   private indentCompartment = new Compartment();
   private tabSizeCompartment = new Compartment();
+  private includeLinkCompartment = new Compartment();
   private suppressEvents = false;
   private currentLang: Lang;
   private themeSpec: ThemeSpec;
@@ -275,6 +281,7 @@ export class EditorController {
   private spellcheck: boolean;
   private onChangeCb?: (doc: string) => void;
   private onCursorCb?: (pos: number) => void;
+  private onOpenIncludeCb?: (raw: string, isImport: boolean) => void;
 
   constructor(opts: EditorOptions) {
     this.currentLang = opts.lang;
@@ -283,6 +290,7 @@ export class EditorController {
     this.spellcheck = opts.spellcheck;
     this.onChangeCb = opts.onChange;
     this.onCursorCb = opts.onCursor;
+    this.onOpenIncludeCb = opts.onOpenInclude;
 
     const tabSize = opts.tabSize ?? 2;
     const indentUnitStr = opts.indentWithSpaces === false ? '\t' : ' '.repeat(tabSize);
@@ -324,6 +332,7 @@ export class EditorController {
         ...searchKeymap,
       ]),
       this.langCompartment.of(languageExtension(this.currentLang)),
+      this.includeLinkCompartment.of(this.includeLinkExt(this.currentLang)),
       EditorView.updateListener.of(update => {
         if (this.suppressEvents) return;
         if (update.docChanged) this.onChangeCb?.(this.value);
@@ -372,6 +381,12 @@ export class EditorController {
     this.view.focus();
   }
 
+  /** Clickable \input/\include links — only meaningful for LaTeX. */
+  private includeLinkExt(lang: Lang) {
+    if (lang !== 'latex' || !this.onOpenIncludeCb) return [];
+    return inputLinkExtension((raw, isImport) => this.onOpenIncludeCb?.(raw, isImport));
+  }
+
   setLanguage(lang: Lang) {
     this.currentLang = lang;
     this.view.dispatch({
@@ -380,6 +395,7 @@ export class EditorController {
         this.completionCompartment.reconfigure(
           autocompletion({ override: [buildCompletionSource(lang)] }),
         ),
+        this.includeLinkCompartment.reconfigure(this.includeLinkExt(lang)),
       ],
     });
   }

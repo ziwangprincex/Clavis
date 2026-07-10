@@ -5,3 +5,8 @@ web/dist/
 web/tsconfig.tsbuildinfo
 .autoresearch/
 REVIEW.md
+
+# Claude Code / skill tooling — local environment, not project source.
+.agents/
+.claude/
+skills-lock.json

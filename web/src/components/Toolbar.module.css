@@ -9,6 +9,9 @@
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
+  /* A faint bright inset at the top edge reads as light catching the frosted
+   * material — Apple §12 (materials & depth). */
+  box-shadow: inset 0 1px 0 var(--material-edge);
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -21,10 +24,11 @@
 .brand {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text);
   margin-right: 4px;
-  letter-spacing: -0.01em;
+  /* Display-scale text tightens (Apple §15 — negative tracking as size grows). */
+  letter-spacing: -0.02em;
 }
 
 .spacer {
@@ -98,7 +102,8 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+    transform 0.06s var(--ease);
 }
 
 .iconBtn:hover {
@@ -106,8 +111,10 @@
   color: var(--text);
 }
 
+/* Instant, physical press feedback (Apple §1 — respond on pointer-down). */
 .iconBtn:active {
   background: var(--border);
+  transform: scale(0.92);
 }
 
 .primaryBtn {

@@ -48,6 +48,7 @@ pub async fn compile_latex(
                 ok: false,
                 errors: vec![LatexDiag {
                     line: None,
+                    file: None,
                     message: format!("rejected unsafe relative path: {}", pf.rel_path),
                     kind: "error",
                     package: None,
@@ -99,7 +100,7 @@ pub async fn compile_latex(
     if let Err(e) = write_local_cjk_font_shim(&workdir, &opts.source, has_local_fonts) {
         return Ok(CompileResult {
             ok: false,
-            errors: vec![LatexDiag { line: None, message: format!("write cjk shim: {e}"), kind: "error", package: None }],
+            errors: vec![LatexDiag { line: None, file: None, message: format!("write cjk shim: {e}"), kind: "error", package: None }],
             workdir_token: Some(token),
             ..Default::default()
         });
@@ -115,7 +116,7 @@ pub async fn compile_latex(
         Err(e) => {
             return Ok(CompileResult {
                 ok: false,
-                errors: vec![LatexDiag { line: None, message: e, kind: "error", package: None }],
+                errors: vec![LatexDiag { line: None, file: None, message: e, kind: "error", package: None }],
                 workdir_token: Some(token),
                 ..Default::default()
             });
@@ -200,7 +201,7 @@ pub async fn compile_latex(
                 let _ = window.emit("latex-done", serde_json::json!({ "ok": false, "runs": runs }));
                 return Ok(CompileResult {
                     ok: false,
-                    errors: vec![LatexDiag { line: None, message: e, kind: "error", package: None }],
+                    errors: vec![LatexDiag { line: None, file: None, message: e, kind: "error", package: None }],
                     log_tail: log_tail(&log_full),
                     runs,
                     workdir_token: Some(token),

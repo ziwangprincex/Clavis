@@ -7,8 +7,8 @@
   font-size: 12px;
   min-width: 200px;
   width: 240px;
-  padding: 6px 6px 12px;
-  gap: 2px;
+  padding: 8px 8px 14px;
+  gap: 5px;
 }
 
 .section {
@@ -18,20 +18,21 @@
 .sectionHeader {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
-  padding: 7px 12px;
+  padding: 7px 10px;
   background: transparent;
   border: none;
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: 11px;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
   border-radius: 6px;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .sectionHeader:hover {
@@ -41,8 +42,13 @@
 
 .caret {
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: 10px;
   width: 12px;
+  transition: color var(--dur) var(--ease);
+}
+
+.sectionHeader:hover .caret {
+  color: var(--text-muted);
 }
 
 .sectionTitle {
@@ -50,7 +56,7 @@
 }
 
 .sectionBody {
-  padding: 4px 0;
+  padding: 3px 0 6px;
   max-height: 340px;
   overflow-y: auto;
 }
