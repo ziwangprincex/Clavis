@@ -5,13 +5,13 @@
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 5px 8px;
+  padding: 6px 8px;
   gap: 4px;
   flex: none;
 }
 
 .empty {
-  padding: 8px 12px;
+  padding: 10px 14px;
   color: var(--text-muted);
   font-size: 11px;
   background: var(--bg-elevated);
@@ -23,16 +23,17 @@
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px 4px 10px;
+  gap: 7px;
+  padding: 7px 9px 7px 11px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
   color: var(--text-muted);
   background: transparent;
-  transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 
 .tab:hover {
@@ -49,12 +50,13 @@
 .langTag {
   font-family: var(--font-mono);
   font-size: 9px;
-  padding: 1px 5px;
+  padding: 2px 5px;
   background: var(--panel-soft);
   border-radius: 4px;
   color: var(--text-dim);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .tab.active .langTag {
@@ -77,17 +79,34 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   background: transparent;
   border: none;
   color: var(--text-dim);
   cursor: pointer;
   padding: 0;
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: 5px;
+  font-size: 14px;
   line-height: 1;
-  transition: background-color 0.1s ease, color 0.1s ease;
+  opacity: 0;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+
+/* Reveal the close button on hover, when the tab is active, or when it (or the
+ * tab) receives keyboard focus — keeps the bar calm but the control reachable
+ * and visible for keyboard users (Texifier/Safari behaviour). */
+.tab:hover .close,
+.tab.active .close,
+.tab:focus-within .close,
+.close:focus-visible {
+  opacity: 1;
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .close:hover {

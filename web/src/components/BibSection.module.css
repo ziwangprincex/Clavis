@@ -16,20 +16,54 @@
 .list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 4px;
 }
 
 .item {
   display: flex;
   flex-direction: column;
-  padding: 4px 10px;
+  gap: 1px;
+  padding: 5px 8px;
   cursor: pointer;
   font-size: 12px;
-  border-bottom: 1px solid var(--border);
+  border-radius: 5px;
+  position: relative;
+  transition: background-color var(--dur) var(--ease);
 }
 
 .item:hover {
   background: var(--panel-soft);
+}
+
+/* Jump-to-source affordance, revealed on row hover. */
+.jump {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.item:hover .jump,
+.item:focus-within .jump,
+.jump:focus-visible {
+  opacity: 1;
+}
+
+.jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.jump:hover {
+  color: var(--accent);
 }
 
 .key {

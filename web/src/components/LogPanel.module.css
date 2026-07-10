@@ -42,26 +42,30 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 4px 12px;
+  padding: 5px 12px;
   font-family: var(--font-mono);
   border-left: 3px solid transparent;
+  transition: background-color var(--dur) var(--ease);
 }
 
 .row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel-soft);
 }
 
 .kind-error {
   border-left-color: var(--error);
+  background: var(--tint-error);
 }
 
 .kind-warning {
   border-left-color: var(--warning);
+  background: var(--tint-warning);
 }
 
 .kind-missing-file,
 .kind-missing-ref {
   border-left-color: var(--accent);
+  background: var(--tint-accent);
 }
 
 .kind-badbox {
@@ -108,8 +112,11 @@
 .rawDetails {
   border-top: 1px solid var(--border);
   background: var(--bg);
-  max-height: 200px;
+  /* Cap at ~half the (now resizable) panel so expanding Raw output never
+     squashes the error list above it to nothing; content scrolls within. */
+  max-height: 50%;
   overflow: auto;
+  flex: 0 0 auto;
 }
 
 .rawDetails summary {

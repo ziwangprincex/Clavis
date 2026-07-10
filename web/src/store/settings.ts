@@ -24,8 +24,11 @@ export interface Settings {
   /** Whether Tab inserts spaces (true) or a literal tab (false). */
   editor_indent_with_spaces: boolean;
   recent_files: string[];
+  /** Recently opened workspace folders (most-recent first). */
+  recent_folders: string[];
   pane_sidebar_width: number;
   pane_editor_width: number;
+  pane_log_height: number;
   /** Periodically write dirty, file-backed tabs to disk. Opt-in. */
   autosave_enabled: boolean;
 
@@ -64,8 +67,10 @@ export const defaultSettings: Settings = {
   editor_tab_size: 2,
   editor_indent_with_spaces: true,
   recent_files: [],
+  recent_folders: [],
   pane_sidebar_width: 0,
   pane_editor_width: 0,
+  pane_log_height: 0,
   autosave_enabled: false,
 
   ui_theme: 'auto',

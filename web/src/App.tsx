@@ -15,14 +15,15 @@ import { BibSection } from './components/BibSection';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
-import { openFileDialog, openFileByPath, saveActiveTab } from './files/files';
+import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
+import { resolveIncludeTarget, resolveSyncTexFile } from './files/projectPaths';
+import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
 import { useFileDrop } from './hooks/useFileDrop';
 import { usePaneLayout } from './hooks/usePaneLayout';
 import { ipc } from './api/tauri';
-import { SAMPLES } from './samples/samples';
 import { SymbolsPanel } from './components/SymbolsPanel';
 import { RecentMenu } from './components/RecentMenu';
 import { Splitter } from './components/Splitter';
@@ -74,78 +75,73 @@ export function App() {
     workAreaRef,
     sidebarWidth,
     editorWidth,
+    logHeight,
     startSidebarDrag,
     dragSidebar,
     endSidebarDrag,
     startEditorDrag,
     dragEditor,
     endEditorDrag,
+    startLogDrag,
+    dragLog,
+    endLogDrag,
   } = usePaneLayout(settings);
 
   // Apply UI theme / fonts / accent / color overrides to :root.
   useAppTheme(settings);
 
   // Boot: load persisted settings, then restore the previous session (crash
-  // recovery). Only if there's nothing to restore do we seed sample tabs.
+  // recovery). If there's nothing to restore, open a single empty scratch tab
+  // (not the old three Welcome samples) so the editor is ready to type in.
   useEffect(() => {
     if (hasTauri()) loadSettings();
     if (useTabsStore.getState().tabs.length > 0) return;
 
-    function seedSampleTabs() {
-      const mdId = newTabId();
-      const texId = newTabId();
-      const typId = newTabId();
-      const seedTabs = useTabsStore.getState();
-      // Add all three; the last addTab call sets activeTabId, so we then
-      // override to make Markdown the visible one.
-      seedTabs.addTab({
-        id: mdId,
-        title: 'Welcome.md',
+    function seedScratchTab() {
+      useTabsStore.getState().addTab({
+        id: newTabId(),
+        title: 'Untitled.md',
         filePath: null,
         lang: 'markdown',
-        content: SAMPLES.markdown,
+        content: '',
         isDirty: false,
       });
-      seedTabs.addTab({
-        id: texId,
-        title: 'Welcome.tex',
-        filePath: null,
-        lang: 'latex',
-        content: SAMPLES.latex,
-        isDirty: false,
-      });
-      seedTabs.addTab({
-        id: typId,
-        title: 'Welcome.typ',
-        filePath: null,
-        lang: 'typst',
-        content: SAMPLES.typst,
-        isDirty: false,
-      });
-      seedTabs.setActive(mdId);
     }
 
     void (async () => {
       const restored = hasTauri() ? await restoreSession() : false;
       if (!restored && useTabsStore.getState().tabs.length === 0) {
-        seedSampleTabs();
+        seedScratchTab();
       }
     })();
   }, [loadSettings, addTab]);
+
+  // Quietly check for a newer release once at startup (no-op in browser preview,
+  // silent when already up to date). Manual "Check for Updates…" lives in the
+  // command palette below.
+  useEffect(() => {
+    void checkForUpdates({ silent: true });
+  }, []);
 
   // Persist session (debounced) on tab changes + flush on unload; manage the
   // opt-in disk-autosave interval.
   useSessionPersistence(settings.autosave_enabled);
 
+  // Set the workspace folder and record it in the recent-folders list.
+  function openWorkspaceFolder(path: string) {
+    setWorkspaceFolder(path);
+    void pushRecentFolder(path);
+  }
+
   // OS file-drop: files open, folders become the workspace.
-  useFileDrop(setWorkspaceFolder);
+  useFileDrop(openWorkspaceFolder);
 
   async function openFolder() {
     if (!hasTauri()) return;
     try {
       const result = await dialogOpen({ directory: true, multiple: false });
       if (typeof result === 'string') {
-        setWorkspaceFolder(result);
+        openWorkspaceFolder(result);
       }
     } catch (e) {
       console.error('open folder failed', e);
@@ -264,18 +260,11 @@ export function App() {
     if (!tab?.filePath) return;
     try {
       const r = await ipc.collectProjectFiles(tab.filePath);
-      type ProjFile = {
-        relPath: string;
-        absPath: string;
-        content: string;
-        binaryBase64?: string | null;
-        isBib?: boolean;
-      };
       useProjectStore.setState({
         rootAbs: tab.filePath,
         rootBasename: tab.filePath.split(/[\\/]/).pop() ?? null,
         activeAbs: tab.filePath,
-        files: ((r.files ?? []) as ProjFile[]),
+        files: r.files ?? [],
         warnings: r.warnings ?? [],
       });
       setStatusText('Project main set');
@@ -296,8 +285,7 @@ export function App() {
         useSettingsStore.getState().settings.latex_custom_paths[
           useSettingsStore.getState().settings.latex_engine
         ];
-      type DistroInfo = { name: string; manager: string; manager_path?: string };
-      const distro = (await ipc.detectDistro(enginePath)) as DistroInfo;
+      const distro = await ipc.detectDistro(enginePath);
       if (!distro?.manager || distro.manager === 'none') {
         setStatusText(`No package manager available for ${distro?.name ?? 'unknown distro'}`);
         setStatusKind('error');
@@ -350,6 +338,7 @@ export function App() {
         run: () => setFolderRefreshKey(k => k + 1),
       }),
       reg({ id: 'app.settings', name: 'Open settings', run: () => setSettingsOpen(true) }),
+      reg({ id: 'app.checkUpdates', name: 'Check for Updates…', run: () => checkForUpdates({ silent: false }) }),
       reg({
         id: 'app.symbols',
         name: 'Toggle math symbols panel',
@@ -464,7 +453,15 @@ export function App() {
       <div className={styles.main} ref={mainRef}>
         <Sidebar
           width={sidebarWidth || undefined}
-          outline={<OutlineSection onJumpToLine={line => editorApiRef.current?.scrollToLine(line)} />}
+          outline={
+            <OutlineSection
+              onJumpTo={(absPath, line) =>
+                void openFileAndScrollToLine(absPath, line, l =>
+                  editorApiRef.current?.scrollToLine(l),
+                )
+              }
+            />
+          }
           folderTree={
             <FolderTreeSection
               rootPath={workspaceFolder}
@@ -480,7 +477,16 @@ export function App() {
               <FilesSection onFileActivate={path => void openFileByPath(path)} />
             ) : null
           }
-          bibliography={lang === 'latex' ? <BibSection onInsertCite={key => editorApiRef.current?.insertCite(key)} /> : null}
+          bibliography={lang === 'latex' ? (
+            <BibSection
+              onInsertCite={key => editorApiRef.current?.insertCite(key)}
+              onJumpToSource={(absPath, line) =>
+                void openFileAndScrollToLine(absPath, line, l =>
+                  editorApiRef.current?.scrollToLine(l),
+                )
+              }
+            />
+          ) : null}
         />
         <Splitter onDragStart={startSidebarDrag} onDrag={dragSidebar} onDragEnd={endSidebarDrag} />
 
@@ -497,6 +503,14 @@ export function App() {
                     onReady={api => {
                       editorApiRef.current = api;
                     }}
+                    onOpenInclude={(raw, isImport) => {
+                      const project = useProjectStore.getState();
+                      const active = useTabsStore.getState();
+                      const currentAbs =
+                        active.tabs.find(t => t.id === active.activeTabId)?.filePath ?? null;
+                      const abs = resolveIncludeTarget(raw, currentAbs, project.files, isImport);
+                      if (abs) void openFileByPath(abs);
+                    }}
                   />
                 </ErrorBoundary>
               </Suspense>
@@ -508,8 +522,10 @@ export function App() {
                   {lang === 'latex' ? (
                     <PdfViewer
                       onSyncTexBackward={(page, x, y) =>
-                        syncTexBackwardFromPdf(page, x, y, line =>
-                          editorApiRef.current?.scrollToLine(line),
+                        syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
+                          void openFileAndScrollToLine(absPath, line, l =>
+                            editorApiRef.current?.scrollToLine(l),
+                          ),
                         )
                       }
                     />
@@ -520,9 +536,24 @@ export function App() {
               </Suspense>
             </div>
           </div>
-          <div className={styles.logArea}>
+          <Splitter
+            orientation="vertical"
+            onDragStart={startLogDrag}
+            onDrag={dragLog}
+            onDragEnd={endLogDrag}
+          />
+          <div
+            className={styles.logArea}
+            style={logHeight ? { height: `${logHeight}px` } : undefined}
+          >
             <LogPanel
-              onJumpToLine={line => editorApiRef.current?.scrollToLine(line)}
+              onJumpTo={(file, line) => {
+                const project = useProjectStore.getState();
+                const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
+                void openFileAndScrollToLine(absPath, line, l =>
+                  editorApiRef.current?.scrollToLine(l),
+                );
+              }}
               onInstallPackage={pkg => void installPackage(pkg)}
             />
           </div>
@@ -541,7 +572,12 @@ export function App() {
         open={recentOpen}
         onClose={() => setRecentOpen(false)}
         onPickPath={path => void openFileByPath(path)}
-        onClear={() => void useSettingsStore.getState().patchAndSave({ recent_files: [] })}
+        onPickFolder={path => openWorkspaceFolder(path)}
+        onClear={() =>
+          void useSettingsStore
+            .getState()
+            .patchAndSave({ recent_files: [], recent_folders: [] })
+        }
       />
     </div>
   );

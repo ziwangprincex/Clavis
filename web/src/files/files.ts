@@ -1,6 +1,7 @@
 // File operations — open / save tabs via Tauri dialog + fs APIs.
 
 import { dialogOpen, dialogSave, fs, hasTauri, ipc } from '../api/tauri';
+import { pathsEqual } from './projectPaths';
 import {
   useTabsStore,
   useSettingsStore,
@@ -36,6 +37,14 @@ async function pushRecent(path: string): Promise<void> {
   await settingsStore.patchAndSave({ recent_files: next });
 }
 
+/** Push a workspace folder to the head of recent_folders (deduped, capped). */
+export async function pushRecentFolder(path: string): Promise<void> {
+  const settingsStore = useSettingsStore.getState();
+  const current = settingsStore.settings.recent_folders ?? [];
+  const next = [path, ...current.filter(p => p !== path)].slice(0, RECENT_LIMIT);
+  await settingsStore.patchAndSave({ recent_folders: next });
+}
+
 export async function openFileDialog(): Promise<void> {
   if (!hasTauri()) return;
   try {
@@ -46,13 +55,16 @@ export async function openFileDialog(): Promise<void> {
   }
 }
 
-export async function openFileByPath(path: string): Promise<void> {
-  if (!hasTauri()) return;
-  // Reuse an existing tab opened on the same path if any.
-  const existing = useTabsStore.getState().tabs.find(t => t.filePath === path);
+/** Open `path` in a tab (reusing an existing one) and make it active. Returns
+ *  true if a tab is now active on that path, false if the open failed/no-op. */
+export async function openFileByPath(path: string): Promise<boolean> {
+  if (!hasTauri()) return false;
+  // Reuse an existing tab opened on the same path if any (normalization-aware:
+  // dialog paths are plain while project/synctex paths may be \\?\ canonical).
+  const existing = useTabsStore.getState().tabs.find(t => pathsEqual(t.filePath, path));
   if (existing) {
     useTabsStore.getState().setActive(existing.id);
-    return;
+    return true;
   }
   try {
     const content = await fs.readTextFile(path);
@@ -73,18 +85,11 @@ export async function openFileByPath(path: string): Promise<void> {
     if (detectedLang === 'latex' && !useProjectStore.getState().rootAbs) {
       try {
         const r = await ipc.collectProjectFiles(path);
-        type ProjFile = {
-          relPath: string;
-          absPath: string;
-          content: string;
-          binaryBase64?: string | null;
-          isBib?: boolean;
-        };
         useProjectStore.setState({
           rootAbs: path,
           rootBasename: filename(path),
           activeAbs: path,
-          files: ((r.files ?? []) as ProjFile[]),
+          files: r.files ?? [],
           warnings: r.warnings ?? [],
         });
       } catch (e) {
@@ -92,8 +97,10 @@ export async function openFileByPath(path: string): Promise<void> {
         console.warn('collect_project_files failed', e);
       }
     }
+    return true;
   } catch (e) {
     console.error('read file failed', path, e);
+    return false;
   }
 }
 
@@ -127,5 +134,37 @@ export async function saveActiveTab(opts: { saveAs?: boolean } = {}): Promise<vo
     void pushRecent(target);
   } catch (e) {
     console.error('write file failed', target, e);
+  }
+}
+
+/**
+ * Open `absPath` (reusing an existing tab or creating one) and scroll its editor
+ * to `line`. When `absPath` is null or already the active tab, just scroll the
+ * current editor. Used by SyncTeX-reverse, the merged outline, bib jumps, and
+ * clickable \input — all of which may target a file other than the active one.
+ *
+ * The scroll is deferred a frame: switching the active tab makes EditorPane swap
+ * its content on the next React commit, so scrolling must happen after that.
+ */
+export async function openFileAndScrollToLine(
+  absPath: string | null,
+  line: number,
+  scrollActive: (line: number) => void,
+): Promise<void> {
+  const state = useTabsStore.getState();
+  const active = state.tabs.find(t => t.id === state.activeTabId);
+  // Normalization-aware compare so a \\?\ canonical path vs a plain dialog path
+  // for the *same* active file doesn't trigger a needless (duplicate) open.
+  const needsOpen = absPath != null && !pathsEqual(active?.filePath, absPath);
+  if (needsOpen) {
+    const opened = await openFileByPath(absPath!);
+    // Only scroll after a successful open/switch; otherwise the active tab
+    // didn't change and scrolling it would jump the wrong file to `line`.
+    if (opened) {
+      // Let EditorPane's tab-switch effect push the new content before scrolling.
+      requestAnimationFrame(() => requestAnimationFrame(() => scrollActive(line)));
+    }
+  } else {
+    scrollActive(line);
   }
 }

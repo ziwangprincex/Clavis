@@ -2,13 +2,14 @@ import { useCompileStore } from '../store';
 import styles from './LogPanel.module.css';
 
 export interface LogPanelProps {
-  /** Called when user clicks a "L<line>" jump link in an error row. */
-  onJumpToLine?: (line: number) => void;
+  /** Jump to a diagnostic's location. `file` is the project-relative source file
+   *  the engine reported (or undefined → the active/root file). */
+  onJumpTo?: (file: string | undefined, line: number) => void;
   /** Called when user clicks "Install <pkg>" for a missing-file diag. */
   onInstallPackage?: (pkg: string) => void;
 }
 
-export function LogPanel({ onJumpToLine, onInstallPackage }: LogPanelProps) {
+export function LogPanel({ onJumpTo, onInstallPackage }: LogPanelProps) {
   const { errors, logLines, logTail } = useCompileStore();
 
   return (
@@ -29,7 +30,8 @@ export function LogPanel({ onJumpToLine, onInstallPackage }: LogPanelProps) {
               {typeof err.line === 'number' && err.line > 0 ? (
                 <a
                   className={styles.jump}
-                  onClick={() => onJumpToLine?.(err.line!)}
+                  onClick={() => onJumpTo?.(err.file, err.line!)}
+                  title={err.file ? `${err.file}:${err.line}` : `Line ${err.line}`}
                 >
                   L{err.line}
                 </a>

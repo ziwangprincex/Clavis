@@ -10,11 +10,13 @@ import styles from './BibSection.module.css';
 export interface BibSectionProps {
   /** Called when user double-clicks an entry. */
   onInsertCite?: (key: string) => void;
+  /** Called to jump to the entry's definition in its .bib file. */
+  onJumpToSource?: (absPath: string, line: number) => void;
 }
 
 const MAX_VISIBLE = 200;
 
-export function BibSection({ onInsertCite }: BibSectionProps) {
+export function BibSection({ onInsertCite, onJumpToSource }: BibSectionProps) {
   const files = useProjectStore(s => s.files);
   const [entries, setEntries] = useState<BibEntry[]>([]);
   const [filter, setFilter] = useState('');
@@ -88,11 +90,24 @@ export function BibSection({ onInsertCite }: BibSectionProps) {
             <li
               key={b.key}
               className={styles.item}
-              title={`${b.key}\n${b.title ?? ''}\n${b.author ?? ''} ${b.year ?? ''}`}
+              title={`${b.key}\n${b.title ?? ''}\n${b.author ?? ''} ${b.year ?? ''}\n\nDouble-click: insert \\cite · ↗: open in .bib`}
               onDoubleClick={() => onInsertCite?.(b.key)}
             >
               <span className={styles.key}>{b.key}</span>
               <span className={styles.meta}>{b.title ?? b.entryType}</span>
+              {onJumpToSource && b.sourceFile && (
+                <button
+                  className={styles.jump}
+                  title={`Open ${b.sourceFile} at line ${b.sourceLine}`}
+                  onClick={e => {
+                    e.stopPropagation();
+                    onJumpToSource(b.sourceFile, b.sourceLine);
+                  }}
+                  onDoubleClick={e => e.stopPropagation()}
+                >
+                  ↗
+                </button>
+              )}
             </li>
           ))}
           {hidden > 0 && (

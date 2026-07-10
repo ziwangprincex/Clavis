@@ -57,6 +57,18 @@
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.18);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
 
+  /* Motion — one standard easing/duration for snappy, consistent feedback. */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur: 0.13s;
+
+  /* Tinted row backgrounds for diagnostic severity (dark). */
+  --tint-error: rgba(255, 69, 58, 0.10);
+  --tint-warning: rgba(255, 214, 10, 0.09);
+  --tint-accent: rgba(10, 132, 255, 0.10);
+
+  /* Bright inset edge where light catches a frosted material (Apple §12). */
+  --material-edge: rgba(255, 255, 255, 0.08);
+
   color-scheme: dark;
 }
 
@@ -86,6 +98,13 @@
 
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --tint-error: rgba(255, 59, 48, 0.07);
+  --tint-warning: rgba(255, 149, 0, 0.08);
+  --tint-accent: rgba(0, 122, 255, 0.07);
+
+  /* In light mode the catching-light edge is near-white and very subtle. */
+  --material-edge: rgba(255, 255, 255, 0.7);
 
   color-scheme: light;
 }

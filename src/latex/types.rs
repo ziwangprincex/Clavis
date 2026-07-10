@@ -55,6 +55,10 @@ pub struct LatexDiag {
     pub line: Option<u32>,
     pub message: String,
     pub kind: &'static str, // "error" | "warning" | "badbox" | "missing-ref" | "missing-file"
+    /// Source file the diagnostic refers to (project-relative, e.g.
+    /// "chapters/intro.tex"), when the engine reported one. None = main/root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
     /// For `missing-file`: the inferred package or file name (without extension).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,

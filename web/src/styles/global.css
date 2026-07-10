@@ -16,13 +16,16 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
+  /* Body copy sits near zero tracking; large/display text tightens separately
+   * (Apple: tracking is size-specific, never one value for all sizes). */
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  /* Prevent the entire window from showing a flash of the wrong theme during
-   * the first paint when --bg / --text change. */
-  transition: background-color 0.15s ease, color 0.15s ease;
+  /* Ease the dark↔light swap so a theme change isn't an abrupt brightness jump
+   * (Apple: avoid abrupt brightness jumps; ease theme changes). */
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
 code {
@@ -36,6 +39,15 @@ code {
 
 ::selection {
   background: var(--selection);
+}
+
+/* Consistent keyboard focus ring across the app (Apple Craft §16 wayfinding).
+ * Only shows for keyboard users via :focus-visible, so pointer clicks stay
+ * clean. Individual components may override with a tighter inset ring. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* Native-looking scrollbars (mac-style overlay).
@@ -58,4 +70,35 @@ code {
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ---- Accessibility: honour the three OS motion/appearance signals ----
+ * (Apple §14 — reduced motion means a gentler equivalent, not "no feedback".) */
+
+/* Reduced motion: drop transitions/animations to a near-instant cross-fade.
+ * Comprehension-aiding color/opacity changes stay, elastic/slide motion goes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Reduced transparency: make the frosted toolbar/panels solid + drop the blur
+ * so text over them stays legible. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --panel: var(--panel-solid);
+  }
+}
+
+/* Increased contrast: give surfaces a defined, contrasting border. */
+@media (prefers-contrast: more) {
+  :root {
+    --border: var(--border-strong);
+  }
 }

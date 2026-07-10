@@ -1,34 +1,39 @@
-// Splitter — vertical drag handle that resizes the element to its left.
+// Splitter — drag handle that resizes an adjacent pane.
 //
-// Usage: place between two flex children. Pass `onResize(deltaX)`; the parent
-// converts that to a width delta on the left pane.
+// Horizontal (default): a vertical bar between two side-by-side flex children;
+// reports absolute clientX. Vertical: a horizontal bar between stacked children;
+// reports absolute clientY. The parent converts the coordinate to a size delta.
 
 import { useCallback, useRef } from 'react';
 import styles from './Splitter.module.css';
 
 export interface SplitterProps {
-  /** Called continuously during drag with absolute clientX. */
-  onDrag: (clientX: number) => void;
-  /** Called once when drag starts (capture starting widths). */
+  /** Called continuously during drag with the absolute pointer coordinate
+   *  (clientX for horizontal, clientY for vertical). */
+  onDrag: (coord: number) => void;
+  /** Called once when drag starts (capture starting sizes). */
   onDragStart?: () => void;
   /** Called once on drag end. */
   onDragEnd?: () => void;
+  /** 'horizontal' (default) resizes left/right; 'vertical' resizes top/bottom. */
+  orientation?: 'horizontal' | 'vertical';
 }
 
-export function Splitter({ onDrag, onDragStart, onDragEnd }: SplitterProps) {
+export function Splitter({ onDrag, onDragStart, onDragEnd, orientation = 'horizontal' }: SplitterProps) {
   const draggingRef = useRef(false);
+  const vertical = orientation === 'vertical';
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       draggingRef.current = true;
       onDragStart?.();
-      document.body.style.cursor = 'col-resize';
+      document.body.style.cursor = vertical ? 'row-resize' : 'col-resize';
       document.body.style.userSelect = 'none';
 
       function onMove(ev: MouseEvent) {
         if (!draggingRef.current) return;
-        onDrag(ev.clientX);
+        onDrag(vertical ? ev.clientY : ev.clientX);
       }
       function onUp() {
         draggingRef.current = false;
@@ -41,8 +46,14 @@ export function Splitter({ onDrag, onDragStart, onDragEnd }: SplitterProps) {
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     },
-    [onDrag, onDragStart, onDragEnd],
+    [onDrag, onDragStart, onDragEnd, vertical],
   );
 
-  return <div className={styles.splitter} onMouseDown={onMouseDown} role="separator" />;
+  return (
+    <div
+      className={vertical ? styles.splitterVertical : styles.splitter}
+      onMouseDown={onMouseDown}
+      role="separator"
+    />
+  );
 }

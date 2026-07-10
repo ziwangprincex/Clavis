@@ -49,7 +49,10 @@
 
 .logArea {
   height: 220px;
+  min-height: 0;
+  flex: 0 0 auto;
   border-top: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .app kbd {
