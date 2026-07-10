@@ -20,37 +20,26 @@ SyncTeX, BibTeX/Biber, Typst rendering, PDF preview with search.
 
 ---
 
-## 2. ⚠️ Git state — READ FIRST
+## 2. Git state — READ FIRST
 
 - Branch: **`p0-guardrails`** (name is historical; it now contains P0–P3 work).
-- **4 commits** ahead of `origin/main` and pushed (last: `cd20c05` CI pin).
-- **~36 files of UNCOMMITTED work in the working tree** + new untracked files.
-  This is the entire session below (multi-file features, 14 bug fixes, IPC
-  types, GUI/apple-design, auto-update, tabbed settings). **All verified green
-  but never committed.** Committing this is the immediate next task.
+- Working tree is **clean** — this whole session is committed.
+- Latest commits (all pushed, **CI green**):
+  - `Set updater public key`
+  - `Multi-file LaTeX jumps, GUI/apple-design polish, tabbed settings, 14 review-fixes`
+  - `Add Tauri auto-updater: config, release CI, Check-for-Updates UI`
+  - (earlier) `cd20c05` CI pin, `a784395` latex split, `9c37ee9` shell-escape.
+- **Tag `v1.0.0` pushed** → Release workflow building (see §4).
+- **Not yet merged to `main`** — `p0-guardrails` is ahead. Open a PR / merge when
+  ready to consolidate (optional).
 
-### Before committing — ignore tooling artifacts
-These untracked paths are **Claude Code / skill tooling, NOT project source** —
-add to `.gitignore` (was in progress, may already be done):
-```
-.agents/
-.claude/
-skills-lock.json
-```
-Also note: persistent **CRLF warnings** on Windows inflate the diff stat
-(insertions/deletions look huge because line endings re-write whole files). A
-`.gitattributes` with `* text=auto eol=lf` would fix this permanently — not yet
-done.
+### Tooling artifacts are gitignored
+`.agents/`, `.claude/`, `skills-lock.json` are Claude Code / skill tooling (not
+project source) and are in `.gitignore` — they stayed out of the commits. Good.
 
-### Suggested commit grouping (work is logically separable)
-1. Multi-file LaTeX features (F1–F4) + their bug fixes
-2. IPC strict typing + diagnostics multi-file mapping
-3. Recent-folders / remove-default-3-tabs
-4. GUI polish + apple-design pass
-5. Auto-update (updater config, CI, RELEASING.md)
-6. Tabbed settings dialog
-
----
+### Still worth doing (not done)
+- **`.gitattributes`** with `* text=auto eol=lf` — Windows CRLF warnings inflate
+  diff stats; this fixes it permanently.
 
 ## 3. What was done this session (all verified: typecheck / build / cargo / tests green)
 
@@ -89,19 +78,36 @@ run an adversarial review over the diff before trusting a big change.**
 
 ---
 
-## 4. Auto-update — UNFINISHED, needs the user's manual steps
+## 4. Auto-update — IN PROGRESS (setup done; first release building)
 
-Code/config is in place (`tauri.conf.json` updater block, `Cargo.toml` `updater`
+Code/config in place: `tauri.conf.json` updater block, `Cargo.toml` `updater`
 + `process-relaunch` features, `web/src/update/updater.ts`,
-`.github/workflows/release.yml`, `RELEASING.md`). **But it will not work until:**
+`.github/workflows/release.yml`, `RELEASING.md`.
 
-1. **`tauri.conf.json` → `tauri.updater.pubkey` is still the placeholder
-   `REPLACE_WITH_CLAVIS_KEY_PUB_CONTENTS`.** A real key must be generated and
-   pasted in — see `RELEASING.md` step 1. **`tauri build` will fail to sign
-   until this is replaced** (`cargo check`/`dev` are fine — they don't validate it).
-2. GitHub secrets `TAURI_PRIVATE_KEY` + `TAURI_KEY_PASSWORD` must be set.
-3. A real tagged release (`git tag v1.0.1 && git push origin v1.0.1`) must be
-   cut for the whole flow to be testable end-to-end.
+**Progress (as of 2026-07-10):**
+1. ✅ Signing keypair generated → `%USERPROFILE%\.tauri\clavis.key` (+ `.pub`).
+   **Private key + its password live only on the user's machine — keep safe;
+   losing either breaks future update signing.**
+2. ✅ Public key pasted into `tauri.conf.json → tauri.updater.pubkey`
+   (committed as "Set updater public key"). `cargo check` passes.
+3. ✅ GitHub secrets `TAURI_PRIVATE_KEY` + `TAURI_KEY_PASSWORD` set.
+4. ✅ Tagged `v1.0.0` → Release workflow **built all 3 platforms green**
+   (Windows/macOS/Linux). One gotcha hit + fixed: the workflow needed
+   `permissions: contents: write` (default `GITHUB_TOKEN` is read-only →
+   "Resource not accessible by integration"); also set repo Settings → Actions →
+   Workflow permissions to "Read and write". Both done; committed as
+   "CI: grant release workflow contents:write for GitHub Release".
+
+**The CI release pipeline is proven working.** Remaining is manual, deferred by
+the user:
+- The v1.0.0 Release is still a **draft** — **Publish it** on
+  `github.com/ziwangprincex/Clavis/releases` so the `/releases/latest/` endpoint
+  (which the app polls) can see it + its `latest.json`. Confirm assets include
+  `latest.json` + per-platform installers before publishing.
+- **End-to-end auto-update NOT yet tested.** To verify: install v1.0.0, bump
+  `tauri.conf.json` version → `1.0.1`, commit, `git tag v1.0.1 && git push
+  origin v1.0.1`, publish that release, then in the v1.0.0 app use Settings →
+  Updates → "Check for Updates" and confirm it detects + installs 1.0.1.
 
 Explicitly **out of scope** (agreed): OS-level code signing (Apple notarization /
 Windows Authenticode) — first-install OS warnings remain, auto-update still works.
