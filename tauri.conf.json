@@ -44,7 +44,7 @@
       "category": "Productivity",
       "shortDescription": "Markdown / LaTeX / Typst editor with live preview",
       "longDescription": "Native desktop editor with side-by-side preview for Markdown, LaTeX (real engine compilation via pdflatex/xelatex/lualatex), and Typst. Features include SyncTeX, BibTeX integration, project file sidebar, and PDF text search.",
-      "targets": ["nsis", "dmg", "app", "deb", "appimage"],
+      "targets": ["nsis", "dmg", "app", "deb", "appimage", "updater"],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
