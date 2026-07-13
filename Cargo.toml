@@ -2,7 +2,7 @@
 
 [package]
 name = "clavis"
-version = "1.0.0"
+version = "1.0.1"
 description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
 edition = "2021"
 rust-version = "1.75"
