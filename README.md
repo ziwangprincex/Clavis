@@ -33,23 +33,6 @@ brew install --cask ziwangprincex/clavis/clavis
 xattr -cr /Applications/Clavis.app   # clear the quarantine flag (not notarized)
 ```
 
-<<<<<<< HEAD
-=======
-Clavis isn't notarized by Apple, so after installing, macOS reports it as
-"damaged" until you clear the quarantine flag with the `xattr` line above — run
-it once and it opens normally from then on.
-
-The app isn't signed with an OS certificate yet, so on first launch Windows
-SmartScreen or macOS Gatekeeper may warn you. Choose "Open anyway" / "Run anyway".
->>>>>>> 35d084f (docs(homebrew): use two-step install (brew + xattr) instead of --no-quarantine)
-
-**macOS: "Clavis is damaged and can't be opened."** This is Gatekeeper
-quarantining the downloaded (un-notarized) app, not real corruption. Clear the
-quarantine flag once:
-
-```bash
-xattr -cr /Applications/Clavis.app
-```
 
 
 ### Updates
