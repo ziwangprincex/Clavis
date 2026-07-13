@@ -61,7 +61,7 @@ export const defaultSettings: Settings = {
     '"Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Menlo, monospace',
   editor_font_size: 14,
   editor_line_height: 1.55,
-  editor_theme: 'vscode-dark',
+  editor_theme: 'auto',
   editor_theme_overrides: {},
   editor_spellcheck: false,
   editor_tab_size: 2,

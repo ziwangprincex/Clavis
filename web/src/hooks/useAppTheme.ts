@@ -1,65 +1,39 @@
 // Applies UI theme, fonts, accent, and arbitrary color overrides to :root
-// whenever the relevant settings change. Extracted verbatim from App.tsx so the
-// settings→global-CSS wiring lives in one named place.
+// whenever the relevant settings change.
+//
+// The chosen theme (settings.editor_theme, possibly 'auto') is the single source
+// of truth: `applyChromeTokens` derives the whole chrome palette from its
+// ThemeSpec so toolbar/sidebar/preview match the editor. User-level overrides
+// (custom UI font, accent, and ad-hoc --var color overrides) are then layered on
+// top so they win over the theme defaults.
 
 import { useEffect } from 'react';
-import { useSettingsStore, type Settings } from '../store';
+import { type Settings } from '../store';
+import { applyChromeTokens, setAccent, useResolvedThemeSpec } from '../theme/appTheme';
 
 export function useAppTheme(settings: Settings): void {
-  // Theme (dark/light/auto) + editor-theme follow. Listens to OS scheme changes
-  // only when the user picked "auto".
+  const spec = useResolvedThemeSpec();
+
   useEffect(() => {
     const root = document.documentElement;
 
-    function resolve(): 'dark' | 'light' {
-      if (settings.ui_theme === 'auto') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-      return settings.ui_theme;
-    }
+    // 1) Theme-derived chrome palette (also sets data-theme + color-scheme).
+    applyChromeTokens(spec);
 
-    function apply() {
-      const resolved = resolve();
-      root.setAttribute('data-theme', resolved);
-
-      // Editor theme follows app theme: pick a sensible default for whichever
-      // mode we're in. Users who explicitly chose another editor theme keep it
-      // — we only swap when the saved theme matches the "default of the other
-      // mode", so manual choices stick.
-      const currentEditorTheme = useSettingsStore.getState().settings.editor_theme;
-      if (resolved === 'light' && currentEditorTheme === 'vscode-dark') {
-        useSettingsStore.getState().patch({ editor_theme: 'vscode-light' });
-      } else if (resolved === 'dark' && currentEditorTheme === 'vscode-light') {
-        useSettingsStore.getState().patch({ editor_theme: 'vscode-dark' });
-      }
-    }
-
-    apply();
-
-    if (settings.ui_theme === 'auto') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      const onChange = () => apply();
-      mq.addEventListener('change', onChange);
-      return () => mq.removeEventListener('change', onChange);
-    }
-  }, [settings.ui_theme]);
-
-  // Font + accent + arbitrary color overrides — separate effect so toggling
-  // theme doesn't waste a re-run on these.
-  useEffect(() => {
-    const root = document.documentElement;
-
+    // 2) User font overrides.
     if (settings.ui_font_family) {
       root.style.setProperty('--font-sans', settings.ui_font_family);
+    } else {
+      root.style.removeProperty('--font-sans');
     }
     document.body.style.fontSize = `${settings.ui_font_size}px`;
 
+    // 3) User accent override wins over the theme's accent.
     if (settings.ui_accent_color) {
-      root.style.setProperty('--accent', settings.ui_accent_color);
-    } else {
-      root.style.removeProperty('--accent');
+      setAccent(root, settings.ui_accent_color, spec.dark);
     }
 
+    // 4) Arbitrary --var color overrides, layered last so they always win.
     const ov = settings.ui_color_overrides ?? {};
     const knownKeys: string[] = (root.dataset.clavisOverrideKeys ?? '').split(',').filter(Boolean);
     for (const key of knownKeys) {
@@ -70,6 +44,7 @@ export function useAppTheme(settings: Settings): void {
     }
     root.dataset.clavisOverrideKeys = Object.keys(ov).join(',');
   }, [
+    spec,
     settings.ui_font_family,
     settings.ui_font_size,
     settings.ui_accent_color,

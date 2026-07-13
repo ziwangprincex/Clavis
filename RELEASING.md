@@ -84,3 +84,32 @@ resolves to the newest published (non-draft) release.
 - `deb` is built for convenience but the Linux updater uses the **AppImage**.
 - Keep the private key safe. If it's lost, existing installs can no longer verify
   updates signed with a new key — you'd have to ship a manual reinstall.
+
+## Troubleshooting
+
+### `Warn The updater secret key from TAURI_PRIVATE_KEY does not match the public key`
+
+The private key used at build time (env var `TAURI_PRIVATE_KEY`, or a local
+`~/.tauri/clavis.key`) is **not the mate** of the `tauri.updater.pubkey` currently
+in `tauri.conf.json`. Updates signed by this build will be rejected at runtime.
+
+This happens when `pubkey` is rotated but the signing machine / GitHub Secret
+still holds the old private key (or vice-versa). The public and private key are a
+**pair** — you cannot fix it by editing one; regenerate and set both together:
+
+```bash
+npm --prefix web exec tauri signer generate -- -w "$HOME/.tauri/clavis.key"
+```
+
+Then paste the new `clavis.key.pub` contents into `tauri.conf.json → tauri.updater.pubkey`
+(the whole line, no trailing characters — a stray `%` from a terminal copy will
+corrupt it), and update the `TAURI_PRIVATE_KEY` / `TAURI_KEY_PASSWORD` GitHub
+Secrets from the new `clavis.key`. Local builds read the key from the env var:
+
+```bash
+export TAURI_PRIVATE_KEY="$(cat "$HOME/.tauri/clavis.key")"
+export TAURI_KEY_PASSWORD="<your-password>"
+```
+
+Note: this warning only affects **auto-update signature verification**, not
+whether the `.dmg` / `.app` itself runs.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSettingsStore, defaultSettings } from '../store';
 import type { Settings } from '../store/settings';
 import { BUILTIN_THEMES } from '../editor/controller';
-import { getAppVersion } from '../api/tauri';
+import { getAppVersion, hasTauri } from '../api/tauri';
 import { checkForUpdates } from '../update/updater';
 import styles from './SettingsDialog.module.css';
 
@@ -26,8 +26,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   }, [open, stored]);
 
   // Fetch the app version once the dialog opens (for the Updates pane).
+  // getAppVersion() throws synchronously outside the Tauri shell (browser
+  // preview), so guard on hasTauri() — an unguarded throw in this effect would
+  // crash the whole dialog to a black screen.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !hasTauri()) return;
     getAppVersion().then(setVersion).catch(() => setVersion(''));
   }, [open]);
 
@@ -81,16 +84,22 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <section className={styles.section}>
                 <h3>Appearance</h3>
                 <label>
-                  UI theme
+                  Theme
                   <select
-                    value={draft.ui_theme}
-                    onChange={e => update('ui_theme', e.target.value as 'auto' | 'dark' | 'light')}
+                    value={draft.editor_theme}
+                    onChange={e => update('editor_theme', e.target.value)}
                   >
                     <option value="auto">Auto (follow system)</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
+                    {Object.entries(BUILTIN_THEMES).map(([key, spec]) => (
+                      <option key={key} value={key}>
+                        {spec.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
+                <p className={styles.hint}>
+                  The chosen theme colors the whole window — editor, sidebar, and preview.
+                </p>
                 <label>
                   UI font family
                   <input
@@ -241,19 +250,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <>
                 <section className={styles.section}>
                   <h3>Editor</h3>
-                  <label>
-                    Theme
-                    <select
-                      value={draft.editor_theme}
-                      onChange={e => update('editor_theme', e.target.value)}
-                    >
-                      {Object.entries(BUILTIN_THEMES).map(([key, spec]) => (
-                        <option key={key} value={key}>
-                          {spec.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label>
                     Font family
                     <input

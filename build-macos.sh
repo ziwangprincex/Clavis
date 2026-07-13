@@ -82,7 +82,13 @@ if [[ -d "$DMG_DIR" ]]; then
   ls -la "$DMG_DIR"
   echo ""
   echo "Drag the .dmg to your Applications folder, then double-click to install."
-  echo "First launch: right-click Clavis.app -> Open (to bypass Gatekeeper for unsigned apps)."
+  echo ""
+  echo "The app is ad-hoc signed (tauri.conf.json > macOS.signingIdentity: \"-\"),"
+  echo "which lets it run on Apple Silicon. It is NOT notarized, so a copy"
+  echo "downloaded from the internet is quarantined by Gatekeeper. If macOS says"
+  echo "\"Clavis is damaged and can't be opened\", clear the quarantine flag:"
+  echo "    xattr -cr /Applications/Clavis.app"
+  echo "or on first launch: right-click Clavis.app -> Open."
 else
   echo "WARNING: expected $DMG_DIR not found. Check earlier output for errors." >&2
   exit 1

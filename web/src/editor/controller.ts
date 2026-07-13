@@ -22,9 +22,10 @@ import {
   bracketMatching,
   StreamLanguage,
   syntaxHighlighting,
-  defaultHighlightStyle,
+  HighlightStyle,
   indentUnit,
 } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 import {
   autocompletion,
   closeBrackets,
@@ -118,6 +119,8 @@ export interface ThemeSpec {
   activeBg: string;
   cursor: string;
   selection: string;
+  /** Accent color for links/selection/focus in the surrounding app chrome. */
+  accent: string;
 }
 
 export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
@@ -127,6 +130,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#1e1e1e', fg: '#d4d4d4',
     gutterBg: '#1e1e1e', gutterFg: '#666',
     activeBg: '#252526', cursor: '#ffffff', selection: '#264f78',
+    accent: '#4aa5ff',
   },
   'vscode-light': {
     label: 'VS Code Light',
@@ -134,6 +138,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#ffffff', fg: '#1e1e1e',
     gutterBg: '#ffffff', gutterFg: '#999',
     activeBg: '#f3f3f3', cursor: '#000000', selection: '#add6ff',
+    accent: '#007aff',
   },
   'github-dark': {
     label: 'GitHub Dark',
@@ -141,6 +146,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#0d1117', fg: '#c9d1d9',
     gutterBg: '#0d1117', gutterFg: '#484f58',
     activeBg: '#161b22', cursor: '#58a6ff', selection: '#264f7833',
+    accent: '#58a6ff',
   },
   'github-light': {
     label: 'GitHub Light',
@@ -148,6 +154,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#ffffff', fg: '#1f2328',
     gutterBg: '#f6f8fa', gutterFg: '#9098a3',
     activeBg: '#f6f8fa', cursor: '#1f2328', selection: '#b6e3ff',
+    accent: '#0969da',
   },
   'one-dark': {
     label: 'One Dark',
@@ -155,6 +162,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#282c34', fg: '#abb2bf',
     gutterBg: '#282c34', gutterFg: '#5c6370',
     activeBg: '#2c313a', cursor: '#528bff', selection: '#3e4451',
+    accent: '#61afef',
   },
   'solarized-dark': {
     label: 'Solarized Dark',
@@ -162,6 +170,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#002b36', fg: '#93a1a1',
     gutterBg: '#073642', gutterFg: '#586e75',
     activeBg: '#073642', cursor: '#fdf6e3', selection: '#073642',
+    accent: '#268bd2',
   },
   'solarized-light': {
     label: 'Solarized Light',
@@ -169,6 +178,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#fdf6e3', fg: '#586e75',
     gutterBg: '#eee8d5', gutterFg: '#93a1a1',
     activeBg: '#eee8d5', cursor: '#586e75', selection: '#cae0e0',
+    accent: '#268bd2',
   },
   monokai: {
     label: 'Monokai',
@@ -176,6 +186,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#272822', fg: '#f8f8f2',
     gutterBg: '#272822', gutterFg: '#75715e',
     activeBg: '#3e3d32', cursor: '#f8f8f0', selection: '#49483e',
+    accent: '#66d9ef',
   },
   dracula: {
     label: 'Dracula',
@@ -183,6 +194,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#282a36', fg: '#f8f8f2',
     gutterBg: '#282a36', gutterFg: '#6272a4',
     activeBg: '#44475a', cursor: '#f8f8f0', selection: '#44475a',
+    accent: '#bd93f9',
   },
   nord: {
     label: 'Nord',
@@ -190,6 +202,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#2e3440', fg: '#d8dee9',
     gutterBg: '#2e3440', gutterFg: '#4c566a',
     activeBg: '#3b4252', cursor: '#d8dee9', selection: '#434c5e',
+    accent: '#88c0d0',
   },
   tomorrow: {
     label: 'Tomorrow Night',
@@ -197,6 +210,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#1d1f21', fg: '#c5c8c6',
     gutterBg: '#1d1f21', gutterFg: '#5c6370',
     activeBg: '#282a2e', cursor: '#aeafad', selection: '#373b41',
+    accent: '#81a2be',
   },
   material: {
     label: 'Material Darker',
@@ -204,6 +218,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#212121', fg: '#eeffff',
     gutterBg: '#212121', gutterFg: '#545454',
     activeBg: '#2c2c2c', cursor: '#ffcc00', selection: '#3a3a3a',
+    accent: '#82aaff',
   },
   gruvbox: {
     label: 'Gruvbox Dark',
@@ -211,6 +226,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     bg: '#282828', fg: '#ebdbb2',
     gutterBg: '#282828', gutterFg: '#7c6f64',
     activeBg: '#3c3836', cursor: '#fe8019', selection: '#504945',
+    accent: '#fabd2f',
   },
 };
 
@@ -228,6 +244,55 @@ function buildThemeExt(spec: ThemeSpec) {
     },
     { dark: spec.dark },
   );
+}
+
+// Syntax-token colors. CodeMirror's built-in `defaultHighlightStyle` is tuned
+// for LIGHT backgrounds, so on any dark theme its dark-on-dark tokens become
+// unreadable (the "can't see the text" bug). We ship one palette per luminance
+// and pick by `spec.dark`, so headings/keywords/strings stay legible on every
+// built-in theme. Base (unhighlighted) text still comes from `spec.fg`.
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: '#c586c0' },
+  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: '#9cdcfe' },
+  { tag: [t.function(t.variableName), t.labelName], color: '#dcdcaa' },
+  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: '#4fc1ff' },
+  { tag: [t.definition(t.name), t.separator], color: '#d4d4d4' },
+  { tag: [t.typeName, t.className, t.namespace, t.tagName], color: '#4ec9b0' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: '#b5cea8' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: '#ce9178' },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.meta], color: '#6a9955', fontStyle: 'italic' },
+  { tag: [t.heading], color: '#4ec9b0', fontWeight: 'bold' },
+  { tag: t.strong, fontWeight: 'bold' },
+  { tag: t.emphasis, fontStyle: 'italic' },
+  { tag: t.strikethrough, textDecoration: 'line-through' },
+  { tag: t.link, color: '#4aa5ff', textDecoration: 'underline' },
+  { tag: [t.url, t.escape, t.special(t.string)], color: '#d7ba7d' },
+  { tag: t.invalid, color: '#f14c4c' },
+]);
+
+const lightHighlightStyle = HighlightStyle.define([
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: '#af00db' },
+  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: '#001080' },
+  { tag: [t.function(t.variableName), t.labelName], color: '#795e26' },
+  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: '#0070c1' },
+  { tag: [t.definition(t.name), t.separator], color: '#1e1e1e' },
+  { tag: [t.typeName, t.className, t.namespace, t.tagName], color: '#267f99' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: '#098658' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: '#a31515' },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.meta], color: '#008000', fontStyle: 'italic' },
+  { tag: [t.heading], color: '#267f99', fontWeight: 'bold' },
+  { tag: t.strong, fontWeight: 'bold' },
+  { tag: t.emphasis, fontStyle: 'italic' },
+  { tag: t.strikethrough, textDecoration: 'line-through' },
+  { tag: t.link, color: '#0969da', textDecoration: 'underline' },
+  { tag: [t.url, t.escape, t.special(t.string)], color: '#b5690f' },
+  { tag: t.invalid, color: '#cd3131' },
+]);
+
+function buildHighlightExt(spec: ThemeSpec) {
+  return syntaxHighlighting(spec.dark ? darkHighlightStyle : lightHighlightStyle, {
+    fallback: true,
+  });
 }
 
 export interface FontSpec {
@@ -270,6 +335,7 @@ export class EditorController {
   private completionCompartment = new Compartment();
   private fontCompartment = new Compartment();
   private themeCompartment = new Compartment();
+  private highlightCompartment = new Compartment();
   private spellCompartment = new Compartment();
   private indentCompartment = new Compartment();
   private tabSizeCompartment = new Compartment();
@@ -309,7 +375,7 @@ export class EditorController {
         autocompletion({ override: [buildCompletionSource(this.currentLang)] }),
       ),
       highlightSelectionMatches(),
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      this.highlightCompartment.of(buildHighlightExt(this.themeSpec)),
       this.themeCompartment.of(buildThemeExt(this.themeSpec)),
       this.fontCompartment.of(buildFontExt(this.font)),
       this.spellCompartment.of(
@@ -411,7 +477,12 @@ export class EditorController {
 
   setTheme(spec: ThemeSpec) {
     this.themeSpec = spec;
-    this.view.dispatch({ effects: this.themeCompartment.reconfigure(buildThemeExt(spec)) });
+    this.view.dispatch({
+      effects: [
+        this.themeCompartment.reconfigure(buildThemeExt(spec)),
+        this.highlightCompartment.reconfigure(buildHighlightExt(spec)),
+      ],
+    });
   }
 
   setSpellcheck(on: boolean) {
