@@ -35,10 +35,13 @@ cask "clavis" do
   ]
 
   caveats <<~EOS
-    Clavis is ad-hoc signed but NOT notarized by Apple. If macOS blocks it on
-    first launch ("unidentified developer" / "damaged"), either right-click the
-    app in /Applications and choose Open, or reinstall skipping quarantine:
+    Clavis is ad-hoc signed but NOT notarized by Apple. For a clean install with
+    no Gatekeeper prompt, add --no-quarantine:
 
       brew install --cask --no-quarantine clavis
+
+    If it was already installed and macOS says it is "damaged", run:
+
+      xattr -cr /Applications/Clavis.app
   EOS
 end

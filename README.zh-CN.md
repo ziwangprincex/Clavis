@@ -26,6 +26,16 @@
 - macOS — `.dmg`
 - Linux — `.AppImage`
 
+### Homebrew（macOS，Apple 芯片）
+
+```bash
+brew install --cask --no-quarantine ziwangprincex/clavis/clavis
+```
+
+`--no-quarantine` 很关键：Clavis 未经 Apple 公证，普通 `brew install` 会保留隔离
+标记，macOS 会报“已损坏”。加上 `--no-quarantine` 就能直接打开、无需任何额外操作。
+（如果你已经没带这个参数装过了，执行一次 `xattr -cr /Applications/Clavis.app` 即可。）
+
 应用还没有做操作系统级的代码签名，所以首次打开时 Windows 的 SmartScreen 或
 macOS 的 Gatekeeper 可能会提示，选“仍要打开 / 仍要运行”即可。
 

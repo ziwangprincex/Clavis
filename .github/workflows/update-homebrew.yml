@@ -40,7 +40,7 @@ jobs:
           echo "Cask -> clavis $VERSION ($SHA)"
 
       - name: Check out tap repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ziwangprincex/homebrew-clavis
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -66,6 +66,17 @@ jobs:
             auto_updates true
 
             app "Clavis.app"
+
+            caveats <<~EOS
+              Clavis is ad-hoc signed but NOT notarized by Apple. For a clean
+              install with no Gatekeeper prompt, add --no-quarantine:
+
+                brew install --cask --no-quarantine clavis
+
+              If it was already installed and macOS says it is "damaged", run:
+
+                xattr -cr /Applications/Clavis.app
+            EOS
 
             zap trash: [
               "~/Library/Application Support/clavis",
