@@ -26,6 +26,18 @@ Download the installer for your platform from the
 - macOS — `.dmg`
 - Linux — `.AppImage`
 
+### Homebrew (macOS, Apple Silicon)
+
+```bash
+brew install --cask --no-quarantine ziwangprincex/clavis/clavis
+```
+
+The `--no-quarantine` flag matters: Clavis isn't notarized by Apple, so a normal
+`brew install` leaves the quarantine flag on and macOS reports it as "damaged".
+Installing with `--no-quarantine` opens cleanly with no extra steps. (If you
+already installed it without the flag, run `xattr -cr /Applications/Clavis.app`
+once.)
+
 The app isn't signed with an OS certificate yet, so on first launch Windows
 SmartScreen or macOS Gatekeeper may warn you. Choose "Open anyway" / "Run anyway".
 

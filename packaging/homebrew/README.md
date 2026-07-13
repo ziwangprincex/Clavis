@@ -29,14 +29,15 @@ git add Casks/clavis.rb && git commit -m "clavis 1.0.0" && git push
 ## Install (end users)
 
 ```bash
-brew install --cask ziwangprincex/clavis/clavis
+brew install --cask --no-quarantine ziwangprincex/clavis/clavis
 # or:
 brew tap ziwangprincex/clavis
-brew install --cask clavis
+brew install --cask --no-quarantine clavis
 ```
 
-Not notarized → if macOS blocks first launch, `brew install --cask --no-quarantine clavis`
-(or right-click the app → Open).
+`--no-quarantine` is needed because Clavis isn't notarized: a plain
+`brew install` leaves the quarantine flag on and macOS reports "damaged".
+Already installed without it? Run `xattr -cr /Applications/Clavis.app` once.
 
 ## Per release: bump the cask
 
