@@ -33,21 +33,6 @@ brew install --cask ziwangprincex/clavis/clavis
 xattr -cr /Applications/Clavis.app   # 清除隔离标记（未公证）
 ```
 
-<<<<<<< HEAD
-=======
-Clavis 未经 Apple 公证，装完后 macOS 会报“已损坏”，用上面的 `xattr` 命令清一次
-隔离标记就行——之后就能正常打开了。
-
-应用还没有做操作系统级的代码签名，所以首次打开时 Windows 的 SmartScreen 或
-macOS 的 Gatekeeper 可能会提示，选“仍要打开 / 仍要运行”即可。
-
->>>>>>> 35d084f (docs(homebrew): use two-step install (brew + xattr) instead of --no-quarantine)
-**macOS 提示“Clavis 已损坏，无法打开”**：这是 Gatekeeper 对下载的（未公证）
-应用加了隔离标记，并不是文件真的损坏。执行一次下面的命令清除隔离标记：
-
-```bash
-xattr -cr /Applications/Clavis.app
-```
 
 ### 更新
 
