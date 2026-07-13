@@ -9,7 +9,8 @@
 
 import { useEffect, useRef } from 'react';
 import { useTabsStore, useSettingsStore } from '../store';
-import { EditorController, BUILTIN_THEMES, type ThemeSpec } from '../editor/controller';
+import { EditorController } from '../editor/controller';
+import { useResolvedThemeSpec } from '../theme/appTheme';
 import styles from './EditorPane.module.css';
 
 /**
@@ -69,12 +70,13 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
   const patchTab = useTabsStore(s => s.patchTab);
 
   const settings = useSettingsStore(s => s.settings);
+  // Single source of truth for colors, shared with the app chrome so the editor
+  // and the surrounding UI always match (incl. 'auto' → OS light/dark).
+  const themeSpec = useResolvedThemeSpec();
 
   // Mount once.
   useEffect(() => {
     if (!hostRef.current) return;
-    const themeSpec: ThemeSpec =
-      BUILTIN_THEMES[settings.editor_theme] ?? BUILTIN_THEMES['vscode-dark'];
     const ctrl = new EditorController({
       parent: hostRef.current,
       initialDoc: useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.content ?? '',
@@ -137,22 +139,8 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
   }, [settings.editor_font_family, settings.editor_font_size, settings.editor_line_height]);
 
   useEffect(() => {
-    const ctrl = controllerRef.current;
-    if (!ctrl) return;
-    const base = BUILTIN_THEMES[settings.editor_theme] ?? BUILTIN_THEMES['vscode-dark'];
-    const ov = settings.editor_theme_overrides ?? {};
-    const themeSpec: ThemeSpec = {
-      ...base,
-      ...(ov.bg && { bg: ov.bg }),
-      ...(ov.fg && { fg: ov.fg }),
-      ...(ov.gutter_bg && { gutterBg: ov.gutter_bg }),
-      ...(ov.gutter_fg && { gutterFg: ov.gutter_fg }),
-      ...(ov.active_bg && { activeBg: ov.active_bg }),
-      ...(ov.cursor && { cursor: ov.cursor }),
-      ...(ov.selection && { selection: ov.selection }),
-    };
-    ctrl.setTheme(themeSpec);
-  }, [settings.editor_theme, settings.editor_theme_overrides]);
+    controllerRef.current?.setTheme(themeSpec);
+  }, [themeSpec]);
 
   useEffect(() => {
     controllerRef.current?.setSpellcheck(settings.editor_spellcheck);

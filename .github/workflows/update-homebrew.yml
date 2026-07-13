@@ -1,0 +1,91 @@
+name: Update Homebrew cask
+
+# When you PUBLISH a GitHub Release (the Release workflow creates it as a draft;
+# you review and publish it), this recomputes the macOS DMG checksum and pushes
+# an updated cask to the tap repo so `brew install --cask clavis` picks up the
+# new version automatically.
+#
+# Fires on `release: published` (not tag push) because a draft release's assets
+# aren't publicly downloadable — we want the URL in the cask to work the moment
+# it lands.
+#
+# Requires ONE extra repo secret (Settings → Secrets and variables → Actions):
+#   HOMEBREW_TAP_TOKEN — a Personal Access Token with Contents: Read and write
+#                        on ziwangprincex/homebrew-clavis (fine-grained PAT
+#                        scoped to just that repo is ideal).
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute version + DMG sha256
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          DMG="Clavis_${VERSION}_aarch64.dmg"
+          # Pull the asset from the published release via the API (works the
+          # instant it's published, no CDN propagation wait).
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$DMG"
+          SHA=$(sha256sum "$DMG" | cut -d' ' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Cask -> clavis $VERSION ($SHA)"
+
+      - name: Check out tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: ziwangprincex/homebrew-clavis
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write cask
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Casks
+          cat > tap/Casks/clavis.rb <<'CASK'
+          cask "clavis" do
+            version "${{ steps.meta.outputs.version }}"
+            sha256 "${{ steps.meta.outputs.sha256 }}"
+
+            url "https://github.com/ziwangprincex/Clavis/releases/download/v#{version}/Clavis_#{version}_aarch64.dmg"
+            name "Clavis"
+            desc "Markdown / LaTeX / Typst editor with live preview"
+            homepage "https://github.com/ziwangprincex/Clavis"
+
+            depends_on arch: :arm64
+            depends_on macos: ">= :big_sur"
+
+            auto_updates true
+
+            app "Clavis.app"
+
+            zap trash: [
+              "~/Library/Application Support/clavis",
+              "~/Library/Caches/com.clavis.app",
+              "~/Library/Preferences/com.clavis.app.plist",
+              "~/Library/Saved Application State/com.clavis.app.savedState",
+            ]
+          end
+          CASK
+
+      - name: Commit + push
+        run: |
+          set -euo pipefail
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/clavis.rb
+          if git diff --cached --quiet; then
+            echo "Cask already up to date; nothing to push."
+            exit 0
+          fi
+          git commit -m "clavis ${{ steps.meta.outputs.version }}"
+          git push

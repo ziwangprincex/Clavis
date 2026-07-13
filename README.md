@@ -29,6 +29,17 @@ Download the installer for your platform from the
 The app isn't signed with an OS certificate yet, so on first launch Windows
 SmartScreen or macOS Gatekeeper may warn you. Choose "Open anyway" / "Run anyway".
 
+**macOS: "Clavis is damaged and can't be opened."** This is Gatekeeper
+quarantining the downloaded (un-notarized) app, not real corruption. Clear the
+quarantine flag once:
+
+```bash
+xattr -cr /Applications/Clavis.app
+```
+
+Then open it normally. (Right-click → Open also handles the "unidentified
+developer" prompt.)
+
 ### Updates
 
 Clavis checks for updates when it starts. You can also check manually from

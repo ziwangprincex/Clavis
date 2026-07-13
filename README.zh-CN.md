@@ -29,6 +29,15 @@
 应用还没有做操作系统级的代码签名，所以首次打开时 Windows 的 SmartScreen 或
 macOS 的 Gatekeeper 可能会提示，选“仍要打开 / 仍要运行”即可。
 
+**macOS 提示“Clavis 已损坏，无法打开”**：这是 Gatekeeper 对下载的（未公证）
+应用加了隔离标记，并不是文件真的损坏。执行一次下面的命令清除隔离标记：
+
+```bash
+xattr -cr /Applications/Clavis.app
+```
+
+然后正常打开即可。（首次遇到“未识别的开发者”提示时，也可以右键 → 打开。）
+
 ### 更新
 
 Clavis 启动时会检查更新。也可以手动检查：**设置 → Updates → Check for Updates**，

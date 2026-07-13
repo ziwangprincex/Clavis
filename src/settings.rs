@@ -62,7 +62,7 @@ fn default_editor_font_family() -> String {
 }
 fn default_editor_font_size() -> u32 { 14 }
 fn default_editor_line_height() -> f32 { 1.55 }
-fn default_editor_theme() -> String { "vscode-dark".to_string() }
+fn default_editor_theme() -> String { "auto".to_string() }
 
 impl Default for Settings {
     fn default() -> Self {

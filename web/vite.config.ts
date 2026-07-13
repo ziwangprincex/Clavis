@@ -62,7 +62,9 @@ export default defineConfig({
         },
       },
     },
-    // We split aggressively above; bump the warning limit so vite stops nagging.
-    chunkSizeWarningLimit: 1500,
+    // The pdfjs/codemirror vendor chunks are legitimately large but lazy-loaded
+    // (see the dynamic imports in App.tsx), so a big single chunk is expected —
+    // raise the limit so vite stops nagging about a non-issue.
+    chunkSizeWarningLimit: 2500,
   },
 });
