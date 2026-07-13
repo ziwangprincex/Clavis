@@ -2,8 +2,13 @@ name: Release
 
 # Tag-triggered multi-platform release. Push a tag like `v1.0.1` (matching the
 # version in tauri.conf.json) and this builds signed installers for Windows,
-# macOS, and Linux, uploads them to a GitHub Release, and generates the
+# macOS, and Linux, uploads them to ONE GitHub Release, and generates the
 # `latest.json` manifest the in-app updater points at.
+#
+# IMPORTANT: a single `create-release` job creates the (draft) release first,
+# and every matrix build uploads into it via `releaseId`. Letting each matrix
+# job create its own release races and produces DUPLICATE drafts with split,
+# incomplete `latest.json` files — do not go back to per-job release creation.
 #
 # Requires two repo secrets (Settings → Secrets and variables → Actions):
 #   TAURI_PRIVATE_KEY   — contents of the updater private key (tauri signer generate)
@@ -16,11 +21,38 @@ on:
       - 'v*'
 
 jobs:
-  release:
+  # Create the draft release ONCE so all three matrix builds upload into the
+  # same release (and tauri-action merges every platform into one latest.json).
+  create-release:
+    runs-on: ubuntu-latest
     permissions:
-      # tauri-action creates a GitHub Release + uploads assets, which needs
-      # write access to repo contents. Without this the default GITHUB_TOKEN is
-      # read-only and the run fails with "Resource not accessible by integration".
+      contents: write
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create draft release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Clavis ${tag}`,
+              body: 'Download an installer below. Installed apps update in-app via Check for Updates.',
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
+
+  release:
+    needs: create-release
+    permissions:
+      # tauri-action uploads assets to the release, which needs write access to
+      # repo contents. Without this the default GITHUB_TOKEN is read-only.
       contents: write
     strategy:
       fail-fast: false
@@ -32,7 +64,7 @@ jobs:
           - platform: ubuntu-22.04
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -49,7 +81,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -58,18 +90,15 @@ jobs:
       - name: Install frontend deps
         run: npm --prefix web ci
 
-      # tauri-action runs `beforeBuildCommand` (npm run build) to produce web/dist,
-      # builds the bundles, signs the updater artifacts with the secrets, uploads
-      # them to a (draft) GitHub Release, and emits latest.json.
+      # tauri-action runs `beforeBuildCommand` (npm run build), builds the
+      # bundles, signs the updater artifacts with the secrets, and uploads them
+      # into the shared draft release created above. Sharing one releaseId lets
+      # it merge every platform into a single latest.json.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Clavis ${{ github.ref_name }}'
-          releaseBody: 'Download an installer below. Installed apps update in-app via Check for Updates.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           includeUpdaterJson: true
