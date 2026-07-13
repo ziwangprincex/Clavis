@@ -1,8 +1,45 @@
-# Clavis — Handoff (2026-07-10)
+# Clavis — Handoff (updated 2026-07-13)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
-Written after a large multi-feature push. **The headline fact: a big batch of
-work is done and verified but NOT yet committed — see §2.**
+**Current state is in §0 below — it supersedes the now-historical §2 (git) and
+§4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update — 2026-07-13 (theme unify, macOS signing, updater key, v1.0.1 shipped, Homebrew)
+
+**Git/release state now:** on **`main`**, working tree clean, everything below
+committed + pushed, CI green. **v1.0.1 is released AND published** on GitHub, so
+the `/releases/latest/` updater endpoint resolves. This supersedes §2/§4 below.
+
+- **Theme system unified — one theme drives the whole UI.** `settings.editor_theme`
+  (may be `'auto'` = follow OS) is the single source of truth. New
+  `web/src/theme/appTheme.ts` derives every chrome CSS token (`--bg`, `--panel`,
+  `--text`, `--border`, `--selection`, `--accent`, …) from the chosen `ThemeSpec`
+  so toolbar/sidebar/preview match the editor. `ui_theme` is now unused; the theme
+  picker moved to Settings → **Appearance**. `useAppTheme` + `EditorPane` share
+  `useResolvedThemeSpec()`.
+- **Invisible-text bug fixed.** Editor dropped the light-only `defaultHighlightStyle`;
+  `controller.ts` now picks a dark/light `HighlightStyle` by `spec.dark` (added dep
+  `@lezer/highlight` in `web/package.json`).
+- **macOS "damaged" fix.** `tauri.conf.json → macOS.signingIdentity: "-"` (ad-hoc
+  sign; required for arm64 to launch). **Not notarized** — paid Apple Developer
+  deferred by choice. Distribution: run `xattr -cr /Applications/Clavis.app` once
+  (documented in both READMEs + the cask `caveats`).
+- **Updater key rotated + now matched.** Old `pubkey` was corrupt (stray `%`) and
+  didn't match the private key → the `does not match` warning. Generated a fresh
+  pair: new `pubkey` in `tauri.conf.json`, new `TAURI_PRIVATE_KEY` /
+  `TAURI_KEY_PASSWORD` secrets. Verified v1.0.1 `latest.json` signatures use it.
+- **Release workflow fixed (matrix race).** Letting each matrix job create its own
+  release produced **duplicate drafts with split `latest.json`**. `release.yml` now
+  has a `create-release` job that makes ONE draft; all platforms upload via
+  `releaseId` → a single complete `latest.json`. checkout/setup-node bumped to `@v5`.
+- **Homebrew tap.** `ziwangprincex/homebrew-clavis` (Cask).
+  `.github/workflows/update-homebrew.yml` fires on `release: published`, hashes the
+  DMG, and pushes a canonical `Casks/clavis.rb`. Needs secret **`HOMEBREW_TAP_TOKEN`**
+  = fine-grained PAT with **Contents: Read and write** on the tap repo. Maintained
+  source + notes live in `packaging/homebrew/`. Install:
+  `brew install --cask ziwangprincex/clavis/clavis` then `xattr -cr /Applications/Clavis.app`.
 
 ---
 
@@ -153,3 +190,18 @@ Windows Authenticode) — first-install OS warnings remain, auto-update still wo
   tabs. This bit us twice.
 - **Typst syntax ≠ Markdown:** headings are `=`/`==`, not `#`. `#` in Typst is
   code mode. A Markdown doc in a Typst-lang tab throws `expected expression`.
+- **Multi-platform `tauri-action` races on release creation.** Create the release
+  ONCE (a `create-release` job) and have the matrix upload via `releaseId`; letting
+  each job create its own yields duplicate drafts + a split `latest.json`. Fixed in
+  `release.yml` — don't undo it.
+- **GitHub Secrets vs Variables.** `${{ secrets.X }}` reads only the **Secrets** tab.
+  If a value is visible in the UI it's a **Variable** and `secrets.X` is empty
+  (checkout fails "Input required and not supplied: token"). Separately, a
+  fine-grained PAT that only *reads* fails to push with **403** — it needs
+  **Contents: Read and write**.
+- **`tauri()` calls throw synchronously outside the app shell** (browser
+  `npm run dev`, no `window.__TAURI__`). Guard UI calls with `hasTauri()`; an
+  unguarded throw inside a React effect black-screens the whole app (bit us in
+  `SettingsDialog`'s `getAppVersion()`).
+- **One theme system now.** Chrome color derives from `editor_theme` via
+  `web/src/theme/appTheme.ts`; don't reintroduce a separate `ui_theme` path.
