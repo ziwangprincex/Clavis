@@ -21,9 +21,17 @@ on:
       - 'v*'
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify tag and project versions match
+        run: python tools/check_release.py --tag "$GITHUB_REF_NAME"
+
   # Create the draft release ONCE so all three matrix builds upload into the
   # same release (and tauri-action merges every platform into one latest.json).
   create-release:
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write

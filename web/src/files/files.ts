@@ -2,12 +2,12 @@
 
 import { dialogOpen, dialogSave, fs, hasTauri, ipc } from '../api/tauri';
 import { pathsEqual } from './projectPaths';
+import { detectDocumentLanguage, documentTitle } from './documentIdentity';
 import {
   useTabsStore,
   useSettingsStore,
   useProjectStore,
   newTabId,
-  type Lang,
 } from '../store';
 
 const FILE_FILTERS: { name: string; extensions: string[] }[] = [
@@ -16,18 +16,6 @@ const FILE_FILTERS: { name: string; extensions: string[] }[] = [
 ];
 
 const RECENT_LIMIT = 10;
-
-function detectLang(path: string): Lang {
-  const lower = path.toLowerCase();
-  if (lower.endsWith('.tex') || lower.endsWith('.ltx')) return 'latex';
-  if (lower.endsWith('.typ')) return 'typst';
-  return 'markdown';
-}
-
-function filename(path: string): string {
-  const parts = path.split(/[\\/]/);
-  return parts[parts.length - 1] || path;
-}
 
 /** Push `path` to the head of recent_files (deduped, capped). Persists. */
 async function pushRecent(path: string): Promise<void> {
@@ -68,10 +56,10 @@ export async function openFileByPath(path: string): Promise<boolean> {
   }
   try {
     const content = await fs.readTextFile(path);
-    const detectedLang = detectLang(path);
+    const detectedLang = detectDocumentLanguage(path);
     useTabsStore.getState().addTab({
       id: newTabId(),
-      title: filename(path),
+      title: documentTitle(path),
       filePath: path,
       lang: detectedLang,
       content,
@@ -87,7 +75,7 @@ export async function openFileByPath(path: string): Promise<boolean> {
         const r = await ipc.collectProjectFiles(path);
         useProjectStore.setState({
           rootAbs: path,
-          rootBasename: filename(path),
+          rootBasename: documentTitle(path),
           activeAbs: path,
           files: r.files ?? [],
           warnings: r.warnings ?? [],
@@ -127,8 +115,8 @@ export async function saveActiveTab(opts: { saveAs?: boolean } = {}): Promise<vo
     await fs.writeTextFile(target, tab.content);
     state.patchTab(tab.id, {
       filePath: target,
-      title: filename(target),
-      lang: detectLang(target),
+      title: documentTitle(target),
+      lang: detectDocumentLanguage(target),
       isDirty: false,
     });
     void pushRecent(target);

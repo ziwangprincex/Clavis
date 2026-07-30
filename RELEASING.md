@@ -53,19 +53,41 @@ resolves to the newest published (non-draft) release.
 
 ## 3. Cut a release
 
-1. Bump the version in **`tauri.conf.json` → `package.version`** (e.g. `1.0.1`).
-   The updater compares this against `latest.json`, so every release must bump it.
-2. Commit the bump.
-3. Tag and push:
+### Recommended: guarded PowerShell preparation
+
+Start from a clean `main` working tree:
+
+```powershell
+.\tools\release.ps1 1.0.2
+```
+
+The script refuses a dirty tree or non-`main` branch, updates the version in
+`Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`, validates that all three match,
+and runs the frontend checks/build plus Rust tests. It deliberately does **not**
+commit, tag, or push; review the diff and update `HANDOFF.md` first, then run the
+commands it prints.
+
+### Manual equivalent
+
+1. Set the same SemVer in `Cargo.toml`, the Clavis entry in `Cargo.lock`, and
+   `tauri.conf.json` -> `package.version`.
+2. Validate it:
    ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
+   python tools/check_release.py --tag v1.0.2
    ```
-4. The **Release** workflow (`.github/workflows/release.yml`) builds Windows,
-   macOS, and Linux, signs the updater artifacts, and creates a **draft** Release
-   with the installers + `latest.json`.
-5. Review the draft Release on GitHub and **publish** it. Only published (non-draft)
-   releases are seen by `/latest/`.
+3. Update `HANDOFF.md`, commit the release preparation, then tag and push:
+   ```bash
+   git tag v1.0.2
+   git push origin main
+   git push origin v1.0.2
+   ```
+4. The **Release** workflow first verifies that the tag matches all project
+   versions. It then builds Windows, macOS, and Linux, signs updater artifacts,
+   and creates one **draft** Release with the installers and `latest.json`.
+5. Review the draft Release and **publish** it. Only published, non-draft releases
+   are visible through `/releases/latest/` and therefore to the in-app updater.
+
+A normal push to `main` only runs CI; it does not create or update a Release.
 
 ## 4. How users get the update
 

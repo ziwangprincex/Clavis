@@ -1,8 +1,90 @@
-# Clavis — Handoff (updated 2026-07-13)
+# Clavis - Handoff (updated 2026-07-30)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
 §4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update - 2026-07-30 (release guardrails and repository hygiene)
+
+**Working state:** implemented alongside the Session Snapshot changes and still
+**not committed**.
+
+- Added `tools/check_release.py`: CI/release preflight now requires the Clavis
+  versions in `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json` to be valid SemVer
+  and identical. On tag builds, the tag must equal `v<version>`.
+- Added a Release workflow `preflight` job. A mismatched tag/version now fails
+  before GitHub creates a draft Release or starts platform builds.
+- Added `tools/set_version.py` and guarded `tools/release.ps1`. The script requires
+  clean `main`, updates all three version locations without reformatting config,
+  runs checks by default, and prints commit/tag/push commands rather than pushing
+  automatically.
+- Added `tools/check_handoff.py` and wired it into CI. Any repository change
+  other than `HANDOFF.md` itself must include a `HANDOFF.md` update in the same
+  push or PR, turning the project rule into an enforced check.
+- Added `.gitattributes` with repository-wide LF normalization and explicit
+  binary asset patterns, eliminating recurring CRLF diff noise. Python cache
+  artifacts from the new tools are now ignored in `.gitignore`.
+- Updated `RELEASING.md` with the guarded release flow and clarified that a normal
+  `main` push runs CI only; a matching `v*` tag creates a draft Release that must
+  still be published manually.
+
+**Validation for these guardrails:**
+
+- Release metadata accepts the current `1.0.1` / `v1.0.1` pair and rejects a
+  mismatched tag.
+- The version updater was exercised against isolated copies and changed only the
+  three intended version fields without reformatting `tauri.conf.json`.
+- Handoff watched-path logic and rejection behavior were exercised locally.
+- Both workflow files parse as YAML; all Python tools compile; `release.ps1`
+  parses successfully and refuses the current dirty working tree as designed.
+
+---
+
+## 0. Update - 2026-07-30 (Workspace Session Snapshot hardening)
+
+**Working state:** on `main`; the changes below are implemented and verified but
+**not committed yet**.
+
+- **Workspace recovery now goes through a validated Session Snapshot module.**
+  New `web/src/files/sessionModel.ts` owns encoding, decoding, migration,
+  per-Document validation, path-aware deduplication, restore prioritization, and
+  the 50-Document restore cap. `web/src/files/session.ts` restores the Workspace
+  atomically after validation instead of adding tabs one at a time.
+- **Session schema is v2 and remains compatible with v1.** A damaged Document is
+  skipped without discarding the rest of the snapshot. Runtime-only state such
+  as `latexWorkdirToken` is no longer persisted.
+- **Duplicate file-backed Documents are collapsed by normalized path.** The last
+  in-memory version wins. Scratch Documents are all retained. Above the cap, the
+  Active Document is retained first, followed by the newest dirty Documents and
+  then the newest remaining Documents.
+- **File-backed identity is repaired during restore.** Title and language are
+  derived from the path, preventing stale Session data from compiling Markdown
+  as Typst. New `web/src/files/documentIdentity.ts` is shared by restore,
+  file-open, and save-as paths.
+- **Domain language is recorded in `CONTEXT.md`.** It defines Document,
+  Workspace, Project, Session Snapshot, Active Document, and Scratch Document.
+- **Tests added:** `web/src/files/sessionModel.test.ts` has 6 cases covering
+  corrupt snapshots, per-Document degradation, Windows path deduplication,
+  title/language repair, restore prioritization and capping, v1 compatibility,
+  and persistent-field filtering.
+
+**Verification completed:**
+
+- `npm --prefix web test` - 44/44 tests pass.
+- `npm --prefix web run typecheck` - passes.
+- `npm --prefix web run build` - passes.
+- `cargo check` - passes.
+- `cargo test` - 18/18 tests pass.
+- `git diff --check` - passes.
+
+**Still to do:**
+
+- Run the desktop app on real hardware and manually verify restart/crash recovery.
+- Commit the current working tree when satisfied.
+- Other architecture-review candidates (typed Tauri command contracts, App
+  workflow deepening, and slimming `src/main.rs`) were not part of this change.
 
 ---
 
