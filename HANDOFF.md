@@ -6,10 +6,26 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-07-30 (v1.0.2 tag correction)
+
+- The first `v1.0.2` tag was accidentally created on commit `40b61bf`, before
+  the version bump, so Release preflight correctly rejected it: the tag was
+  `v1.0.2` while `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json` were `1.0.1`.
+- The actual version bump is commit `6095d27` (`Release v1.0.2`), where all three
+  version locations are `1.0.2`.
+- The local and remote `v1.0.2` tag were force-moved to full commit
+  `6095d276a5cf9a673ded6b9edff8554ab1c82299`. `git ls-remote` confirms the
+  remote tag now resolves to that exact commit.
+- Do not move the tag again. The corrected tag push should trigger a fresh
+  Release workflow. Review that run in GitHub Actions, then publish its draft
+  only after all platform assets and `latest.json` are present.
+
+---
+
 ## 0. Update - 2026-07-30 (release guardrails and repository hygiene)
 
-**Working state:** implemented alongside the Session Snapshot changes and still
-**not committed**.
+**Working state:** implementation is committed on `main`; release version bump
+is commit `6095d27` and the corrected `v1.0.2` tag points to it.
 
 - Added `tools/check_release.py`: CI/release preflight now requires the Clavis
   versions in `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json` to be valid SemVer
@@ -32,7 +48,7 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 **Validation for these guardrails:**
 
-- Release metadata accepts the current `1.0.1` / `v1.0.1` pair and rejects a
+- Release metadata accepts the current `1.0.2` / `v1.0.2` pair and rejects a
   mismatched tag.
 - The version updater was exercised against isolated copies and changed only the
   three intended version fields without reformatting `tauri.conf.json`.
@@ -44,8 +60,8 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ## 0. Update - 2026-07-30 (Workspace Session Snapshot hardening)
 
-**Working state:** on `main`; the changes below are implemented and verified but
-**not committed yet**.
+**Working state:** committed and pushed on `main`; included in the corrected
+`v1.0.2` release tag.
 
 - **Workspace recovery now goes through a validated Session Snapshot module.**
   New `web/src/files/sessionModel.ts` owns encoding, decoding, migration,
@@ -82,7 +98,6 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 **Still to do:**
 
 - Run the desktop app on real hardware and manually verify restart/crash recovery.
-- Commit the current working tree when satisfied.
 - Other architecture-review candidates (typed Tauri command contracts, App
   workflow deepening, and slimming `src/main.rs`) were not part of this change.
 
