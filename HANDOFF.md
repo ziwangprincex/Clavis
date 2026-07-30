@@ -6,6 +6,20 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-07-30 (v1.0.2 published and distribution verified)
+
+- GitHub Release `v1.0.2` is published and is the public latest release.
+- The public updater manifest at `/releases/latest/download/latest.json` reports
+  version `1.0.2` and contains signed artifacts for Windows x86_64, macOS ARM64,
+  and Linux x86_64. Existing `1.0.1` installs can now discover `1.0.2`.
+- The Homebrew automation completed: `homebrew-clavis/Casks/clavis.rb` now has
+  version `1.0.2` and DMG SHA-256
+  `27eac0a4ba5c9db9f857e9e36078c94504d6ccf3697be1d03ab52f98b4031e08`.
+- Distribution status is complete. Remaining verification is optional end-user
+  smoke testing of an actual in-app update and `brew upgrade --cask clavis`.
+
+---
+
 ## 0. Update - 2026-07-30 (v1.0.2 tag correction)
 
 - The first `v1.0.2` tag was accidentally created on commit `40b61bf`, before
