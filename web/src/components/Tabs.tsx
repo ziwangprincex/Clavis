@@ -1,4 +1,5 @@
 import { useTabsStore, type Tab, type Lang } from '../store';
+import { IconClose, IconDot } from './icons';
 import styles from './Tabs.module.css';
 
 export interface TabsProps {
@@ -16,7 +17,7 @@ function tabDisplayName(t: Tab): string {
     const parts = t.filePath.split(/[\\/]/);
     return parts[parts.length - 1] || t.filePath;
   }
-  return '(untitled)';
+  return 'Untitled';
 }
 
 export function Tabs({ onCloseTab }: TabsProps) {
@@ -26,7 +27,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
   const closeTab = useTabsStore(s => s.closeTab);
 
   if (tabs.length === 0) {
-    return <div className={styles.empty}>(no tabs)</div>;
+    return <div className={styles.empty}>No open documents</div>;
   }
 
   function onClose(e: React.MouseEvent, id: string) {
@@ -34,7 +35,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
     const tab = useTabsStore.getState().tabs.find(t => t.id === id);
     if (tab?.isDirty) {
       const ok = window.confirm(
-        `"${tab.filePath ? tab.filePath.split(/[\\/]/).pop() : '(untitled)'}" has unsaved changes. Close anyway?`,
+        `"${tab.filePath ? tab.filePath.split(/[\\/]/).pop() : 'Untitled'}" has unsaved changes. Close anyway?`,
       );
       if (!ok) return;
     }
@@ -61,17 +62,17 @@ export function Tabs({ onCloseTab }: TabsProps) {
               onClose(e as unknown as React.MouseEvent, t.id);
             }
           }}
-          title={t.filePath ?? '(unsaved)'}
+          title={t.filePath ?? 'Unsaved'}
         >
           <span className={styles.langTag}>{LANG_LABEL[t.lang]}</span>
           <span className={styles.title}>{tabDisplayName(t)}</span>
-          {t.isDirty && <span className={styles.dirty} aria-label="unsaved">●</span>}
+          {t.isDirty && <IconDot size={8} className={styles.dirty} aria-label="unsaved" />}
           <button
             className={styles.close}
             onClick={e => onClose(e, t.id)}
             aria-label={`Close ${tabDisplayName(t)}`}
           >
-            ×
+            <IconClose size={11} />
           </button>
         </div>
       ))}

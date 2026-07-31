@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
+import { TitleBar } from './components/TitleBar';
+import { StatusBar } from './components/StatusBar';
 import { CommandPalette } from './components/CommandPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { LogPanel } from './components/LogPanel';
@@ -60,8 +62,7 @@ export function App() {
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
-  const [statusText, setStatusText] = useState<string>('Ready');
-  const [statusKind, setStatusKind] = useState<'info' | 'ok' | 'error'>('info');
+  const setStatus = useStatusStore(s => s.set);
 
   const editorApiRef = useRef<EditorPaneRef | null>(null);
   const autoCompileTimerRef = useRef<number | null>(null);
@@ -73,8 +74,9 @@ export function App() {
   const {
     mainRef,
     workAreaRef,
+    editorRowRef,
     sidebarWidth,
-    editorWidth,
+    editorRatio,
     logHeight,
     startSidebarDrag,
     dragSidebar,
@@ -120,6 +122,10 @@ export function App() {
   // silent when already up to date). Manual "Check for Updates…" lives in the
   // command palette below.
   useEffect(() => {
+    if (!hasTauri()) {
+      setStatus('Browser preview (no Tauri)', 'info');
+      return;
+    }
     void checkForUpdates({ silent: true });
   }, []);
 
@@ -155,21 +161,17 @@ export function App() {
 
   async function compileNow() {
     if (!hasTauri()) return;
-    setStatusText('Compiling…');
-    setStatusKind('info');
+    setStatus('Compiling…', 'info');
     const r = await runLatexCompile();
     if (!r) {
-      setStatusText('Ready');
-      setStatusKind('info');
+      setStatus('Ready', 'info');
       return;
     }
     if (r.ok) {
-      setStatusText(`Rendered (${r.runs} run${r.runs === 1 ? '' : 's'})`);
-      setStatusKind('ok');
+      setStatus(`Rendered (${r.runs} run${r.runs === 1 ? '' : 's'})`, 'ok');
     } else {
       const n = (r.errors ?? []).length;
-      setStatusText(`Compile failed (${n} ${n === 1 ? 'issue' : 'issues'})`);
-      setStatusKind('error');
+      setStatus(`Compile failed (${n} ${n === 1 ? 'issue' : 'issues'})`, 'error');
     }
   }
 
@@ -203,8 +205,7 @@ export function App() {
   async function exportLatexPdf() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
     if (!tab?.latexWorkdirToken) {
-      setStatusText('No compiled PDF yet');
-      setStatusKind('error');
+      setStatus('No compiled PDF yet', 'error');
       return;
     }
     try {
@@ -214,13 +215,11 @@ export function App() {
       });
       if (typeof target === 'string') {
         await ipc.exportLatexPdf(tab.latexWorkdirToken, target);
-        setStatusText('PDF exported');
-        setStatusKind('ok');
+        setStatus('PDF exported', 'ok');
       }
     } catch (e) {
       console.error('export PDF failed', e);
-      setStatusText('Export failed');
-      setStatusKind('error');
+      setStatus('Export failed', 'error');
     }
   }
 
@@ -228,12 +227,10 @@ export function App() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
     if (!tab || tab.lang !== 'typst') return;
     try {
-      setStatusText('Compiling PDF…');
-      setStatusKind('info');
+      setStatus('Compiling PDF…', 'info');
       const r = await ipc.compileTypstPdf(tab.content, tab.filePath);
       if (!r.ok || !r.pdfBase64) {
-        setStatusText(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed');
-        setStatusKind('error');
+        setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed', 'error');
         return;
       }
       const target = await dialogSave({
@@ -242,16 +239,13 @@ export function App() {
       });
       if (typeof target === 'string') {
         await ipc.saveBinaryFile(target, r.pdfBase64);
-        setStatusText('PDF exported');
-        setStatusKind('ok');
+        setStatus('PDF exported', 'ok');
       } else {
-        setStatusText('Ready');
-        setStatusKind('info');
+        setStatus('Ready', 'info');
       }
     } catch (e) {
       console.error('export Typst PDF failed', e);
-      setStatusText('Export failed');
-      setStatusKind('error');
+      setStatus('Export failed', 'error');
     }
   }
 
@@ -267,19 +261,16 @@ export function App() {
         files: r.files ?? [],
         warnings: r.warnings ?? [],
       });
-      setStatusText('Project main set');
-      setStatusKind('ok');
+      setStatus('Project main set', 'ok');
     } catch (e) {
       console.error('set main failed', e);
-      setStatusText('Set main failed');
-      setStatusKind('error');
+      setStatus('Set main failed', 'error');
     }
   }
 
   async function installPackage(pkg: string) {
     if (!hasTauri()) return;
-    setStatusText(`Detecting LaTeX distribution…`);
-    setStatusKind('info');
+    setStatus(`Detecting LaTeX distribution…`, 'info');
     try {
       const enginePath =
         useSettingsStore.getState().settings.latex_custom_paths[
@@ -287,8 +278,7 @@ export function App() {
         ];
       const distro = await ipc.detectDistro(enginePath);
       if (!distro?.manager || distro.manager === 'none') {
-        setStatusText(`No package manager available for ${distro?.name ?? 'unknown distro'}`);
-        setStatusKind('error');
+        setStatus(`No package manager available for ${distro?.name ?? 'unknown distro'}`, 'error');
         return;
       }
       // Installing a TeX package runs an external command (tlmgr/miktex/mpm)
@@ -300,20 +290,17 @@ export function App() {
         { title: 'Install TeX package' },
       );
       if (!consented) {
-        setStatusText(`Install of ${pkg} cancelled`);
-        setStatusKind('info');
+        setStatus(`Install of ${pkg} cancelled`, 'info');
         return;
       }
-      setStatusText(`Installing ${pkg} via ${distro.manager}…`);
+      setStatus(`Installing ${pkg} via ${distro.manager}…`, 'info');
       await ipc.installPackage(distro.manager, pkg);
-      setStatusText(`Installed ${pkg}`);
-      setStatusKind('ok');
+      setStatus(`Installed ${pkg}`, 'ok');
       // Re-compile so the missing-file diagnostic clears.
       void compileNow();
     } catch (e) {
       console.error('install package failed', e);
-      setStatusText(`Install failed: ${String(e)}`);
-      setStatusKind('error');
+      setStatus(`Install failed: ${String(e)}`, 'error');
     }
   }
 
@@ -343,6 +330,20 @@ export function App() {
         id: 'app.symbols',
         name: 'Toggle math symbols panel',
         run: () => setSymbolsOpen(o => !o),
+      }),
+      // The status-bar chip only appears when there ARE problems, so without a
+      // palette entry a user who closes the panel on a clean compile has no way
+      // to reopen it — and the setting persists to disk. This is the safety net.
+      // It also gets back the raw compile log, which is the only thing to look
+      // at when a compile fails in a way the diagnostic parser didn't catch.
+      reg({
+        id: 'view.toggleProblems',
+        name: 'Toggle problems panel (LaTeX)',
+        when: () => lang === 'latex',
+        run: () =>
+          void patchAndSave({
+            problems_panel_open: !useSettingsStore.getState().settings.problems_panel_open,
+          }),
       }),
       reg({ id: 'lang.markdown', name: 'Switch to Markdown', run: () => setLang('markdown') }),
       reg({ id: 'lang.latex', name: 'Switch to LaTeX', run: () => setLang('latex') }),
@@ -427,6 +428,7 @@ export function App() {
 
   return (
     <div className={styles.app}>
+      <TitleBar />
       <Toolbar
         lang={lang}
         onLangChange={setLang}
@@ -446,8 +448,6 @@ export function App() {
         onToggleSymbols={() => setSymbolsOpen(o => !o)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenCommandPalette={() => setPaletteOpen(true)}
-        status={hasTauri() ? statusText : 'Browser preview (no Tauri)'}
-        statusKind={statusKind}
       />
 
       <div className={styles.main} ref={mainRef}>
@@ -492,10 +492,10 @@ export function App() {
 
         <div className={styles.workArea} ref={workAreaRef}>
           <Tabs />
-          <div className={styles.editorRow}>
+          <div className={styles.editorRow} ref={editorRowRef}>
             <div
               className={styles.editorPane}
-              style={editorWidth ? { flex: `0 0 ${editorWidth}px` } : undefined}
+              style={editorRatio ? { flex: `${editorRatio} 1 0%` } : undefined}
             >
               <Suspense fallback={<div className={styles.lazyFallback}>Loading editor…</div>}>
                 <ErrorBoundary>
@@ -516,7 +516,10 @@ export function App() {
               </Suspense>
             </div>
             <Splitter onDragStart={startEditorDrag} onDrag={dragEditor} onDragEnd={endEditorDrag} />
-            <div className={styles.previewPane}>
+            <div
+              className={styles.previewPane}
+              style={editorRatio ? { flex: `${1 - editorRatio} 1 0%` } : undefined}
+            >
               <Suspense fallback={<div className={styles.lazyFallback}>Loading preview…</div>}>
                 <ErrorBoundary>
                   {lang === 'latex' ? (
@@ -536,29 +539,39 @@ export function App() {
               </Suspense>
             </div>
           </div>
-          <Splitter
-            orientation="vertical"
-            onDragStart={startLogDrag}
-            onDrag={dragLog}
-            onDragEnd={endLogDrag}
-          />
-          <div
-            className={styles.logArea}
-            style={logHeight ? { height: `${logHeight}px` } : undefined}
-          >
-            <LogPanel
-              onJumpTo={(file, line) => {
-                const project = useProjectStore.getState();
-                const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
-                void openFileAndScrollToLine(absPath, line, l =>
-                  editorApiRef.current?.scrollToLine(l),
-                );
-              }}
-              onInstallPackage={pkg => void installPackage(pkg)}
-            />
-          </div>
+          {lang === 'latex' && settings.problems_panel_open && (
+            <>
+              <Splitter
+                orientation="vertical"
+                onDragStart={startLogDrag}
+                onDrag={dragLog}
+                onDragEnd={endLogDrag}
+              />
+              <div
+                className={styles.logArea}
+                style={logHeight ? { height: `${logHeight}px` } : undefined}
+              >
+                <LogPanel
+                  onJumpTo={(file, line) => {
+                    const project = useProjectStore.getState();
+                    const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
+                    void openFileAndScrollToLine(absPath, line, l =>
+                      editorApiRef.current?.scrollToLine(l),
+                    );
+                  }}
+                  onInstallPackage={pkg => void installPackage(pkg)}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      <StatusBar
+        onToggleProblems={() =>
+          void patchAndSave({ problems_panel_open: !settings.problems_panel_open })
+        }
+      />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

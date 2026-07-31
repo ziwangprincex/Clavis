@@ -43,10 +43,6 @@ export interface ToolbarProps {
   onToggleSymbols?: () => void;
   onOpenCommandPalette?: () => void;
   onToggleRecent?: () => void;
-
-  status?: string;
-  statusKind?: 'info' | 'ok' | 'error';
-  statusMeta?: string;
 }
 
 const LANGS: { value: Lang; label: string }[] = [
@@ -59,11 +55,7 @@ export function Toolbar(props: ToolbarProps) {
   const { lang, onLangChange } = props;
 
   return (
-    <header className={styles.toolbar} data-tauri-drag-region>
-      <div className={styles.brand} data-tauri-drag-region>
-        Clavis
-      </div>
-
+    <header className={styles.toolbar}>
       {/* Language switcher — macOS segmented control */}
       <div className={styles.segmented} role="tablist" aria-label="Language">
         {LANGS.map(l => (
@@ -154,18 +146,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
       )}
 
-      <div className={styles.spacer} data-tauri-drag-region />
-
-      <div
-        className={`${styles.statusCapsule} ${props.statusKind ? styles[props.statusKind] : ''}`}
-        data-tauri-drag-region
-      >
-        <span className={styles.statusDot} />
-        <span className={styles.statusText}>{props.status ?? 'Ready'}</span>
-        {props.statusMeta && <span className={styles.statusMeta}>{props.statusMeta}</span>}
-      </div>
-
-      <span className={styles.divider} />
+      <div className={styles.spacer} />
 
       <div className={styles.group}>
         <button className={styles.iconBtn} onClick={props.onOpenFile} title="Open file (⌘O)">

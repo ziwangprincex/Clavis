@@ -89,17 +89,30 @@ export function setAccent(root: HTMLElement, accent: string, dark: boolean): voi
  * much-lighter active-line/selection shade, e.g. Dracula #44475a vs bg #282a36,
  * which made the chrome look like a different color from the editor.)
  * Text/border shades come from the foreground so contrast tracks the theme.
+ *
+ * `--panel` and `--panel-solid` are intentionally the SAME opaque color. The
+ * original design made `--panel` translucent to pair with `backdrop-filter` on
+ * the toolbar, but that never did anything: in this layout the chrome bars are
+ * `flex: none` siblings stacked ABOVE the editor/preview, never overlaying them,
+ * so there is nothing behind them to blur. Rather than keep a frosted-glass
+ * token that only costs compositing layers, the chrome commits to flat opaque
+ * surfaces. The only real blurs left are the modal backdrops
+ * (CommandPalette / SettingsDialog), which genuinely overlay content and use
+ * `--bg-overlay`. Do not reintroduce translucency here without also making a
+ * bar actually overlap scrollable content.
  */
 export function applyChromeTokens(spec: ThemeSpec): void {
   const root = document.documentElement;
   const { bg, fg, selection, dark } = spec;
 
+  const panel = mix(bg, fg, 0.035);
+
   root.style.setProperty('--bg', bg);
   root.style.setProperty('--bg-elevated', mix(bg, fg, 0.07));
   root.style.setProperty('--bg-overlay', dark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.25)');
 
-  root.style.setProperty('--panel', mix(bg, fg, 0.035));
-  root.style.setProperty('--panel-solid', mix(bg, fg, 0.035));
+  root.style.setProperty('--panel', panel);
+  root.style.setProperty('--panel-solid', panel);
   root.style.setProperty('--panel-soft', withAlpha(fg, 0.05));
 
   root.style.setProperty('--border', withAlpha(fg, 0.12));
@@ -110,7 +123,6 @@ export function applyChromeTokens(spec: ThemeSpec): void {
   root.style.setProperty('--text-dim', withAlpha(fg, 0.35));
 
   root.style.setProperty('--selection', selection);
-  root.style.setProperty('--material-edge', dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.7)');
 
   setAccent(root, spec.accent, dark);
   root.style.setProperty('color-scheme', dark ? 'dark' : 'light');

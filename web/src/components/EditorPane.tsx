@@ -8,7 +8,7 @@
 //   needed) by passing onContentChange.
 
 import { useEffect, useRef } from 'react';
-import { useTabsStore, useSettingsStore } from '../store';
+import { useTabsStore, useSettingsStore, useCursorStore } from '../store';
 import { EditorController } from '../editor/controller';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import styles from './EditorPane.module.css';
@@ -99,6 +99,13 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
           content: doc,
           isDirty: wasDirty || (tab?.content ?? '') !== doc,
         });
+      },
+      onCursor: () => {
+        // Publish live cursor line/column to the global cursor store so the
+        // status bar can display it. Column is computed against the doc, so
+        // we go through the controller helper.
+        const { line, column } = ctrl.cursorLineCol();
+        useCursorStore.getState().setPos(line, column);
       },
       onOpenInclude: (raw: string, isImport: boolean) =>
         onOpenIncludeRef.current?.(raw, isImport),

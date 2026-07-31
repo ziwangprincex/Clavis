@@ -109,3 +109,43 @@ export const IconChevronDown = (p: IconProps) => (
     <path d="M4 6.2L8 10l4-3.8" />
   </svg>
 );
+
+// --- Window caption glyphs (Windows convention: 10px 1px-stroke). ---
+
+export const IconWinMinimize = (p: IconProps) => (
+  <svg {...base({ ...p, strokeWidth: 1 })}>
+    <path d="M3 8h10" />
+  </svg>
+);
+
+export const IconWinMaximize = (p: IconProps) => (
+  <svg {...base({ ...p, strokeWidth: 1 })}>
+    <rect x="3" y="3" width="10" height="10" />
+  </svg>
+);
+
+// Two stacked squares = "restore down" (Windows).
+export const IconWinRestore = (p: IconProps) => (
+  <svg {...base({ ...p, strokeWidth: 1 })}>
+    <path d="M5 5V3h8v8h-2" />
+    <rect x="3" y="5" width="8" height="8" />
+  </svg>
+);
+
+export const IconWinClose = (p: IconProps) => (
+  <svg {...base({ ...p, strokeWidth: 1 })}>
+    <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+  </svg>
+);
+
+export const IconDot = (p: IconProps) => (
+  <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}>
+    <circle cx="8" cy="8" r="3" />
+  </svg>
+);
+
+export const IconClose = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 4l8 8M12 4l-8 8" />
+  </svg>
+);

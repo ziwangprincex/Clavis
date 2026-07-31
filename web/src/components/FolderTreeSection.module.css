@@ -26,9 +26,11 @@
   color: var(--text-muted);
   cursor: pointer;
   padding: 2px 4px;
-  font-size: 12px;
   line-height: 1;
-  border-radius: 2px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:hover {
@@ -58,8 +60,15 @@
 
 .icon {
   width: 12px;
+  height: 10px;
   color: var(--text-dim);
   font-size: 10px;
+  flex: none;
+  transition: transform var(--dur) var(--ease);
+}
+
+.iconClosed {
+  transform: rotate(-90deg);
 }
 
 .label {
@@ -72,7 +81,6 @@
 .empty {
   padding: 8px 12px;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 .error {

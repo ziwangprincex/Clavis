@@ -1,0 +1,75 @@
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  flex: 0 0 32px;
+  background: var(--panel-solid);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.titlebar.mac {
+  /* Reserve room for the macOS traffic lights (window is still decorated
+   * there — this bar sits under them). */
+  padding-left: 84px;
+  height: 28px;
+  flex-basis: 28px;
+}
+
+.brand {
+  padding: 0 12px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  flex: none;
+}
+
+/* Windows caption-button sizing. 46×32 matches Explorer/Edge; keep the icons
+ * dead center. No border-radius (Windows convention). */
+.ctrlBtn {
+  width: 46px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.ctrlBtn:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.ctrlBtn:active {
+  background: var(--border);
+}
+
+.closeBtn:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.closeBtn:active {
+  background: #a02218;
+  color: #fff;
+}
+
+.ctrlBtn:focus {
+  outline: none;
+}

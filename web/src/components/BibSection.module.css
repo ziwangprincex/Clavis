@@ -83,7 +83,6 @@
 .empty {
   padding: 8px 12px;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 .error {

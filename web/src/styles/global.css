@@ -25,7 +25,7 @@ body {
   text-rendering: optimizeLegibility;
   /* Ease the dark↔light swap so a theme change isn't an abrupt brightness jump
    * (Apple: avoid abrupt brightness jumps; ease theme changes). */
-  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+  transition: background-color var(--dur-slow) var(--ease), color var(--dur-slow) var(--ease);
 }
 
 code {
@@ -88,13 +88,11 @@ code {
   }
 }
 
-/* Reduced transparency: make the frosted toolbar/panels solid + drop the blur
- * so text over them stays legible. */
-@media (prefers-reduced-transparency: reduce) {
-  :root {
-    --panel: var(--panel-solid);
-  }
-}
+/* Reduced transparency: handled per-component, in the CSS module that owns the
+ * blurred element (CommandPalette / SettingsDialog backdrops) — their class
+ * names are hashed by CSS modules, so they can't be targeted from here.
+ * The chrome bars need no fallback: they are flat/opaque already (see
+ * appTheme.ts — `--panel` and `--panel-solid` are deliberately the same). */
 
 /* Increased contrast: give surfaces a defined, contrasting border. */
 @media (prefers-contrast: more) {

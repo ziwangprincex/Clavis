@@ -161,6 +161,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     onChange={e => update('preview_font_size', +e.target.value || 14)}
                   />
                 </label>
+                <label>
+                  Preview surface
+                  <select
+                    value={draft.preview_paper}
+                    onChange={e =>
+                      update('preview_paper', e.target.value as 'light' | 'match')
+                    }
+                  >
+                    <option value="light">Paper (white)</option>
+                    <option value="match">Match app theme</option>
+                  </select>
+                </label>
               </section>
             )}
 

@@ -533,6 +533,14 @@ export class EditorController {
     return this.view.state.doc.lineAt(this.cursor).number;
   }
 
+  /** 1-based `{ line, column }` at the cursor. Column counts characters from
+   *  the line start (surrogate pairs count as 2, matching editor conventions). */
+  cursorLineCol(): { line: number; column: number } {
+    const pos = this.cursor;
+    const line = this.view.state.doc.lineAt(pos);
+    return { line: line.number, column: pos - line.from + 1 };
+  }
+
   /** Slice of the document around the cursor, used by smart-insert helpers. */
   docSlice(from: number, to: number): string {
     return this.view.state.sliceDoc(from, to);

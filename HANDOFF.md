@@ -1,8 +1,264 @@
-# Clavis - Handoff (updated 2026-07-30)
+# Clavis - Handoff (updated 2026-07-31)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
 §4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update — 2026-07-31 (GUI overhaul: frameless shell, titlebar, status bar, materials)
+
+Big cosmetic + structural pass on the Windows GUI. The base perception ("GUI looks
+bad") was mostly three concrete implementation defects, plus a pile of polish. All
+five stages of the plan landed together on this branch.
+
+**Working state:** implemented on `main`, not yet committed. `npm --prefix web test`
+= 56/56, typecheck clean, `cargo check` + `cargo test` (18/18) clean.
+
+### What changed
+
+- **Frameless window on Windows only** via new `tauri.windows.conf.json` (deep-merges
+  over `tauri.conf.json` at build time). macOS is untouched and still gets traffic
+  lights + the standard system menu. Web docs claimed frameless breaks resize / snap /
+  drop shadow — verified against vendored tao 0.16.11 source, all false except the
+  shadow.
+  - Resize on all 8 edges/corners: tao handles `WM_NCHITTEST` at
+    `platform_impl/windows/event_loop.rs:2094` → `hit_test()` in
+    `platform_impl/windows/window.rs:1324` with `BORDERLESS_RESIZE_INSET = 5`px
+    DPI-scaled.
+  - Aero Snap / Win+Arrow / drag-to-top: `to_window_styles()`
+    (`window_state.rs:228`) keeps `WS_CAPTION|WS_SYSMENU|WS_SIZEBOX` even
+    undecorated, and `drag_window()` posts a real `WM_NCLBUTTONDOWN`/`HTCAPTION`.
+  - Maximized window doesn't cover the taskbar: corrected in `WM_NCCALCSIZE`
+    (`event_loop.rs:2043`).
+  - Drop shadow: `Window::hwnd()` is exposed by Tauri v1, so `src/main.rs` gains a
+    `.setup()` hook calling `DwmExtendFrameIntoClientArea` with a 1px top margin
+    (`restore_undecorated_shadow`). Same technique as `tauri-plugin-window-shadows`.
+    Errors are ignored so a missing shadow never blocks startup.
+- **Cargo features vs allowlist lockstep** — critical to know: `tauri-build` at
+  `tauri-build-1.5.6/src/allowlist.rs:69` **hard-errors at build time** if the
+  Cargo.toml `tauri` features and the tauri.conf.json allowlist disagree. Both were
+  updated together (`window-minimize`, `-maximize`, `-unmaximize`, `-close` and their
+  allowlist keys). `__toggleMaximize` (double-click drag region) needs both
+  `window_maximize` AND `window_unmaximize` cfgs — no `toggle-maximize` feature
+  exists. `isMaximized` is a getter and NOT gated — do not add it to the allowlist.
+- **Custom TitleBar** at `web/src/components/TitleBar.tsx` — 40px, one drag region on
+  the root only (Tauri's `data-tauri-drag-region` uses an **exact `e.target` check**,
+  so children are automatically non-draggable; the 8 old `-webkit-app-region: no-drag`
+  rules in Toolbar.module.css were Electron-only dead CSS and are gone). Windows caption
+  buttons at 46×32, `#c42b1c` close-hover. Restore/maximize glyph reflects
+  `isMaximized()`, refreshed on mount and on `tauri://resize`. On macOS the buttons
+  render nothing (traffic lights come from the decorated window) and the padding-left
+  gutter for them lives in `TitleBar.module.css`. Every call is `hasTauri()`-guarded —
+  the HANDOFF gotcha about unguarded `tauri()` throws was respected.
+- **`web/src/api/tauri.ts`** grew an `appWindow` wrapper (minimize, toggleMaximize,
+  close, isMaximized, onResized) matching the existing typed-`TauriGlobal` shape.
+- **Bottom status bar** at `web/src/components/StatusBar.tsx`, 24px, last child of
+  `.app`. Left: transient status message (severity dot; pulses when a compile is
+  in flight). Right: `Ln N, Col N` · language · `<n> words · <n> chars` · error-count
+  chip (LaTeX only, only when non-zero). Clicking the chip toggles the problems panel.
+- **Status text moved to a store** (`web/src/store/status.ts`, `useStatusStore`).
+  Previously `App.tsx` held local `statusText`/`statusKind` state that only Toolbar
+  read; now the StatusBar consumes it, and the ~10 async helpers write via a single
+  `setStatus(text, kind)` call instead of the old two-call `setStatusText`/`setStatusKind`
+  pair.
+- **Live cursor position** wired using the **existing-but-unused** `onCursor` option
+  in `web/src/editor/controller.ts:324` (fired from the `updateListener` on
+  `update.selectionSet` — was already there, just never plumbed). Controller gains
+  `cursorLineCol()`. `EditorPane` publishes to a new `useCursorStore`.
+- **Word/char count** in `web/src/editor/stats.ts` + 7 unit tests. Debounced ~250ms
+  via `requestIdleCallback` (fallback: setTimeout) so long docs don't jank on
+  keystroke — the tabs store's `content` still updates undebounced, but the count
+  hook watches a debounced snapshot.
+- **Problems panel now conditional** — only rendered when `lang === 'latex' &&
+  settings.problems_panel_open`. Split the log panel + its splitter from the
+  unconditional flex slot in App.tsx that occupied ~220px of empty height in
+  Markdown/Typst.
+- **Problems panel needs TWO ways to reopen (self-review catch).** First cut made the
+  status-bar chip the only toggle, and the chip only rendered when
+  `errorCount > 0`. A clean LaTeX compile + a previously-closed panel = the panel,
+  the chip, and any route back all disappear — and `problems_panel_open: false` is
+  **persisted to disk**, so it survives restart and reads as "the log panel is
+  permanently broken". It also hid the raw compile log, which is the only thing to
+  read when a compile fails in a way the diagnostic parser missed. Fixed two ways:
+  a `view.toggleProblems` command-palette entry (the real safety net) and the chip
+  now also renders at zero count as "No issues". **Any future
+  persisted-and-hidden UI toggle needs a palette entry — this class of bug is a
+  one-way door.**
+- **Materials: the frosted-glass design was removed, not fixed.** `appTheme.ts` used
+  to overwrite `--panel` with an opaque `mix()` inline, defeating every
+  `backdrop-filter: blur()` in the CSS. First attempt was to make `--panel` genuinely
+  translucent so the blur would work — then an audit showed **why** it never mattered:
+  in this layout the titlebar / toolbar / status bar / PDF toolbar are all
+  `flex: none` siblings **stacked above** the editor and preview, never overlapping
+  them. There is nothing behind them to blur. So the chrome now commits to flat
+  opaque surfaces:
+  - `--panel` and `--panel-solid` are deliberately the **same opaque color** (both in
+    `appTheme.ts` and the `tokens.css` fallbacks).
+  - The inert `backdrop-filter` on the PdfViewer toolbar is gone (it cost a
+    compositing layer for zero pixels of effect).
+  - `--material-edge` was **deleted** — it was defined in 3 places and consumed
+    nowhere after the titlebar rewrite. That stray inset highlight with no material
+    behind it was one of the original "looks bad" symptoms.
+  - The only genuine blurs left are the CommandPalette / SettingsDialog **backdrops**,
+    which really do overlay content. `prefers-reduced-transparency` handling moved
+    into those two CSS modules (CSS-module class names are hashed, so the old
+    `global.css` `:root { --panel: var(--panel-solid) }` rule could never have
+    targeted them — and is now redundant anyway).
+  - **Do not reintroduce a translucent `--panel`** without first making a bar
+    actually overlap scrollable content.
+- **`--panel` has no direct consumers left.** Everything that paints a surface uses
+  `--panel-solid` (chrome bars, `kbd`, symbol cells, panel headers, preview
+  `pre`/`code`). `--panel` is kept only as the paired fallback so the two can never
+  drift apart silently.
+- **Preview paper toggle:** new `preview_paper: 'light' | 'match'` setting (Settings
+  → Preview). Default `'light'` preserves the historical bright paper surface;
+  `'match'` derives the preview surface from the app theme (no more dark-editor →
+  white-page brightness cliff). Applied via a `.paperLight` modifier class in
+  PreviewPane that shadows the color tokens locally — note it must define **both**
+  `--panel` and `--panel-solid` so `match` mode picks up theme panel colors for
+  code blocks instead of a stale light value.
+- **Layout polish:**
+  - Splitters became transparent 7px hit strips with a 1px hairline (`::before`
+    accents on hover/drag). No more accent-blue 4px bars.
+  - Collapsed the triple border above the log (removed border-top from `.logArea`
+    and `.root` of LogPanel).
+  - Sidebar clamp fix: `usePaneLayout.ts` was clamping to 160 while the CSS
+    `min-width` was 200 — a real 160–200px dead zone that persisted wrong values.
+    Both agree on 200 now.
+- **Editor/preview split is now a RATIO, not a pixel width (user-reported bug).**
+  Report: "the right-hand pane often locks itself to a fixed position and I can't
+  resize it." Two real causes:
+  1. `.editorPane` got `flex: 0 0 <px>` — a **hard pin** — while `.previewPane` kept
+     `flex: 1`. So after a single splitter drag the editor froze at an absolute pixel
+     width and the preview absorbed 100% of every later window resize. The split
+     never rebalanced again.
+  2. `dragEditor` measured against `workAreaRef` (`.workArea`, the column that also
+     holds the tab bar and problems panel) rather than the row that actually contains
+     editor | splitter | preview, so the clamp math used the wrong box.
+  Fix: new `editorRowRef` on `.editorRow` for correct measurement; both panes now get
+  `flex: <ratio> 1 0%` (editor `r`, preview `1-r`) so they always divide the row
+  proportionally and keep rebalancing on resize. The drag clamps in px via
+  `MIN_PANE_PX = 220`, then stores a ratio.
+  - Setting renamed: `pane_editor_width` (px) → **`pane_editor_ratio`** (0..1).
+  - `.editorPane` / `.previewPane` keep `min-width: 0` **deliberately** — a hard
+    `min-width` there can overflow the row, since the sidebar is `flex-shrink: 0` and
+    may be up to 640px wide in a 720px-min window. The usability floor is enforced
+    during the drag, not in CSS.
+  - **Migration:** `pane_editor_width` is a *typed field on the Rust `Settings`
+    struct* (`src/settings.rs:46`), NOT part of the `serde(flatten)` extras, so it
+    keeps arriving from disk. `migrateSettings()` in `web/src/store/settings.ts`
+    converts a legacy px value once (nominal 1200px row, clamped 0.15–0.85) so
+    existing installs land near their previous split instead of snapping to 50/50.
+    5 tests in `web/src/store/settings.test.ts`.
+  - The Rust `pane_editor_width` field is now unused but harmless; dropping it would
+    require a Rust change and buys nothing.
+- **Splitter snap-back: the ACTUAL root cause (two follow-up bugs).** The ratio change
+  above was necessary but did NOT fix the reported symptom — "I drag left to make the
+  right pane bigger, but it jumps back and pins itself." Two compounding bugs, both in
+  the drag plumbing rather than the layout:
+  1. **Stale drag closures.** `Splitter` installs its mousemove/mouseup listeners once
+     per mousedown, inside a `useCallback` that closes over the handler props it had at
+     that instant. But the parent re-renders on *every* mousemove (pane size is React
+     state), so by mouseup the captured `onDragEnd` is a stale identity — and
+     `endEditorDrag` read the `editorRatio` **React state**, i.e. the value from
+     *before* the drag. So the drag persisted the pre-drag ratio.
+  2. **Seed-effect feedback loop.** The init effect depended on the persisted pane
+     settings. Drag end → `patchAndSave` → settings change → effect re-runs → `set*`
+     pushes the (stale, pre-drag) value back into state → the splitter visibly snaps
+     back and appears "pinned".
+  Fixes:
+  - `usePaneLayout` mirrors every live pane size into a ref
+    (`sidebarWidthRef` / `editorRatioRef` / `logHeightRef`) via `apply*` setters; all
+    `end*Drag` handlers persist from the **refs**, never from React state.
+  - The seed effect now runs **exactly once**, guarded by `seededRef` plus a
+    `useSettingsStore.getState().loaded` check, so it can never fight a live drag.
+  - `Splitter` keeps `onDrag`/`onDragStart`/`onDragEnd` in refs that are refreshed on
+    every render, and the document listeners call `onDragRef.current(...)`. Also added:
+    primary-button-only (`e.button !== 0` bails), a `window blur` fallback so a drag
+    can't stay armed if focus leaves mid-drag, an unmount cleanup that restores the
+    `document.body` cursor/user-select overrides (the splitter can unmount mid-drag
+    when the problems panel is toggled), and `aria-orientation`.
+  **Lesson: any handler passed into a listener that outlives a render must be read
+  through a ref.** Persisting UI state from a `useCallback`-captured closure is a
+  silent correctness bug here — it type-checks and the drag *looks* live, because the
+  mousemove path used fresh state while only the commit path was stale.
+  - Removed nested sidebar scroll (`.sectionBody { max-height: 340px; overflow-y:
+    auto }` is gone; the sidebar has a single scroll container).
+  - `▾`/`▸` in Sidebar (via `IconChevronDown` rotated), `●`/`×` in Tabs (via new
+    `IconDot`/`IconClose`), and folder-tree `×` all became SVG icons.
+    `IconChevronDown` was defined but unused before — reused it. Added
+    `IconWinMinimize`/`Maximize`/`Restore`/`Close` for the titlebar.
+  - Tokenized motion: hardcoded `0.06s`/`0.1s`/`0.12s`/`0.15s`/`0.18s`/`0.2s`
+    durations replaced with `--dur` / `--dur-fast` / `--dur-slow`.
+  - Auto-compile switch is now `--accent`, not `--ok` (green in a blue UI).
+  - `font-style: italic` deleted from ~10 empty/notice states; `(no tabs)` →
+    `No open documents`, `(untitled)` → `Untitled`, `(none)` → `No folder`.
+- **Dead code removed:** `ui_theme` (settings.ts) — `appTheme.ts` no longer reads it;
+  8× `-webkit-app-region: no-drag` (Toolbar.module.css) — Electron-only.
+
+### Files touched
+
+New: `tauri.windows.conf.json`, `web/src/components/TitleBar.tsx` + `.module.css`,
+`web/src/components/StatusBar.tsx` + `.module.css`, `web/src/store/status.ts`,
+`web/src/editor/stats.ts` + `stats.test.ts`.
+
+Notable edits: `tauri.conf.json` (allowlist), `Cargo.toml` (features +
+`[target.'cfg(windows)'.dependencies] windows-sys`), `src/main.rs`
+(setup hook + `restore_undecorated_shadow`), `web/src/api/tauri.ts`,
+`web/src/App.tsx`, `web/src/components/Toolbar.tsx` (+ css), `web/src/components/Tabs.tsx`
+(+ css), `web/src/components/Sidebar.tsx` (+ css), `web/src/components/Splitter.module.css`,
+`web/src/components/FolderTreeSection.tsx` (+ css), `web/src/components/PreviewPane.tsx`
+(+ css), `web/src/components/SettingsDialog.tsx`, `web/src/components/EditorPane.tsx`,
+`web/src/components/icons.tsx`, `web/src/hooks/usePaneLayout.ts`,
+`web/src/store/settings.ts`, `web/src/store/index.ts`, `web/src/theme/appTheme.ts`,
+`web/src/styles/tokens.css`, `web/src/styles/global.css`, `web/src/App.module.css`.
+
+### Verification done
+
+- `npm --prefix web run typecheck` — clean.
+- `npm --prefix web test` — 56/56 (7 new stats tests + 5 settings-migration tests).
+- `npm --prefix web run build` — succeeds.
+- `cargo check` — clean.
+- `cargo test` — 18/18.
+
+### Still to do (manual, on real hardware)
+
+Sandbox is headless. Verify at `web/node_modules/.bin/tauri.cmd dev`:
+- One titlebar (no native strip above ours). Drag the titlebar. Double-click it →
+  maximize/restore. Restore glyph flips.
+- All 8 resize edges/corners.
+- Win+Left/Right snap. Drag to top → maximize. Taskbar isn't covered when maximized.
+- Drop shadow around the window.
+- Cursor `Ln/Col` in status bar tracks selection changes.
+- Word count keeps up in a long `.tex` without keystroke jank.
+- Problems panel gone in Markdown / Typst; appears in LaTeX and can be toggled via
+  the status-bar chip.
+- Settings → Preview → "Preview surface" switch: `light` gives white paper, `match`
+  derives from theme.
+
+### Watch-outs for the next session
+
+- `tauri-build` allowlist ↔ Cargo features check is a **build-time hard fail**; keep
+  them in sync when adding window APIs.
+- `data-tauri-drag-region` in Tauri v1 uses an exact `e.target` check; DO NOT try to
+  add a `.closest()`-style opt-out or re-introduce `-webkit-app-region` — children
+  are already auto-excluded and those attrs are dead CSS in Tauri.
+- Frameless `decorations: false` is Windows-scoped via `tauri.windows.conf.json`.
+  If macOS is ever re-enabled for frameless, the drop-shadow trick is Windows-only
+  (guard with `#[cfg(windows)]`, already done).
+- `--panel` and `--panel-solid` are the SAME opaque color on purpose. Don't make
+  `--panel` translucent again unless you first make a chrome bar genuinely overlap
+  scrollable content — otherwise `backdrop-filter` has nothing to blur (that was the
+  original bug). Everything that paints a surface should use `--panel-solid`.
+- **Drag/resize handlers must be read through refs.** `Splitter` installs document
+  listeners that outlive the render they were created in, and the parent re-renders on
+  every mousemove. Reading React state (or a `useCallback`-captured prop) in a
+  drag-end handler persists a **pre-drag** value — the drag looks live but commits the
+  wrong number, and if a `useEffect` also re-seeds from that setting you get a visible
+  snap-back. Both `Splitter` and `usePaneLayout` now mirror through refs; keep it that
+  way, and keep the pane-seeding effect one-shot (`seededRef`).- `preview_paper`, `problems_panel_open` are frontend-only settings; they persist
+  via Rust's `#[serde(flatten)] extra` on `Settings`. No Rust change was needed.
 
 ---
 

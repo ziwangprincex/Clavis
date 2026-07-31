@@ -11,6 +11,16 @@
   backdrop-filter: blur(2px);
 }
 
+/* This backdrop genuinely overlays app content, so the blur is real — but drop
+ * it when the OS asks for reduced transparency. The dimmed `--bg-overlay`
+ * still separates the dialog from the content behind it. */
+@media (prefers-reduced-transparency: reduce) {
+  .backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 .palette {
   width: min(640px, 92vw);
   background: var(--bg-elevated);
@@ -90,6 +100,5 @@
 .empty {
   padding: 14px 18px;
   color: var(--text-muted);
-  font-style: italic;
   font-size: 13px;
 }

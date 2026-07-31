@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ipc, type TreeNode } from '../api/tauri';
-import { IconFolder } from './icons';
+import { IconChevronDown, IconClose, IconFolder } from './icons';
 import styles from './FolderTreeSection.module.css';
 
 export interface FolderTreeSectionProps {
@@ -83,11 +83,13 @@ export function FolderTreeSection({
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.name}>{rootPath ? root?.name ?? '…' : '(none)'}</span>
+        <span className={styles.name}>{rootPath ? root?.name ?? '…' : 'No folder'}</span>
         <button className={styles.btn} onClick={onOpenFolder} title="Open folder"><IconFolder size={13} /></button>
         <button className={styles.btn} onClick={onRefresh} title="Rescan">⟳</button>
         {rootPath && (
-          <button className={styles.btn} onClick={onCloseFolder} title="Close folder">×</button>
+          <button className={styles.btn} onClick={onCloseFolder} title="Close folder">
+            <IconClose size={11} />
+          </button>
         )}
       </div>
       {error && <div className={styles.error}>{error}</div>}
@@ -121,7 +123,14 @@ function TreeRow({
         style={{ paddingLeft: 8 + depth * 12 }}
         onClick={() => onActivate(node)}
       >
-        <span className={styles.icon}>{node.isDir ? (node.expanded ? '▾' : '▸') : '·'}</span>
+        {node.isDir ? (
+          <IconChevronDown
+            size={9}
+            className={`${styles.icon} ${node.expanded ? '' : styles.iconClosed}`}
+          />
+        ) : (
+          <span className={styles.icon}>·</span>
+        )}
         <span className={styles.label}>{node.name}</span>
       </li>
       {node.isDir && node.expanded && node.children.length > 0 && (

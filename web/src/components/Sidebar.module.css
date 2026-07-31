@@ -42,9 +42,15 @@
 
 .caret {
   color: var(--text-dim);
-  font-size: 10px;
-  width: 12px;
-  transition: color var(--dur) var(--ease);
+  width: 10px;
+  height: 10px;
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.caretOpen {
+  transform: rotate(0);
 }
 
 .sectionHeader:hover .caret {
@@ -57,6 +63,4 @@
 
 .sectionBody {
   padding: 3px 0 6px;
-  max-height: 340px;
-  overflow-y: auto;
 }

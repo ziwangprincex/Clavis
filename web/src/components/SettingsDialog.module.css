@@ -10,6 +10,15 @@
   backdrop-filter: blur(2px);
 }
 
+/* Real overlay, so the blur does something — but honour reduced transparency.
+ * The dimmed `--bg-overlay` alone still separates dialog from content. */
+@media (prefers-reduced-transparency: reduce) {
+  .backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 .modal {
   width: min(760px, 94vw);
   max-height: 86vh;
@@ -237,7 +246,7 @@
   font-family: var(--font-sans);
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.12s ease;
+  transition: background-color var(--dur) var(--ease);
 }
 
 .primary {

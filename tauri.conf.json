@@ -27,7 +27,11 @@
       },
       "window": {
         "all": false,
-        "startDragging": true
+        "startDragging": true,
+        "minimize": true,
+        "maximize": true,
+        "unmaximize": true,
+        "close": true
       }
     },
     "updater": {

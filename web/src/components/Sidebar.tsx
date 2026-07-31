@@ -2,6 +2,7 @@
 // Outline, Folder Tree, Project Files (LaTeX), Bibliography (LaTeX).
 
 import { useState, type ReactNode } from 'react';
+import { IconChevronDown } from './icons';
 import styles from './Sidebar.module.css';
 
 export interface SidebarProps {
@@ -59,7 +60,10 @@ function SidebarSection({ title, defaultOpen = false, children }: SectionProps) 
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
-        <span className={styles.caret}>{open ? '▾' : '▸'}</span>
+        <IconChevronDown
+          size={10}
+          className={`${styles.caret} ${open ? styles.caretOpen : ''}`}
+        />
         <span className={styles.sectionTitle}>{title}</span>
       </button>
       {open && <div className={styles.sectionBody}>{children}</div>}

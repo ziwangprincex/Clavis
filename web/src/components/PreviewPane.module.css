@@ -3,23 +3,30 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* The preview surface stays a "paper" feel: in light theme it's the page
-   * white; in dark theme it stays light so rendered Markdown / Typst output
-   * resembles the published document users will eventually share. */
+  background: var(--bg);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+/* Paper mode: force a light, sharable-document surface regardless of the
+ * app theme. Useful when the editor is dark but the user wants to preview
+ * how the finished document will read on paper / on the web.
+ *
+ * NOTE: keep `--panel-solid` in sync with `--panel` here — code/pre blocks
+ * below use `--panel-solid`, and in `match` mode they must pick up the theme's
+ * panel color rather than a stale light one. */
+.paperLight {
   --bg: #ffffff;
   --bg-elevated: #fafafa;
   --panel: #f4f4f4;
+  --panel-solid: #f4f4f4;
   --panel-soft: #ececec;
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.18);
   --text: #1c1c1c;
   --text-muted: rgba(0, 0, 0, 0.55);
   --text-dim: rgba(0, 0, 0, 0.30);
-
-  background: var(--bg);
-  color: var(--text);
-  border-left: 1px solid var(--border);
-  overflow: auto;
 }
 
 .preview {
@@ -58,7 +65,7 @@
 }
 
 .markdown :global(pre) {
-  background: var(--panel);
+  background: var(--panel-solid);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px;
@@ -68,7 +75,7 @@
 }
 
 .markdown :global(code) {
-  background: var(--panel);
+  background: var(--panel-solid);
   padding: 1px 4px;
   border-radius: 2px;
   font-family: var(--font-mono);
@@ -119,7 +126,6 @@
 .notice {
   padding: 24px;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 .error {

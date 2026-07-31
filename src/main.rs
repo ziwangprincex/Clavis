@@ -240,6 +240,34 @@ fn scan_folder_shallow(root: String) -> Result<TreeNode, String> {
     Ok(node)
 }
 
+/// Restore the native drop shadow on a frameless Windows window.
+///
+/// When `decorations: false` removes the WM_CAPTION-driven shadow, DWM will still
+/// composite a shadow if the extended frame reaches into the client area. A 1px
+/// margin is enough and doesn't reserve any pixel of the client rect for us to
+/// avoid. This is the same trick `tauri-plugin-window-shadows` uses.
+#[cfg(windows)]
+fn restore_undecorated_shadow(window: &tauri::Window) -> Result<(), Box<dyn std::error::Error>> {
+    use windows_sys::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
+    use windows_sys::Win32::UI::Controls::MARGINS;
+
+    // Tauri exposes HWND via the `windows` crate (tuple struct on isize); the
+    // Dwm API here comes from `windows-sys` where HWND is `*mut c_void`. Cast.
+    let hwnd_tauri = window.hwnd()?;
+    let hwnd: windows_sys::Win32::Foundation::HWND = hwnd_tauri.0 as _;
+    let margins = MARGINS {
+        cxLeftWidth: 0,
+        cxRightWidth: 0,
+        cyTopHeight: 1,
+        cyBottomHeight: 0,
+    };
+    // Safety: HWND is a valid, live window handle from Tauri.
+    unsafe {
+        DwmExtendFrameIntoClientArea(hwnd, &margins);
+    }
+    Ok(())
+}
+
 fn main() {
     // Eagerly initialize Typst fonts in a background thread so it doesn't block the UI
     // or the first render call from freezing the app on startup.
@@ -262,6 +290,20 @@ fn main() {
         .menu(menu)
         .manage(state)
         .manage(latex_state)
+        .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_window("main") {
+                // Frameless on Windows drops the native drop shadow. Restore it by
+                // extending the DWM frame 1px into the client area — the standard
+                // technique (same visual result as tao's private undecorated_shadow
+                // path, which Tauri v1 does not expose). Failures are cosmetic and
+                // must never block startup.
+                let _ = restore_undecorated_shadow(&window);
+            }
+            #[cfg(not(windows))]
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             compile_typst,
             compile_typst_pdf,

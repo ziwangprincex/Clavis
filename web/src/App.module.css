@@ -23,6 +23,12 @@
   min-height: 0;
 }
 
+/* The editor/preview split is driven by flex-grow ratios set inline (see
+ * usePaneLayout.ts): `flex: <ratio> 1 0%` on each pane, so the two always
+ * divide the row proportionally and keep rebalancing when the window resizes.
+ * `min-width: 0` is deliberate — a hard min here can overflow the row, since
+ * the sidebar is `flex-shrink: 0` and may be up to 640px wide in a 720px-min
+ * window. Usability floors are enforced by MIN_PANE_PX during the drag. */
 .editorPane {
   flex: 1;
   min-width: 0;
@@ -43,7 +49,6 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-style: italic;
   background: var(--bg);
 }
 
@@ -51,13 +56,12 @@
   height: 220px;
   min-height: 0;
   flex: 0 0 auto;
-  border-top: 1px solid var(--border);
   overflow: hidden;
 }
 
 .app kbd {
   display: inline-block;
-  background: var(--panel);
+  background: var(--panel-solid);
   border: 1px solid var(--border);
   border-radius: 3px;
   padding: 1px 6px;

@@ -1,22 +1,28 @@
-/* Design tokens — macOS-native ("Apple") look-and-feel.
+/* Design tokens — fallback values only.
  *
- * - Colors are pulled from Apple's published HIG palette (system blue,
- *   system gray, etc.) so a Tauri webview on macOS visually matches the
- *   surrounding OS chrome.
+ * IMPORTANT: at runtime these are almost all overwritten INLINE on :root by
+ * `applyChromeTokens()` in web/src/theme/appTheme.ts, which derives the whole
+ * chrome palette from the selected editor theme. Inline styles beat these
+ * rules, so editing a color here usually has no visible effect — change
+ * appTheme.ts instead. What lives here is the pre-hydration fallback plus the
+ * tokens appTheme.ts does NOT set (fonts, radii, shadows, motion, tints).
+ *
  * - Light & dark variants are both defined; switch via [data-theme="light"]
- *   or [data-theme="dark"] on <html>. data-theme="auto" should be resolved
- *   by JS (see App.tsx) into one of the two before rendering, since CSS
- *   `prefers-color-scheme` would force one direction without user override. */
+ *   or [data-theme="dark"] on <html>. data-theme="auto" is resolved by JS
+ *   (see appTheme.ts) into one of the two, since CSS `prefers-color-scheme`
+ *   would force one direction without user override.
+ * - `--panel` and `--panel-solid` are the SAME opaque color on purpose. The
+ *   chrome bars are stacked siblings, never overlays, so a translucent panel
+ *   had nothing to blur behind it. See the note in appTheme.ts. */
 
 :root,
 :root[data-theme='dark'] {
-  /* Backgrounds (translucent on macOS — we approximate with solid here) */
   --bg: #1e1e1e;
   --bg-elevated: #2a2a2a;
   --bg-overlay: rgba(0, 0, 0, 0.55);
 
-  /* Toolbar / sidebar surface — slightly frosted */
-  --panel: rgba(40, 40, 42, 0.78);
+  /* Toolbar / titlebar / status-bar surface — flat and opaque. */
+  --panel: #28282a;
   --panel-solid: #28282a;
   --panel-soft: rgba(255, 255, 255, 0.05);
 
@@ -60,14 +66,13 @@
   /* Motion — one standard easing/duration for snappy, consistent feedback. */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --dur: 0.13s;
+  --dur-fast: 0.06s;  /* physical press feedback */
+  --dur-slow: 0.2s;   /* wholesale theme swaps */
 
   /* Tinted row backgrounds for diagnostic severity (dark). */
   --tint-error: rgba(255, 69, 58, 0.10);
   --tint-warning: rgba(255, 214, 10, 0.09);
   --tint-accent: rgba(10, 132, 255, 0.10);
-
-  /* Bright inset edge where light catches a frosted material (Apple §12). */
-  --material-edge: rgba(255, 255, 255, 0.08);
 
   color-scheme: dark;
 }
@@ -77,7 +82,7 @@
   --bg-elevated: #f5f5f7;
   --bg-overlay: rgba(0, 0, 0, 0.20);
 
-  --panel: rgba(246, 246, 248, 0.78);
+  --panel: #f6f6f8;
   --panel-solid: #f6f6f8;
   --panel-soft: rgba(0, 0, 0, 0.04);
 
@@ -102,9 +107,6 @@
   --tint-error: rgba(255, 59, 48, 0.07);
   --tint-warning: rgba(255, 149, 0, 0.08);
   --tint-accent: rgba(0, 122, 255, 0.07);
-
-  /* In light mode the catching-light edge is near-white and very subtle. */
-  --material-edge: rgba(255, 255, 255, 0.7);
 
   color-scheme: light;
 }

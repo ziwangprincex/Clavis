@@ -1,0 +1,108 @@
+.bar {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  flex: 0 0 24px;
+  padding: 0 10px;
+  background: var(--panel-solid);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+  gap: 12px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 40%;
+}
+
+.status.info .dot {
+  background: var(--text-dim);
+}
+
+.status.ok .dot {
+  background: var(--ok);
+}
+
+.status.error .dot {
+  background: var(--error);
+}
+
+.status.ok .statusText {
+  color: var(--ok);
+}
+
+.status.error .statusText {
+  color: var(--error);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex: none;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.dot.pulse {
+  animation: sb-pulse 1.2s var(--ease) infinite;
+  background: var(--accent);
+}
+
+@keyframes sb-pulse {
+  0%,
+  100% { opacity: 0.4; }
+  50%  { opacity: 1; }
+}
+
+.statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell {
+  padding: 0 6px;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  white-space: nowrap;
+  border-radius: 3px;
+}
+
+button.cell {
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+button.cell:hover {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.problems {
+  color: var(--error);
+}
+
+.problems:hover {
+  background: var(--tint-error);
+  color: var(--error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot.pulse {
+    animation: none;
+    opacity: 1;
+  }
+}

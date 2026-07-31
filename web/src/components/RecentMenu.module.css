@@ -65,13 +65,12 @@
 .empty {
   padding: 10px 12px;
   color: var(--text-muted);
-  font-style: italic;
   font-size: 12px;
 }
 
 .clearBtn {
   width: 100%;
-  background: var(--panel);
+  background: var(--panel-solid);
   color: var(--text-muted);
   border: none;
   border-top: 1px solid var(--border);

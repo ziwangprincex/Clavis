@@ -6,15 +6,16 @@
   position: relative;
 }
 
+/* Opaque, not frosted: this toolbar is a `flex: none` sibling ABOVE `.pages`,
+ * not an overlay on top of it, so there is nothing behind it to blur — a
+ * backdrop-filter here would cost a compositing layer for zero visual effect. */
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 4px 8px;
-  background: var(--panel);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  background: var(--panel-solid);
   border-bottom: 1px solid var(--border);
   flex: none;
 }
@@ -32,7 +33,7 @@
   padding: 0 6px;
   font-size: 12px;
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
@@ -177,7 +178,6 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 .error {

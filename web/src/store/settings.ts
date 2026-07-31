@@ -27,14 +27,14 @@ export interface Settings {
   /** Recently opened workspace folders (most-recent first). */
   recent_folders: string[];
   pane_sidebar_width: number;
-  pane_editor_width: number;
+  /** Editor's share of the editor/preview row, 0..1. 0 = use the 50/50 default.
+   *  Stored as a ratio (not px) so window resizes keep rebalancing the split. */
+  pane_editor_ratio: number;
   pane_log_height: number;
   /** Periodically write dirty, file-backed tabs to disk. Opt-in. */
   autosave_enabled: boolean;
 
   // ----- UI-level customisation (consumed by App, not by Rust) -----
-  /** App chrome theme: dark | light | auto (follow OS). */
-  ui_theme: 'dark' | 'light' | 'auto';
   /** Font family for non-editor UI text (toolbar, sidebar, dialogs, etc.). */
   ui_font_family: string;
   /** Base font size (px) for non-editor UI text. */
@@ -47,6 +47,10 @@ export interface Settings {
   preview_font_size: number;
   /** Custom CSS variable overrides applied to :root. Hex or named colors. */
   ui_color_overrides: Record<string, string>;
+  /** Whether the LaTeX problems panel is open. */
+  problems_panel_open: boolean;
+  /** Preview surface: keep it as a light paper page, or derive from the theme. */
+  preview_paper: 'light' | 'match';
 }
 
 export const defaultSettings: Settings = {
@@ -69,11 +73,10 @@ export const defaultSettings: Settings = {
   recent_files: [],
   recent_folders: [],
   pane_sidebar_width: 0,
-  pane_editor_width: 0,
+  pane_editor_ratio: 0,
   pane_log_height: 0,
   autosave_enabled: false,
 
-  ui_theme: 'auto',
   ui_font_family:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   ui_font_size: 13,
@@ -82,6 +85,8 @@ export const defaultSettings: Settings = {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   preview_font_size: 14,
   ui_color_overrides: {},
+  problems_panel_open: true,
+  preview_paper: 'light',
 };
 
 interface SettingsStore {
@@ -93,13 +98,31 @@ interface SettingsStore {
   patchAndSave: (delta: Partial<Settings>) => Promise<void>;
 }
 
+/**
+ * Forward-migrate a loaded settings object.
+ *
+ * `pane_editor_width` (absolute px) was replaced by `pane_editor_ratio` (0..1)
+ * because pinning the editor to a pixel width froze the editor/preview split on
+ * window resize. The old key is a typed field on the Rust struct, so it keeps
+ * round-tripping; convert it once against a nominal 1200px row so existing
+ * installs land near their previous split instead of snapping back to 50/50.
+ */
+export function migrateSettings(s: Settings): Settings {
+  const legacyPx = (s as unknown as { pane_editor_width?: number }).pane_editor_width;
+  if (!s.pane_editor_ratio && typeof legacyPx === 'number' && legacyPx > 120) {
+    const ratio = legacyPx / 1200;
+    return { ...s, pane_editor_ratio: Math.max(0.15, Math.min(0.85, ratio)) };
+  }
+  return s;
+}
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: defaultSettings,
   loaded: false,
   async load() {
     try {
       const raw = (await ipc.getSettings()) as Partial<Settings> | null;
-      set({ settings: { ...defaultSettings, ...(raw ?? {}) }, loaded: true });
+      set({ settings: migrateSettings({ ...defaultSettings, ...(raw ?? {}) }), loaded: true });
     } catch {
       set({ loaded: true });
     }

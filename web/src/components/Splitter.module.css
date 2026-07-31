@@ -1,23 +1,50 @@
-.splitter {
-  flex: 0 0 4px;
-  background: var(--border);
-  cursor: col-resize;
-  transition: background 0.1s ease;
+/* Transparent 7px hit strip with a 1px hairline centered inside it.
+ * The hit area doesn't shift layout when accented (::before is absolutely
+ * positioned), so hover/drag feels crisp. */
+
+.splitter,
+.splitterVertical {
+  position: relative;
+  flex: 0 0 7px;
+  background: transparent;
+  z-index: 1;
+  touch-action: none;
 }
 
-.splitter:hover,
-.splitter:active {
-  background: var(--accent);
+.splitter {
+  cursor: col-resize;
 }
 
 .splitterVertical {
-  flex: 0 0 4px;
-  background: var(--border);
   cursor: row-resize;
-  transition: background 0.1s ease;
 }
 
-.splitterVertical:hover,
-.splitterVertical:active {
+.splitter::before,
+.splitterVertical::before {
+  content: '';
+  position: absolute;
+  background: var(--border);
+  transition: background-color var(--dur) var(--ease);
+  pointer-events: none;
+}
+
+.splitter::before {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+}
+
+.splitterVertical::before {
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+}
+
+.splitter:hover::before,
+.splitter:active::before,
+.splitterVertical:hover::before,
+.splitterVertical:active::before {
   background: var(--accent);
 }

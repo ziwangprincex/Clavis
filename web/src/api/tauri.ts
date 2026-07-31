@@ -36,6 +36,19 @@ interface TauriGlobal {
   process: {
     relaunch: () => Promise<void>;
   };
+  window: {
+    appWindow: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      unmaximize: () => Promise<void>;
+      toggleMaximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+      onResized: (
+        handler: (e: { event: string; payload: unknown }) => void,
+      ) => Promise<() => void>;
+    };
+  };
 }
 
 /** Result of updater.checkUpdate() (mirrors @tauri-apps/api/updater). */
@@ -98,6 +111,23 @@ export function installUpdate(): Promise<void> {
 export function relaunch(): Promise<void> {
   return tauri().process.relaunch();
 }
+
+// ---------- Window controls ----------
+//
+// Only reachable when `hasTauri()` — in browser preview these throw. Callers
+// (TitleBar) MUST guard with hasTauri(); an unguarded throw inside a React
+// effect black-screens the whole app (previously bit us via getAppVersion in
+// SettingsDialog, see HANDOFF gotchas).
+
+export const appWindow = {
+  minimize: () => tauri().window.appWindow.minimize(),
+  toggleMaximize: () => tauri().window.appWindow.toggleMaximize(),
+  close: () => tauri().window.appWindow.close(),
+  isMaximized: () => tauri().window.appWindow.isMaximized(),
+  /** Subscribe to native window-resize events. Returns an unlisten fn. */
+  onResized: (handler: () => void) =>
+    tauri().window.appWindow.onResized(() => handler()),
+};
 
 // ---------- Dialog helpers ----------
 
