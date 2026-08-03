@@ -30,7 +30,6 @@
 
 ```bash
 brew install --cask ziwangprincex/clavis/clavis
-xattr -cr /Applications/Clavis.app   # 清除隔离标记（未公证）
 ```
 
 
