@@ -53,6 +53,7 @@ export const LATEX_COMPLETIONS: SnippetEntry[] = [
   { l: '\\caption', t: '\\caption{$1caption}', d: 'caption' },
   { l: '\\includegraphics', t: '\\includegraphics[width=$10.8\\linewidth]{$2path}', d: 'image' },
   // environments
+  { l: '\\begin{document}', t: '\\begin{document}\n  $1\n\\end{document}', d: 'document body' },
   { l: '\\begin{itemize}', t: '\\begin{itemize}\n  \\item $1\n\\end{itemize}', d: 'bullet list' },
   { l: '\\begin{enumerate}', t: '\\begin{enumerate}\n  \\item $1\n\\end{enumerate}', d: 'numbered list' },
   { l: '\\begin{description}', t: '\\begin{description}\n  \\item[$1term] $2\n\\end{description}', d: 'description list' },
@@ -259,13 +260,18 @@ export function snippetsForLang(lang: Lang): SnippetEntry[] {
  * snippet syntax. CodeMirror's parser walks "$N" or "${N:default}", so we need
  * the explicit braces to attach default text to a numbered placeholder.
  *
- * We also need to escape literal "$" when not followed by a digit (e.g. inline
- * math `$$1E=mc^2$` in the markdown `math` snippet, where the leading "$" is
- * literal). The escape in CM snippets is "\\$".
+ * A literal "$" (e.g. inline math `$$1E=mc^2$` in the markdown `math` snippet)
+ * is emitted as a bare "$". CodeMirror's `Snippet.parse` only treats "$" as
+ * special when it is followed by "{" or a digit, and it only unescapes `\{` and
+ * `\}` — never `\$` — so escaping the dollar itself would leave a stray
+ * backslash in the inserted text. A literal "${" is therefore escaped as "$\{".
+ *
+ * Note for future Typst snippets: CodeMirror treats "#{" as a field opener too
+ * (its pattern is `[#$]\{`). No current snippet contains one; a new template
+ * needing a literal `#{` must escape the brace the same way.
  */
 export function snippetToCM6(template: string): string {
-  // Escape literal $ first (anywhere not followed by a digit), then promote
-  // $<digit><word> to ${<digit>:<word>}.
+  // Promote $<digit><word> to ${<digit>:<word>}; leave other "$" literal.
   let out = '';
   for (let i = 0; i < template.length; i++) {
     const ch = template[i];
@@ -275,18 +281,25 @@ export function snippetToCM6(template: string): string {
         // Read the digits, then the optional default text (until a non-word
         // boundary). Default text is anything up to space, brace, paren,
         // bracket, comma, newline, backslash, or another $.
-        let j = i + 1;
-        while (j < template.length && /[0-9]/.test(template[j])) j++;
-        const num = template.slice(i + 1, j);
+        // Legacy templates use a single digit for the field number. Any
+        // following digits belong to the default value (`$10.8` = field 1,
+        // default `0.8`; `$32026-01-01` = field 3, default date).
+        const num = next;
+        const j = i + 2;
         // Default text: stop at whitespace, structural chars, or $.
         let k = j;
         while (k < template.length && /[A-Za-z0-9_\-.]/.test(template[k])) k++;
         const def = template.slice(j, k);
         out += def ? `\${${num}:${def}}` : `\${${num}}`;
         i = k - 1;
+      } else if (next === '{') {
+        // Literal "${" would otherwise open a CM6 field. Escape the brace, not
+        // the dollar, because CM6 unescapes braces only.
+        out += '$\\{';
+        i++;
       } else {
-        // Literal $
-        out += '\\$';
+        // Literal $ — CM6 inserts it verbatim.
+        out += '$';
       }
     } else {
       out += ch;

@@ -14,10 +14,9 @@ import {
   highlightActiveLineGutter,
   drawSelection,
 } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { history } from '@codemirror/commands';
 import {
   foldGutter,
-  foldKeymap,
   indentOnInput,
   bracketMatching,
   StreamLanguage,
@@ -29,18 +28,14 @@ import { tags as t } from '@lezer/highlight';
 import {
   autocompletion,
   closeBrackets,
-  closeBracketsKeymap,
-  completionKeymap,
-  snippet,
-  type CompletionContext,
-  type CompletionResult,
 } from '@codemirror/autocomplete';
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import { highlightSelectionMatches } from '@codemirror/search';
 import { markdown } from '@codemirror/lang-markdown';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import type { Lang } from '../store';
-import { snippetsForLang, snippetToCM6 } from '../completions/snippets';
+import { buildCompletionSource, type CompletionWorkspace } from '../completions/source';
 import { inputLinkExtension } from './inputLinks';
+import { buildEditorKeymap } from './keymaps';
 
 // Minimal Typst syntax (StreamLanguage).
 const typstStream = StreamLanguage.define({
@@ -74,39 +69,6 @@ function languageExtension(lang: Lang) {
   if (lang === 'latex') return StreamLanguage.define(stex);
   if (lang === 'typst') return typstStream;
   return [];
-}
-
-/**
- * Build a CodeMirror 6 completion source for the given language.
- *
- * The trigger word is matched against snippet `l` (label). We use a wide regex
- * — `\\?[A-Za-z#][\\w-]*` — so it captures \\section, #set, plain words, etc.
- * Falling back to `null` when nothing meaningful is being typed lets other
- * completion sources (CM's built-in word completion, future LSP-ish ones) kick
- * in without us blocking them.
- */
-function buildCompletionSource(lang: Lang) {
-  const items = snippetsForLang(lang);
-  // Pre-compute the apply function for each snippet.
-  const options = items.map(s => ({
-    label: s.l,
-    detail: s.d,
-    type: 'snippet' as const,
-    apply: snippet(snippetToCM6(s.t)),
-    boost: s.l.startsWith('\\') || s.l.startsWith('#') ? 1 : 0,
-  }));
-
-  return (context: CompletionContext): CompletionResult | null => {
-    const word = context.matchBefore(/\\?[A-Za-z#][\w.-]*/);
-    if (!word) return null;
-    if (word.from === word.to && !context.explicit) return null;
-    return {
-      from: word.from,
-      to: word.to,
-      options,
-      validFor: /^\\?[A-Za-z#][\w.-]*$/,
-    };
-  };
 }
 
 export interface ThemeSpec {
@@ -322,6 +284,8 @@ export interface EditorOptions {
   indentWithSpaces?: boolean;
   onChange?: (doc: string) => void;
   onCursor?: (pos: number) => void;
+  /** Fresh Workspace snapshot used by semantic completion providers. */
+  getCompletionWorkspace?: () => CompletionWorkspace | undefined;
   /** Ctrl/Cmd+click on an \input{...}/\include{...} target (LaTeX only).
    *  Receives the resolved raw path and whether the macro is import-family;
    *  caller resolves + opens it. */
@@ -347,6 +311,7 @@ export class EditorController {
   private spellcheck: boolean;
   private onChangeCb?: (doc: string) => void;
   private onCursorCb?: (pos: number) => void;
+  private getCompletionWorkspaceCb?: () => CompletionWorkspace | undefined;
   private onOpenIncludeCb?: (raw: string, isImport: boolean) => void;
 
   constructor(opts: EditorOptions) {
@@ -356,6 +321,7 @@ export class EditorController {
     this.spellcheck = opts.spellcheck;
     this.onChangeCb = opts.onChange;
     this.onCursorCb = opts.onCursor;
+    this.getCompletionWorkspaceCb = opts.getCompletionWorkspace;
     this.onOpenIncludeCb = opts.onOpenInclude;
 
     const tabSize = opts.tabSize ?? 2;
@@ -372,7 +338,10 @@ export class EditorController {
       bracketMatching(),
       closeBrackets(),
       this.completionCompartment.of(
-        autocompletion({ override: [buildCompletionSource(this.currentLang)] }),
+        autocompletion({
+          override: [buildCompletionSource(this.currentLang, this.getCompletionWorkspaceCb)],
+          interactionDelay: 0,
+        }),
       ),
       highlightSelectionMatches(),
       this.highlightCompartment.of(buildHighlightExt(this.themeSpec)),
@@ -388,15 +357,7 @@ export class EditorController {
       this.tabSizeCompartment.of(EditorState.tabSize.of(tabSize)),
       this.indentCompartment.of(indentUnit.of(indentUnitStr)),
       EditorView.lineWrapping,
-      keymap.of([
-        indentWithTab,
-        ...closeBracketsKeymap,
-        ...defaultKeymap,
-        ...historyKeymap,
-        ...foldKeymap,
-        ...completionKeymap,
-        ...searchKeymap,
-      ]),
+      keymap.of(buildEditorKeymap()),
       this.langCompartment.of(languageExtension(this.currentLang)),
       this.includeLinkCompartment.of(this.includeLinkExt(this.currentLang)),
       EditorView.updateListener.of(update => {
@@ -459,7 +420,10 @@ export class EditorController {
       effects: [
         this.langCompartment.reconfigure(languageExtension(lang)),
         this.completionCompartment.reconfigure(
-          autocompletion({ override: [buildCompletionSource(lang)] }),
+          autocompletion({
+            override: [buildCompletionSource(lang, this.getCompletionWorkspaceCb)],
+            interactionDelay: 0,
+          }),
         ),
         this.includeLinkCompartment.reconfigure(this.includeLinkExt(lang)),
       ],

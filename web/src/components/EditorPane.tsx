@@ -8,10 +8,44 @@
 //   needed) by passing onContentChange.
 
 import { useEffect, useRef } from 'react';
-import { useTabsStore, useSettingsStore, useCursorStore } from '../store';
+import { useTabsStore, useSettingsStore, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
 import { useResolvedThemeSpec } from '../theme/appTheme';
+import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
+
+function languageForPath(path: string): Lang {
+  const ext = path.toLowerCase().split('.').at(-1);
+  if (ext === 'tex' || ext === 'bib' || ext === 'sty' || ext === 'cls') return 'latex';
+  if (ext === 'typ') return 'typst';
+  return 'markdown';
+}
+
+function completionWorkspace() {
+  const tabs = useTabsStore.getState();
+  const project = useProjectStore.getState();
+  const active = tabs.tabs.find(tab => tab.id === tabs.activeTabId);
+  const byPath = new Map<string, { path: string | null; language: Lang; text: string }>();
+
+  for (const file of project.files) {
+    if (!file.absPath || typeof file.content !== 'string') continue;
+    byPath.set(normalizePath(file.absPath), {
+      path: file.absPath,
+      language: languageForPath(file.absPath),
+      text: file.content,
+    });
+  }
+  for (const tab of tabs.tabs) {
+    const key = tab.filePath ? normalizePath(tab.filePath) : `scratch:${tab.id}`;
+    byPath.set(key, { path: tab.filePath, language: tab.lang, text: tab.content });
+  }
+
+  return {
+    rootPath: project.rootAbs,
+    activePath: active?.filePath ?? null,
+    documents: [...byPath.values()],
+  };
+}
 
 /**
  * Smart \cite{} insertion — ported from ui-legacy/app.js insertCiteAtCursor.
@@ -100,6 +134,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
           isDirty: wasDirty || (tab?.content ?? '') !== doc,
         });
       },
+      getCompletionWorkspace: completionWorkspace,
       onCursor: () => {
         // Publish live cursor line/column to the global cursor store so the
         // status bar can display it. Column is computed against the doc, so

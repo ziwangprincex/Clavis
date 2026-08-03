@@ -1,8 +1,265 @@
-# Clavis - Handoff (updated 2026-07-31)
+# Clavis - Handoff (updated 2026-08-03)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
 §4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update - 2026-08-03 (adversarial re-review of the completion module: 6 real bugs)
+
+A second, independent review of the (still uncommitted) completion work below
+found **6 real logic bugs that all 78 tests missed**. All are fixed; the earlier
+§0 entry for this date describes the architecture and remains accurate, but its
+"logic bugs found and fixed" list was incomplete and two of its claims were
+wrong. Corrections are called out below.
+
+**Working state:** `npm --prefix web test` = **97/97** (78 existing + 19 new
+regressions), typecheck clean, `npm --prefix web run build` succeeds. Frontend
+only; no Rust files changed.
+
+### The bugs, in severity order
+
+1. **`\input` / `\ref` / `\cite` returned nothing for any file not open as a tab
+   (severe).** `latexSemanticProvider.ts` defined its own private
+   `normalizedPath()` that lower-cased and unified slashes but did **not** strip
+   the Windows `\\?\` verbatim prefix. `ProjectFile.absPath` comes from Rust
+   `std::fs::canonicalize` (`src/latex/project.rs:163`) and therefore *is*
+   `\\?\C:\...`, while `rootAbs` comes from `tab.filePath` as plain `C:\...`.
+   The two never compared equal, so `isInsideProject()` rejected every project
+   file. Files that also happened to be open as tabs still worked, because
+   `EditorPane`'s `byPath` map overwrote the entry with the tab's plain path —
+   which made the symptom read as "only completes files I already have open".
+   Fixed by deleting the private helper and using the shared `normalizePath`
+   from `web/src/files/projectPaths.ts`. This is the **third** time this exact
+   class of bug has landed; §6 already warned about it.
+2. **Literal `$` inserted a stray backslash.** `snippetToCM6` escaped a literal
+   dollar as `\$`, but CodeMirror's `Snippet.parse`
+   (`@codemirror/autocomplete/dist/index.cjs:1507`) unescapes **only** `\{` and
+   `\}` — never `\$`. Verified by driving the real `snippet()` apply function:
+   the markdown `math` snippet inserted `\$E=mc^2\$` and `mathblock` inserted
+   `\$\$`. A bare `$` is correct, because CM6 only treats `$` as special before
+   `{` or a digit; a literal `${` is now escaped as `$\{`. Pre-existing bug, but
+   the previous pass edited this same function without catching it.
+3. **File candidates ignored Workspace scoping.** The earlier entry claimed
+   no-Project completion is restricted to the Active Document for "labels,
+   files, citations, or environments". Labels/citations/environments did go
+   through `documents()`, but `fileCandidates()` read
+   `request.workspace.documents` directly and `isInsideProject()` returns true
+   for everything when `rootPath` is null — so an unrelated open tab leaked into
+   `\input{`. It now goes through `documents()` like every other source.
+4. **`\begin{align2}` and `\begin{my_env}` fell out of environment completion.**
+   The site regex charset was `[A-Za-z*.-]*`, missing digits and underscore, so
+   those names were misdetected as the `word` site.
+5. **Wrapped argument lists produced a query containing a newline.** For the very
+   common formatting `\cite{knuth1984,\nlamport1994}` the query became
+   `"\nlam"`, which can never match a key. Segment splitting now treats a line
+   break as a separator for both key lists and paths. Also, the optional-argument
+   pattern `(?:\[[^\]]*\])*` could not handle one level of nesting, so
+   `\cite[p. [3]]{k` was not recognized as a citation at all.
+6. **`\end{` rescanned the whole document ~25× per keystroke.**
+   `environmentCandidates()` called `openEnvironments()` once for the name list
+   and then **again inside `.map()`** for every candidate's `boost`, each call
+   re-running `withoutLatexComments()` over the entire prefix. Hoisted to one
+   scan: a 228 KB document went from ~79 ms to ~3.7 ms per keystroke, 13 KB from
+   ~26 ms to ~0.4 ms.
+
+### Two claims in the earlier entry that were wrong
+
+- It listed no-Project scoping for **files** as done. It was not (bug 3).
+- It described the legacy `$10.8` placeholder fix as making "affected LaTeX,
+  Typst, and Markdown templates" correct. The digit parsing was right, but the
+  markdown math templates were still broken by the separate `\$` escape (bug 2).
+
+### One thing that is NOT a bug (checked, do not "fix" it)
+
+Consuming a trailing `}` in the environment site looks context-blind, but is
+correct: the regex requires `\begin{<name>` immediately before the cursor, so a
+`}` at the cursor can only be that argument's own brace. Verified index-by-index
+against `\newcommand{\x}{\begin{doc}}` — the outer `}` is left alone.
+
+Likewise, `documents()` replacing the active document's snapshot with the live
+buffer is deliberate. A `\newenvironment` that exists only in a stale snapshot of
+the file currently being typed is correctly absent.
+
+### Files
+
+- `web/src/completions/latexSemanticProvider.ts` — shared `normalizePath`;
+  separate `displayPath()` for user-visible text; `fileCandidates()` scoped via
+  `documents()`; single `openEnvironments()` scan.
+- `web/src/completions/context.ts` — environment charset; newline-aware segment
+  splitting; nested optional arguments.
+- `web/src/completions/snippets.ts` — literal-`$` handling.
+- `web/src/completions/regressions.test.ts` — **new**, 19 tests.
+
+### Why 78 tests missed all of this
+
+The fixtures were idealized: every path was a forward-slash string like
+`'C:/paper/main.tex'` (never the `\\?\C:\...` the app actually receives), and
+every argument was single-line. The snippet tests asserted on `snippetToCM6`'s
+own output instead of what CodeMirror actually inserts. The new tests use real
+Windows verbatim paths and drive the real CM6 `snippet()` function.
+
+**Rules that follow:** fixtures for path logic must use `\\?\C:\...` at least
+once; anything that produces a CM6 snippet template must be asserted through
+`snippet()`, not through our converter's return value.
+
+### Still verify manually in `web/node_modules/.bin/tauri.cmd dev`
+
+Everything above is unit-verified only; the sandbox is headless.
+
+- Open a real multi-file project, and **without opening the sibling files as
+  tabs**, confirm `\input{`, `\ref{`, and `\cite{` now offer them. This is bug 1
+  and it needs the real Rust collector to reproduce.
+- Insert the markdown `math` and `mathblock` snippets; confirm no `\$`.
+- `\begin{doc` + immediate Enter: accepts, no stray `}`.
+- A wrapped `\cite{a,` newline `b}` list completes on the second line.
+
+---
+
+## 0. Update - 2026-08-03 (completion architecture, LaTeX semantics, Enter behavior audit)
+
+The built-in completion implementation was upgraded from a static snippet list wired
+directly into `EditorController` to a deep, editor-agnostic completion module. This
+work is currently on `main` and **not yet committed**.
+
+**Working state:** `npm --prefix web test` = 78/78, typecheck clean,
+`npm --prefix web run build` succeeds, and `git diff --check` is clean. No Rust
+files changed, so Rust checks were not rerun for this frontend-only pass.
+
+### Architecture
+
+- The external seam is now one request:
+  `complete({ language, text, position, explicit, workspace })`.
+  Callers do not know about snippets, LaTeX parsing, project files, BibTeX, or a
+  future language server.
+- `web/src/completions/engine.ts` detects the completion site, invokes providers,
+  fault-isolates provider failures, merges candidates, deduplicates them, and ranks
+  them. Provider results may be synchronous or asynchronous so a future TexLab
+  adapter can be added without changing `EditorController` or the CodeMirror seam.
+- Two real adapters exist now:
+  - `snippetProvider.ts` for the existing Markdown / LaTeX / Typst snippets.
+  - `latexSemanticProvider.ts` for Workspace-aware LaTeX semantics.
+- `source.ts` is now only the CodeMirror adapter. `EditorPane` supplies a fresh
+  Workspace snapshot assembled from open Documents plus collected Project files.
+  Active editor text overrides the older Project snapshot.
+- Windows paths are normalized for identity/comparison, but original path casing is
+  preserved for displayed and inserted completion text.
+- If a future TexLab provider throws, times out, or is unavailable, local snippets
+  and Workspace semantic completions continue working instead of the whole request
+  rejecting.
+
+### Completion behavior now implemented
+
+- `\begin{doc` offers `\begin{document}` and inserts a complete begin/end snippet.
+- Project-declared `\newenvironment` / `\renewenvironment` names are offered for
+  `\begin{...}`.
+- `\end{...}` ranks the nearest genuinely open environment first.
+- `\ref`, `\eqref`, `\pageref`, `\autoref`, `\cref`, and `\Cref` complete labels
+  from the active Project.
+- `\cite`, `\citep`, `\citet`, `\autocite`, `\parencite`, and `\textcite` complete
+  BibTeX keys, including commands with multiple optional arguments such as
+  `\cite[see][p. 3]{...}`.
+- File completion is command-specific:
+  - `\input`, `\include`, `\subfile`: `.tex` only, with the extension omitted.
+  - `\includegraphics`: image/PDF/SVG/EPS files only.
+  - `\bibliography`: `.bib` files with the extension omitted.
+  - `\addbibresource`: `.bib` files with the extension preserved.
+- File arguments containing spaces are replaced as one path rather than being split
+  at the final space.
+- With an active Project, semantic candidates are restricted to that Project root.
+  Without a Project, semantic completion is restricted to the Active Document so
+  unrelated open tabs cannot leak labels, files, citations, or environments.
+
+### Logic bugs found and fixed during adversarial review
+
+> **Superseded in part.** The 2026-08-03 re-review section above found 6 further
+> bugs and corrects two claims in this list: no-Project scoping did **not** cover
+> file candidates, and the `$10.8` fix did not make the markdown math templates
+> correct (a separate `\$` escape bug survived). Read that section first.
+
+- **Enter root cause was CodeMirror's interaction delay, not keymap order.**
+  `autocompletion()` already installs its completion keymap at `Prec.highest`.
+  CodeMirror's default `interactionDelay: 75` makes `acceptCompletion` return false
+  during the first 75 ms after the popup opens, so a fast Enter falls through to the
+  normal newline command. Both completion configurations now use
+  `interactionDelay: 0`. The manually duplicated `completionKeymap` was removed.
+- `closeBrackets()` may already have inserted the closing `}` while typing
+  `\begin{doc}`. Environment completion now consumes that brace so accepting a
+  snippet cannot leave an extra trailing `}`.
+- Project file suggestions were previously not filtered by receiving command and
+  could mix `.tex`, images, and `.bib`; they are now command-specific.
+- All open tabs were previously candidates, which leaked files and semantic symbols
+  across Projects. Project and no-Project scoping are now explicit.
+- Traditional `\bibliography` and biblatex `\addbibresource` now follow their
+  different `.bib` extension conventions.
+- LaTeX comments are stripped before indexing labels, declared environments, and
+  open-environment stacks. Commented-out commands no longer create ghost candidates;
+  escaped `\%` remains content.
+- The legacy snippet converter incorrectly parsed `$10.8` as field 10 with default
+  `.8`. Legacy fields are single-digit, so `$10.8`, `$11em`, and `$32026-01-01` now
+  correctly become field 1/default `0.8`, field 1/default `1em`, and field 3/default
+  `2026-01-01`. This fixes affected LaTeX, Typst, and Markdown templates.
+
+### Files
+
+New completion module and tests:
+
+- `web/src/completions/types.ts`
+- `web/src/completions/context.ts`
+- `web/src/completions/engine.ts`
+- `web/src/completions/snippetProvider.ts`
+- `web/src/completions/latexSemanticProvider.ts`
+- `web/src/completions/source.ts`
+- `web/src/completions/source.test.ts`
+- `web/src/completions/engine.test.ts`
+- `web/src/completions/audit.test.ts`
+- `web/src/editor/keymaps.ts`
+- `web/src/editor/keymaps.test.ts`
+
+Edited:
+
+- `web/src/completions/snippets.ts`
+- `web/src/editor/controller.ts`
+- `web/src/components/EditorPane.tsx`
+
+### Verification and manual follow-up
+
+Automated verification completed:
+
+- `npm --prefix web run typecheck` - clean.
+- `npm --prefix web test` - 78/78.
+- `npm --prefix web run build` - succeeds.
+- `git diff --check` - clean.
+
+Still verify manually in `web/node_modules/.bin/tauri.cmd dev`:
+
+- Type `\begin{doc` and immediately press Enter. It should accept the selected
+  completion, not insert a newline, and must not leave an extra `}`.
+- Verify `\cite{`, `\ref{`, custom environments, and `\end{` against a real
+  multi-file Project.
+- Verify `\input{` and `\includegraphics{` show only appropriate file types,
+  including paths containing spaces.
+- Switch between unrelated Projects and confirm semantic candidates never leak.
+
+### Suggested skills for the next session
+
+- `diagnosing-bugs` for any remaining completion interaction or timing issue.
+- `codebase-design` when adding a TexLab adapter or changing the provider seam.
+- `tdd` if the next step is the Rust JSON-RPC/TexLab process bridge.
+
+### Watch-outs
+
+- Do not add `completionKeymap` manually to the normal editor keymap. CodeMirror's
+  `autocompletion()` already installs it at highest precedence.
+- Keep `interactionDelay: 0` in both the initial completion compartment and the
+  `setLanguage()` reconfiguration path.
+- Keep provider failures isolated; TexLab availability must never disable local
+  completion.
+- Do not use normalized/lower-cased paths as user-visible insertion text.
+- Regex-based local semantics intentionally cover fast common cases, not full TeX
+  parsing. Package-aware commands, diagnostics, hover, and richer context belong in
+  the future TexLab provider rather than continued growth of ad-hoc regexes.
 
 ---
 
@@ -257,7 +514,8 @@ Sandbox is headless. Verify at `web/node_modules/.bin/tauri.cmd dev`:
   drag-end handler persists a **pre-drag** value — the drag looks live but commits the
   wrong number, and if a `useEffect` also re-seeds from that setting you get a visible
   snap-back. Both `Splitter` and `usePaneLayout` now mirror through refs; keep it that
-  way, and keep the pane-seeding effect one-shot (`seededRef`).- `preview_paper`, `problems_panel_open` are frontend-only settings; they persist
+  way, and keep the pane-seeding effect one-shot (`seededRef`).
+- `preview_paper`, `problems_panel_open` are frontend-only settings; they persist
   via Rust's `#[serde(flatten)] extra` on `Settings`. No Rust change was needed.
 
 ---
