@@ -6,7 +6,67 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-03 (both pending bodies of work committed + shipped: v1.0.3, v1.0.4)
+
+The two entries immediately below were written while their work was **still
+uncommitted on `main`**. That is no longer true — both have since been committed
+and released. This entry reconciles the handoff with the actual git history; read
+it before the "not yet committed" language in the older entries, which is now
+stale.
+
+**Working state:** on `main`, **working tree clean, everything committed and
+pushed**. Current version is **1.0.4** in `Cargo.toml`, `Cargo.lock`, and
+`tauri.conf.json`. Tags `v1.0.3` and `v1.0.4` exist locally and on `origin`.
+
+### What landed since the handoff was written
+
+- **GUI overhaul → committed as `eb49bfb` ("GUI overhaul"), shipped as
+  `006330a` ("Release v1.0.3"), tag `v1.0.3` pushed.** This is the 2026-07-31
+  entry below (frameless shell, titlebar, status bar, materials, ratio-based
+  splitter, etc.).
+- **Completion module → committed as `1fb8039` ("Fix some bugs on Latex"),
+  shipped as `b9fee6e` ("Release v1.0.4"), tag `v1.0.4` pushed.** This is the
+  two 2026-08-03 entries below (editor-agnostic completion engine + the
+  adversarial re-review's 6 bug fixes). The commit message understates it: it is
+  the whole `web/src/completions/` module plus its regression suite, not just
+  LaTeX bug fixes. `1fb8039` is also the commit that carried the (now-stale)
+  "not yet committed" handoff text.
+- **README EN + zh-CN updated (`0615844`, `c07b310`).** Both dropped the
+  `xattr -cr /Applications/Clavis.app` quarantine-clearing step from the Homebrew
+  install block, so the macOS install instruction is now just
+  `brew install --cask ziwangprincex/clavis/clavis`. (If that command still
+  produces a "damaged" warning on a fresh macOS install, the `xattr` line was
+  the fix and removing it was premature — verify on real hardware.)
+
+### Release bumps are pure version changes
+
+`006330a` and `b9fee6e` each touch only the three version locations
+(`Cargo.toml`, `Cargo.lock`, `tauri.conf.json`) — no code. All feature work rode
+in on the commit *before* each bump (`eb49bfb`, `1fb8039`).
+
+### Still unverified (manual, off-sandbox)
+
+- **Whether the `v1.0.3` / `v1.0.4` GitHub Release drafts were actually
+  published** (git only proves the tags were pushed, which triggers the workflow
+  and creates *drafts* — §4 explains drafts still require a manual Publish). If a
+  draft is unpublished, the `/releases/latest/download/latest.json` updater
+  endpoint will not advance and in-app auto-update from 1.0.2 will not offer
+  1.0.4. Check `github.com/ziwangprincex/Clavis/releases`.
+- **Homebrew cask version.** The `update-homebrew` workflow fires on
+  `release: published`; if the releases weren't published, the cask is still at
+  1.0.2.
+- All the per-entry "verify manually at `tauri dev`" lists below still stand —
+  the code shipped, but the sandbox is headless, so GUI feel, splitter drag,
+  frameless resize/snap, and the live completion behaviors were never exercised
+  on real hardware.
+
+---
+
 ## 0. Update - 2026-08-03 (adversarial re-review of the completion module: 6 real bugs)
+
+> **Status update (see the entry above):** this work is now committed as
+> `1fb8039` and shipped in **v1.0.4**. The "still uncommitted" phrasing below is
+> historical.
 
 A second, independent review of the (still uncommitted) completion work below
 found **6 real logic bugs that all 78 tests missed**. All are fixed; the earlier
@@ -118,6 +178,9 @@ Everything above is unit-verified only; the sandbox is headless.
 ---
 
 ## 0. Update - 2026-08-03 (completion architecture, LaTeX semantics, Enter behavior audit)
+
+> **Status update (see the top entry):** this work is now committed as `1fb8039`
+> and shipped in **v1.0.4**. The "not yet committed" phrasing below is historical.
 
 The built-in completion implementation was upgraded from a static snippet list wired
 directly into `EditorController` to a deep, editor-agnostic completion module. This
@@ -268,6 +331,9 @@ Still verify manually in `web/node_modules/.bin/tauri.cmd dev`:
 Big cosmetic + structural pass on the Windows GUI. The base perception ("GUI looks
 bad") was mostly three concrete implementation defects, plus a pile of polish. All
 five stages of the plan landed together on this branch.
+
+> **Status update (see the top entry):** this work is now committed as `eb49bfb`
+> and shipped in **v1.0.3**. The "not yet committed" phrasing below is historical.
 
 **Working state:** implemented on `main`, not yet committed. `npm --prefix web test`
 = 56/56, typecheck clean, `cargo check` + `cargo test` (18/18) clean.
