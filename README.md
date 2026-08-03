@@ -30,7 +30,6 @@ Download the installer for your platform from the
 
 ```bash
 brew install --cask ziwangprincex/clavis/clavis
-xattr -cr /Applications/Clavis.app   # clear the quarantine flag (not notarized)
 ```
 
 
