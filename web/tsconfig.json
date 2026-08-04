@@ -17,5 +17,21 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Excluded because it reads `resources/cwl/` off disk with `node:fs`, and this
+  // project has no Node types: `types` is pinned to `vite/client` and
+  // `@types/node` is not a dependency. Adding it would let everything under
+  // `src/` see `fs`/`process`, which cuts against the security model's rule that
+  // the frontend holds no filesystem capability.
+  //
+  // It only typechecked locally by accident — TypeScript walks parent
+  // directories for `node_modules`, and a stray `@types/node` above the repo on
+  // one machine satisfied the imports. CI has no such parent, so it failed
+  // there and passed here. `npm ci` does not reproduce it; the difference is
+  // outside the repo entirely.
+  //
+  // Cost of excluding: type errors inside this file are caught nowhere. Vitest
+  // still runs it (esbuild, no type check), so coverage is unaffected — but keep
+  // it thin and leave logic in the modules it exercises.
+  "exclude": ["src/completions/cwlCorpus.test.ts"]
 }
