@@ -8,9 +8,10 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ## 0. Update - 2026-08-04 (LaTeX completion now backed by the TeXstudio `.cwl` corpus)
 
-**Working state:** on branch **`feat/cwl-completion`** (not `main`). Phases 1 and
-2 are both committed, plus a review pass. 206 frontend tests + 21 Rust tests
-green, `npm run typecheck` and `cargo check --all-targets` clean.
+**Working state:** on `main`. Phases 1 and 2 are committed along with a review
+pass; the only uncommitted work is the fetch-script rewrite described below.
+206 frontend tests + 21 Rust tests green, `npm run typecheck` and
+`cargo check --all-targets` clean. **v1.0.5 is built and published.**
 
 **Verified in a real window** (`npm --prefix web exec tauri dev`): package-aware
 loading and math-mode filtering both behave. Two things bit during that session,
@@ -59,8 +60,8 @@ public releases, since no licence legally means "all rights reserved".
 
 ### What was built
 
-- `tools/fetch-cwl.mjs` — streams one repo tarball, keeps `completion/*.cwl`.
-  Tar is parsed inline because Windows runners have no dependable `tar`.
+- `tools/fetch-cwl.mjs` — partial + sparse clone of `completion/` only, with
+  retries. See "Fetch rewrite" below for why it is not a tarball any more.
 - `web/src/completions/cwlParser.ts` — our own whitelist-only parser. Unknown
   shapes are dropped rather than passed through; shell-escape constructs
   (`\write18`, `\openout`, `\catcode`) are rejected, because parsed templates
@@ -87,12 +88,40 @@ public releases, since no licence legally means "all rights reserved".
    `source.test.ts`'s `\section` assertion was rewritten accordingly — that
    command now comes from the corpus, which needs a Tauri runtime the test lacks.
 
+### Fetch rewrite — partial clone instead of a tarball
+
+The first version streamed `codeload.../tar.gz/<commit>` and parsed tar inline.
+It worked locally and then **aborted mid-download on a CI runner**
+(`cwl: The operation was aborted`), which would have failed the next release at
+random. Root cause was not the network: the script moved **115 MB to obtain 11 MB
+of data**, because a tarball has no resolution short of "all of it", and it had
+neither a timeout nor a retry.
+
+Now it does a partial + sparse clone of `completion/` alone. Measured:
+**115 MB → 6 MB transferred**, ~80s → ~50s, same 4465 files, output verified
+**byte-identical** to the tarball version. Plus 3 retries with linear backoff and
+a 5-minute per-attempt timeout.
+
+Two things this deleted, worth knowing they are gone:
+
+- **The hand-rolled tar parser.** It was its own hazard — it silently dropped 11
+  files whose paths exceed 100 bytes until the ustar `prefix` field (offset 345)
+  was handled, and the only symptom was a slightly lower file count. Git does
+  this now. The `expectFiles` tripwire in `cwl-version.json` stays as the guard
+  against any future silent shortfall.
+- **Platform-dependent output.** The first partial-clone attempt produced 497
+  files differing from the tarball run — all CRLF-vs-LF, because git's
+  `core.autocrlf` rewrites line endings on Windows checkouts. Content was
+  identical and the parser splits on `/\r?\n/`, so nothing was broken, but the
+  same pinned commit yielding different bytes per platform is a trap for whoever
+  next diffs two machines. The clone now forces `core.autocrlf=false` and
+  `core.eol=lf`.
+
+New requirement: **`git` must be on PATH**. Every CI job that runs this already
+checks out with git, so this costs nothing in practice.
+
 ### Debugging notes worth keeping
 
-- **ustar prefix field.** GitHub tarballs split paths over 100 bytes across the
-  header `prefix` (offset 345) and `name`. Reading `name` alone silently lost 11
-  deep `tikzlibrary*.cwl` files. `expectFiles` in `cwl-version.json` is now a
-  tripwire that fails the fetch loudly instead of shipping a partial library.
 - **Verify against the corpus, not the manual.** `cwlCorpus.test.ts` runs the
   parser over all 4465 files and caught three things the TeXstudio manual never
   documents: `\begin{enumerate}\item`, `%<num%:translatable%>`, and
@@ -162,6 +191,29 @@ mode — the assignment happens before the loop reaches the brace), and the
 module-level caches do not leak across tabs (the package-scan memo is keyed on
 document text, and a test now covers A→B→A switching).
 
+### History was rewritten on 2026-08-04 — old hashes are dead
+
+Every commit from `04bfa4a` (2026-07-10) onward was rewritten to strip
+`Co-Authored-By: Claude ...` trailers, because GitHub parses that trailer and
+listed Claude as a repository **contributor** on the public repo page. `main` and
+all six tags `v1.0.0`–`v1.0.5` were force-pushed.
+
+Practical consequences:
+
+- **Pre-rewrite hashes no longer resolve.** The v1.0.5 Release is tied to
+  `eb16f15`, so its commit link 404s. A stale clone needs `git fetch --tags -f`
+  plus a reset.
+- **Published Release assets were unaffected.** Installers and `latest.json` are
+  stored independently of git, so downloads and in-app updates kept working.
+- **Two traps hit while doing this.** The first filter used
+  `grep -v "^Co-Authored-By"` and missed an older commit where the trailer was
+  appended *to the subject line* rather than standing alone — a `sed` over the
+  whole message caught it. Then `git push -f origin --tags` pushed the safety
+  backup tag too, re-publishing the exact commits being removed; delete the
+  backup before pushing tags, or push tags by name.
+
+Do not add AI co-authorship trailers to commits in this repo.
+
 ### Still unverified (manual, off-sandbox)
 
 - **`web/tsconfig.json` excludes `cwlCorpus.test.ts`, and the reason is a trap.**
@@ -182,12 +234,20 @@ document text, and a test now covers A→B→A switching).
   (esbuild, no type check), so coverage is unaffected — keep it thin and leave
   logic in the modules it exercises.
 
-- **CI has not run green yet.** Two gates were hit in sequence while cutting
-  1.0.5: `check_release.py` (the tag was created before the version bump was
-  committed, so the tagged tree still said 1.0.4) and `check_handoff.py` (any
-  repository change requires a HANDOFF edit in the same push — including a
-  one-line tsconfig fix). Both are working as designed; the ordering in
-  RELEASING.md §3 exists for exactly this reason.
+- **v1.0.5 shipped, but from the pre-rewrite history.** The Release was built and
+  published with 13 assets across all three platforms, and its Windows installer
+  grew 12.01 → 13.51 MB versus 1.0.4 — a +1.50 MB delta that matches the measured
+  ~1.7 MB compressed corpus, so the `.cwl` files really are inside the bundle.
+  Note the Release is tied to commit `eb16f15`, which no longer exists after the
+  history rewrite (see below), so its commit link 404s.
+
+  Three CI gates were hit in sequence getting there, all working as designed:
+  `check_release.py` (tag created before the version bump was committed, so the
+  tagged tree still said 1.0.4), `check_handoff.py` (every repository change needs
+  a HANDOFF edit in the same push — including a one-line tsconfig fix), and then
+  the tarball download abort that prompted the fetch rewrite. The ordering in
+  RELEASING.md §3 exists precisely to avoid the first two.
+
 - **Bundle size / startup on a real build.** Corpus is ~10 MB raw, ~1.7 MB
   compressed. Nothing is parsed until a package is referenced, so startup should
   be unaffected, but that was never measured on a packaged app.

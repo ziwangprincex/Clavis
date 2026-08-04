@@ -6,95 +6,100 @@
 // They are GPLv3 data, bundled as a mere aggregate (GPLv3 §5) — see the
 // generated resources/cwl/LICENSE-cwl.md.
 //
-// The download is pinned to a commit in tools/cwl-version.json so that a given
-// Clavis tag always ships the same command set. Bump that file to sync.
+// Pinned to a commit in tools/cwl-version.json so a given Clavis tag always
+// ships the same command set. Bump that file to sync with upstream.
 //
-// Streams a single repo tarball and keeps only completion/*.cwl. Fetching the
-// ~4.5k files individually would trip GitHub's rate limiter. Tar is parsed
-// inline rather than shelling out, because Windows runners have no tar we can
-// rely on.
+// Fetched with a partial + sparse clone, which transfers ~6 MB. The first
+// version streamed the repo tarball instead and moved 115 MB for the same 11 MB
+// of data; that worked locally but aborted mid-download on a CI runner, since
+// the tarball has no resolution short of "all of it". Cloning `completion/`
+// alone also removes the hand-rolled tar parser, which was its own hazard —
+// it silently dropped 11 files until the ustar prefix field was handled.
+//
+// Requires `git` on PATH. Every CI job that runs this already checks out with
+// git, and the fallback for a machine without it is to bump nothing and keep
+// whatever is in resources/cwl/.
 
-import { createGunzip } from 'node:zlib';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { mkdir, readFile, writeFile, rm, readdir, copyFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ROOT, 'resources', 'cwl');
 const STAMP = path.join(OUT_DIR, '.cwl-commit');
 
-const BLOCK = 512;
+/** Per-attempt ceiling. A healthy clone takes ~25s; 5 min means it is wedged. */
+const ATTEMPT_TIMEOUT_MS = 5 * 60 * 1000;
+const ATTEMPTS = 3;
 
-/** Parse a tar stream, invoking onFile for entries the filter accepts. */
-async function untar(stream, wantPath, onFile) {
-  let buf = Buffer.alloc(0);
-  // Pending file body we are still accumulating across chunks.
-  let pending = null;
-  // Name carried over from a GNU LongLink header, if any.
-  let longName = null;
+/** Run a command, rejecting on non-zero exit or timeout. */
+function run(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+    let stderr = '';
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${cmd} ${args[0]} timed out after ${ATTEMPT_TIMEOUT_MS / 1000}s`));
+    }, ATTEMPT_TIMEOUT_MS);
+    child.on('error', err => { clearTimeout(timer); reject(err); });
+    child.on('close', code => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim().slice(0, 300)}`));
+    });
+  });
+}
 
-  for await (const chunk of stream) {
-    buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+/**
+ * Clone just `completion/` at the pinned commit into `dest`.
+ *
+ * A shallow fetch of one revision rather than `clone --depth 1`, because the
+ * pinned commit is usually not the tip of any branch — cloning the branch and
+ * then checking the commit out would need the full history in between.
+ */
+async function sparseClone(repo, commit, dest) {
+  await mkdir(dest, { recursive: true });
+  const git = (...args) => run('git', args, { cwd: dest });
 
-    for (;;) {
-      if (pending) {
-        // Tar pads every body out to a 512-byte boundary.
-        const padded = Math.ceil(pending.size / BLOCK) * BLOCK;
-        if (buf.length < padded) break;
-        const body = buf.subarray(0, pending.size);
-        if (pending.longLink) {
-          // A GNU LongLink body *is* the next entry's path.
-          longName = body.toString('utf8').replace(/\0.*$/, '');
-        } else if (!pending.skip) {
-          await onFile(pending.name, body);
-        }
-        buf = buf.subarray(padded);
-        pending = null;
-        continue;
-      }
+  await git('init', '--quiet');
+  await git('remote', 'add', 'origin', `https://github.com/${repo}.git`);
+  await git('config', 'core.sparseCheckout', 'true');
+  await git('config', 'extensions.partialClone', 'origin');
+  // Take the bytes exactly as upstream stored them. Without this, git's
+  // autocrlf rewrites LF to CRLF on Windows checkouts, so the same pinned
+  // commit yields different files per platform — 497 of 4465 in practice. The
+  // parser tolerates either, but platform-dependent build output is a trap
+  // waiting for whoever next compares two machines.
+  await git('config', 'core.autocrlf', 'false');
+  await git('config', 'core.eol', 'lf');
+  // blob:none keeps file contents out of the fetch until checkout asks for the
+  // ones inside completion/.
+  await git('fetch', '--depth', '1', '--filter=blob:none', '--quiet', 'origin', commit);
+  await git('sparse-checkout', 'init', '--cone');
+  await git('sparse-checkout', 'set', 'completion');
+  await git('checkout', '--quiet', 'FETCH_HEAD');
+}
 
-      if (buf.length < BLOCK) break;
-      const header = buf.subarray(0, BLOCK);
-      // Two consecutive zero blocks mark end of archive; one is enough for us.
-      if (header[0] === 0) return;
-
-      const strip = s => s.replace(/\0.*$/, '');
-      const rawName = strip(header.subarray(0, 100).toString('utf8'));
-      // POSIX ustar splits paths longer than 100 bytes across `prefix` (offset
-      // 345) and `name`, joined by "/". Eleven deep tikzlibrary*.cwl paths hit
-      // this; reading `name` alone silently truncated them out of the result.
-      const prefix = strip(header.subarray(345, 500).toString('utf8'));
-      const sizeField = strip(header.subarray(124, 136).toString('utf8')).trim();
-      const size = parseInt(sizeField, 8) || 0;
-      const typeFlag = String.fromCharCode(header[156]);
-      buf = buf.subarray(BLOCK);
-
-      // GNU tar instead emits a LongLink entry whose body is the real path.
-      // GitHub's tarballs use ustar prefixes, but mirrors may differ.
-      if (typeFlag === 'L') {
-        pending = { name: rawName, size, longLink: true };
-        continue;
-      }
-
-      const name = longName ?? (prefix ? `${prefix}/${rawName}` : rawName);
-      longName = null;
-
-      // '0' and '\0' are regular files; skip dirs, links, and pax headers.
-      const isFile = typeFlag === '0' || typeFlag === '\0';
-      const keep = isFile && wantPath(name);
-      const padded = Math.ceil(size / BLOCK) * BLOCK;
-      if (keep) {
-        pending = { name, size };
-      } else if (buf.length < padded) {
-        // Body straddles chunks but we do not want it — skip it as it arrives.
-        pending = { name, size, skip: true };
-      } else {
-        buf = buf.subarray(padded);
+async function withRetries(label, fn) {
+  let lastError;
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < ATTEMPTS) {
+        // Linear backoff. The failures worth retrying here are transient network
+        // ones, which clear in seconds rather than needing a long wait.
+        const waitMs = attempt * 5000;
+        console.log(`cwl: ${label} failed (${err.message}); retry ${attempt + 1}/${ATTEMPTS} in ${waitMs / 1000}s`);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
       }
     }
   }
+  throw lastError;
 }
 
 async function main() {
@@ -102,7 +107,7 @@ async function main() {
   const { repo, commit, expectFiles = 1 } = version;
 
   // Skip when the pinned commit is already on disk — this runs on every
-  // `npm run dev`, and re-downloading 38 MB each time would be rude.
+  // `npm run dev`, and re-cloning each time would be rude.
   try {
     if ((await readFile(STAMP, 'utf8')).trim() === commit) {
       console.log(`cwl: up to date (${commit.slice(0, 8)})`);
@@ -112,53 +117,44 @@ async function main() {
     // No stamp yet — fall through and fetch.
   }
 
-  const url = `https://codeload.github.com/${repo}/tar.gz/${commit}`;
   console.log(`cwl: fetching ${repo}@${commit.slice(0, 8)}`);
+  const work = path.join(tmpdir(), `clavis-cwl-${commit.slice(0, 8)}`);
+  await rm(work, { recursive: true, force: true });
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`download failed: HTTP ${res.status} ${url}`);
+  try {
+    await withRetries('clone', async () => {
+      await rm(work, { recursive: true, force: true });
+      await sparseClone(repo, commit, work);
+    });
 
-  await rm(OUT_DIR, { recursive: true, force: true });
-  await mkdir(OUT_DIR, { recursive: true });
+    const from = path.join(work, 'completion');
+    const files = (await readdir(from)).filter(name => name.endsWith('.cwl'));
 
-  // Archive entries are prefixed with "<repo>-<commit>/".
-  const wanted = /(^|\/)completion\/[^/]+\.cwl$/;
-  let count = 0;
-  let bytes = 0;
+    // Guard against silent shortfalls: an earlier tar-parsing gap cost 11 files
+    // with >100-byte paths, and the only symptom was a slightly lower count.
+    if (files.length < expectFiles) {
+      throw new Error(
+        `got only ${files.length} .cwl files, expected at least ${expectFiles}. ` +
+        `Bump "expectFiles" in tools/cwl-version.json if upstream genuinely shrank.`,
+      );
+    }
 
-  const gunzip = createGunzip();
-  const body = Readable.fromWeb(res.body);
-  // Pump through gunzip while untar consumes the other end.
-  const pumping = pipeline(body, gunzip);
+    await rm(OUT_DIR, { recursive: true, force: true });
+    await mkdir(OUT_DIR, { recursive: true });
+    let bytes = 0;
+    for (const name of files) {
+      await copyFile(path.join(from, name), path.join(OUT_DIR, name));
+    }
+    for (const name of files) {
+      bytes += (await readFile(path.join(OUT_DIR, name))).length;
+    }
 
-  await untar(
-    gunzip,
-    name => wanted.test(name),
-    async (name, data) => {
-      // Flatten: completion/amsmath.cwl -> resources/cwl/amsmath.cwl
-      const base = path.basename(name);
-      await writeFile(path.join(OUT_DIR, base), data);
-      count++;
-      bytes += data.length;
-    },
-  );
-
-  await pumping;
-
-  if (count === 0) throw new Error('no .cwl files found in archive — did the upstream layout change?');
-  // Guard against silent shortfalls: a tar-parsing gap once cost 11 files with
-  // >100-byte paths, and the only symptom was a slightly lower count.
-  if (count < expectFiles) {
-    throw new Error(
-      `extracted only ${count} .cwl files, expected at least ${expectFiles}. ` +
-      `Bump "expectFiles" in tools/cwl-version.json if upstream genuinely shrank.`,
-    );
+    await writeFile(STAMP, `${commit}\n`);
+    await writeFile(path.join(OUT_DIR, 'LICENSE-cwl.md'), licenseText(repo, commit));
+    console.log(`cwl: wrote ${files.length} files (${(bytes / 1048576).toFixed(1)} MB) to resources/cwl/`);
+  } finally {
+    await rm(work, { recursive: true, force: true });
   }
-
-  await writeFile(STAMP, `${commit}\n`);
-  await writeFile(path.join(OUT_DIR, 'LICENSE-cwl.md'), licenseText(repo, commit));
-
-  console.log(`cwl: wrote ${count} files (${(bytes / 1048576).toFixed(1)} MB) to resources/cwl/`);
 }
 
 function licenseText(repo, commit) {
