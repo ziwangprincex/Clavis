@@ -98,6 +98,14 @@ jobs:
       - name: Install frontend deps
         run: npm --prefix web ci
 
+      # The .cwl command library is not committed (see .gitignore). It must be
+      # fetched before tauri-action builds, since `tauri.conf.json` lists
+      # `resources/cwl/*` as a bundle resource — without this the shipped app
+      # would have no LaTeX completion data. Pinned via tools/cwl-version.json,
+      # so every platform in the matrix bundles an identical command set.
+      - name: Fetch LaTeX command library (.cwl)
+        run: node tools/fetch-cwl.mjs
+
       # tauri-action runs `beforeBuildCommand` (npm run build), builds the
       # bundles, signs the updater artifacts with the secrets, and uploads them
       # into the shared draft release created above. Sharing one releaseId lets

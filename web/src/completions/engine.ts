@@ -1,4 +1,5 @@
 import { detectCompletionSite } from './context';
+import { cwlProvider } from './cwlProvider';
 import { latexSemanticProvider } from './latexSemanticProvider';
 import { snippetProvider } from './snippetProvider';
 import type {
@@ -11,14 +12,24 @@ import type {
 const DEFAULT_PROVIDERS: readonly CompletionProvider[] = [
   latexSemanticProvider,
   snippetProvider,
+  cwlProvider,
 ];
 
+/**
+ * Merge provider results, keeping one candidate per label.
+ *
+ * Keyed on the label alone rather than label + insertText, because the cwl
+ * corpus overlaps the built-in snippets: the corpus knows the itemize
+ * environment exists but carries only its bare name, while `snippets.ts` has a
+ * multi-line skeleton with an item and indentation. Those share a label and
+ * differ in text, so a label+text key would list two near-identical entries.
+ * Highest boost wins, which is how the richer snippet beats the corpus stub.
+ */
 function mergeCandidates(groups: readonly (readonly CompletionCandidate[])[]): CompletionCandidate[] {
   const byKey = new Map<string, CompletionCandidate>();
   for (const candidate of groups.flat()) {
-    const key = `${candidate.label}\u0000${candidate.insertText}`;
-    const previous = byKey.get(key);
-    if (!previous || (candidate.boost ?? 0) > (previous.boost ?? 0)) byKey.set(key, candidate);
+    const previous = byKey.get(candidate.label);
+    if (!previous || (candidate.boost ?? 0) > (previous.boost ?? 0)) byKey.set(candidate.label, candidate);
   }
   return [...byKey.values()].sort((a, b) => (b.boost ?? 0) - (a.boost ?? 0) || a.label.localeCompare(b.label));
 }

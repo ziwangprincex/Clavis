@@ -26,7 +26,13 @@ export function buildCompletionSource(
         label: candidate.label,
         detail: candidate.detail,
         type: candidate.kind ?? 'text',
-        apply: candidate.snippet ? snippet(snippetToCM6(candidate.insertText)) : candidate.insertText,
+        apply: candidate.snippet
+          // cwl-derived templates are already CM6 syntax; running them through
+          // the legacy converter would mangle argument names containing spaces.
+          ? snippet(candidate.snippetSyntax === 'cm6'
+            ? candidate.insertText
+            : snippetToCM6(candidate.insertText))
+          : candidate.insertText,
         boost: candidate.boost,
       })),
     };

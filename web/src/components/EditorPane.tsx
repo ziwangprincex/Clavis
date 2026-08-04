@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react';
 import { useTabsStore, useSettingsStore, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
+import { prefetchCwlForDocument } from '../completions/cwlProvider';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
@@ -167,6 +168,10 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     if (!ctrl || !activeTab) return;
     if (ctrl.value !== activeTab.content) ctrl.value = activeTab.content;
     ctrl.setLanguage(activeTab.lang);
+    // Start reading this document's .cwl packages now. Completion never awaits
+    // IPC, so warming the cache here keeps the first `\` from showing a
+    // half-populated list.
+    if (activeTab.lang === 'latex') prefetchCwlForDocument(activeTab.content);
   }, [activeTabId, activeTab]);
 
   // Settings live-apply.

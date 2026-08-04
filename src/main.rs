@@ -4,6 +4,7 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
 mod bib;
+mod cwl;
 mod latex;
 mod settings;
 mod typst_world;
@@ -324,6 +325,8 @@ fn main() {
             latex::distro::detect_distro,
             latex::distro::install_package,
             latex::parse_bib,
+            cwl::read_cwl,
+            cwl::list_cwl_packages,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

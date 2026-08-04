@@ -44,6 +44,13 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # The .cwl command library is not committed (see .gitignore), so it must be
+      # fetched before anything that reads it: `tauri.conf.json` lists
+      # `resources/cwl/*` as a bundle resource, and the corpus test asserts
+      # against the real files rather than skipping.
+      - name: Fetch LaTeX command library (.cwl)
+        run: node tools/fetch-cwl.mjs
+
       # NOTE: the frontend must be built first. `tauri::generate_context!()`
       # requires `web/dist` to exist, so `cargo check`/`cargo test` fail on a
       # clean checkout until `vite build` has produced it.

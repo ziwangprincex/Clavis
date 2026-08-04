@@ -1,4 +1,4 @@
-# Clavis - Handoff (updated 2026-08-03)
+# Clavis - Handoff (updated 2026-08-04)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
@@ -6,7 +6,118 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
-## 0. Update - 2026-08-03 (both pending bodies of work committed + shipped: v1.0.3, v1.0.4)
+## 0. Update - 2026-08-04 (LaTeX completion now backed by the TeXstudio `.cwl` corpus)
+
+**Working state:** on branch **`feat/cwl-completion`** (not `main`). Phase 1 of
+the cwl work is committed; Phase 2 (math-mode filtering) is **not started**.
+159 frontend tests + 21 Rust tests green, `npm run typecheck` and
+`cargo check --all-targets` clean.
+
+### Why this exists
+
+LaTeX ships no machine-readable command index — a package gives you `.sty` macros
+and a PDF, nothing structured. So the ~180 hand-written snippets in
+`web/src/completions/snippets.ts` could never cover real writing (`\usepackage{siunitx}`
+then `\SI` got you nothing). TeXstudio's `.cwl` corpus is the ecosystem's answer;
+LaTeX Workshop, Kile and TeXstudio all consume the same files. It yields
+**235,956 commands + 8,800 environments** from 4465 files.
+
+### Where the data lives — NOT in git
+
+`resources/cwl/` is **gitignored**. It is fetched at build time by
+`tools/fetch-cwl.mjs`, pinned to an upstream commit in `tools/cwl-version.json`
+(currently `f5442c5e`), so a given Clavis tag always ships the same command set.
+
+**Consequence to remember:** a fresh clone has no corpus. Run
+`node tools/fetch-cwl.mjs` (or just `npm test` / `npm run dev` in `web/`, which
+hook it via `pretest`/`predev`). Both `ci.yml` and `release.yml` fetch it after
+checkout — **release.yml is the load-bearing one**, since `tauri.conf.json` lists
+`resources/cwl/*` under `bundle.resources`; without that step the shipped app has
+no completion data.
+
+### Licensing (settled, do not relitigate)
+
+TeXstudio is GPLv3 and `completion/` carries no separate licence. Bundling is
+still fine: GPLv3 §5 says inclusion in an *aggregate* does not relicense the
+other parts, and Clavis only reads the files as data. LaTeX Workshop (MIT) does
+the same thing. Provenance is recorded in the generated
+`resources/cwl/LICENSE-cwl.md`. **Clavis itself still has no LICENSE file** —
+the user deliberately deferred that. Worth revisiting if Clavis keeps shipping
+public releases, since no licence legally means "all rights reserved".
+
+### What was built
+
+- `tools/fetch-cwl.mjs` — streams one repo tarball, keeps `completion/*.cwl`.
+  Tar is parsed inline because Windows runners have no dependable `tar`.
+- `web/src/completions/cwlParser.ts` — our own whitelist-only parser. Unknown
+  shapes are dropped rather than passed through; shell-escape constructs
+  (`\write18`, `\openout`, `\catcode`) are rejected, because parsed templates
+  become text inserted into the user's document.
+- `src/cwl.rs` — serves files **by package name, never by path**, reusing
+  `install_package`'s `[A-Za-z0-9._+-]` whitelist. Names come from
+  `\usepackage{}` in a user document, i.e. untrusted input. User overrides in
+  `<config_dir>/clavis/cwl/` shadow bundled files.
+- `web/src/completions/cwlProvider.ts` — lazy, cached, and **never awaits IPC on
+  the keystroke path**. Only packages the document loads are read (plus
+  `#include:` deps and `latex-document`). `prefetchCwlForDocument` warms the
+  cache on tab switch so the first `\` is not half-populated.
+
+### Two behaviour changes to existing code
+
+1. **`engine.ts` dedups by label alone**, not label+insertText. The corpus knows
+   `itemize` exists but only as a bare name, while `snippets.ts` has a skeleton
+   with `\item` and indentation — same label, different text. Highest boost wins,
+   so the richer snippet survives.
+2. **`snippets.ts` lost ~130 single-command entries** (`\textbf`, `\frac`, greek,
+   operators, symbols). The ~30 multi-line `\begin{...}` skeletons **stayed**:
+   cwl environment lines carry only a name (`\begin{align}#\math,array`), so they
+   cannot express a body. Markdown/Typst untouched.
+   `source.test.ts`'s `\section` assertion was rewritten accordingly — that
+   command now comes from the corpus, which needs a Tauri runtime the test lacks.
+
+### Debugging notes worth keeping
+
+- **ustar prefix field.** GitHub tarballs split paths over 100 bytes across the
+  header `prefix` (offset 345) and `name`. Reading `name` alone silently lost 11
+  deep `tikzlibrary*.cwl` files. `expectFiles` in `cwl-version.json` is now a
+  tripwire that fails the fetch loudly instead of shipping a partial library.
+- **Verify against the corpus, not the manual.** `cwlCorpus.test.ts` runs the
+  parser over all 4465 files and caught three things the TeXstudio manual never
+  documents: `\begin{enumerate}\item`, `%<num%:translatable%>`, and
+  `pst-bspline.cwl`'s malformed `%)` terminator. Drop rate is 35 lines (0.014%),
+  every one malformed upstream.
+- **stex cannot give you math mode.** `@codemirror/legacy-modes`' stex tracks it
+  internally (`inMathMode`) but the state lives in a closure function pointer
+  (`state.f`), unreachable from the syntax tree, and both math and text mode emit
+  the same `tag` token. `stexMath` is whole-document-is-math, useless for mixed
+  files. Phase 2 must hand-roll the scan.
+
+### Still unverified (manual, off-sandbox)
+
+- **Never run in a real window.** Everything above is test-verified only; the
+  sandbox is headless. Needs `tauri dev`: does `\bin` offer `\binom` with
+  tab-through placeholders, does `\usepackage{siunitx}` make `\SI` appear (and
+  deleting it make `\SI` vanish), does a cold-open document feel instant.
+- **CI has not run.** The `fetch-cwl.mjs` step is untested on
+  macOS/Linux/Windows runners — tar parsing and path handling could differ.
+- **Bundle size / startup.** Corpus is ~10 MB raw, ~1.7 MB compressed (measured
+  15.6% gzip on a 17-file sample). Startup should be unaffected because nothing
+  is parsed until a package is referenced, but that was never measured on a real
+  build.
+
+### Phase 2, not started
+
+Math-mode detection so cwl's `#m` / `#n` classifiers can be honoured (`\sqrt`
+only in math, `\textbf` only in text) — the user explicitly asked for this.
+Hand-rolled scan, bounded backtracking (≤500 lines, stop at blank line /
+`\begin{document}`), defaulting to text when unsure: mis-detecting math hides
+`\textbf`, which is worse than showing a few extra math commands. Also deferred:
+`#t`/`/env` filtering, `#keyvals:` key/value completion, `L0`–`L5` outline
+integration.
+
+---
+
+## 0.1. Update - 2026-08-03 (both pending bodies of work committed + shipped: v1.0.3, v1.0.4)
 
 The two entries immediately below were written while their work was **still
 uncommitted on `main`**. That is no longer true — both have since been committed

@@ -34,6 +34,17 @@ export interface CompletionCandidate {
   detail?: string;
   kind?: 'command' | 'environment' | 'reference' | 'citation' | 'file' | 'snippet';
   snippet?: boolean;
+  /**
+   * Placeholder dialect of `insertText` when `snippet` is set.
+   *
+   * `'legacy'` (the default) is the hand-written `$1default` form used by
+   * `snippets.ts`, converted by `snippetToCM6` at insertion time. That form is
+   * lossy — single-digit field numbers, and defaults restricted to
+   * `[A-Za-z0-9_\-.]` — so it cannot carry cwl argument names like
+   * `short title` or `bib file`. Providers with such names emit `'cm6'`
+   * (`${1:short title}`) and bypass the converter.
+   */
+  snippetSyntax?: 'legacy' | 'cm6';
   boost?: number;
 }
 

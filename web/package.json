@@ -4,10 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "cwl": "node ../tools/fetch-cwl.mjs",
+    "predev": "npm run cwl",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "pretest": "npm run cwl",
     "test": "vitest run"
   },
   "dependencies": {

@@ -311,6 +311,15 @@ export const ipc = {
     invoke<void>('install_package', { manager, name }),
   parseBib: (bibPaths: string[]) =>
     invoke<BibEntry[]>('parse_bib', { bibPaths }),
+
+  // --- Completion data (.cwl) ---
+  // Served by package name rather than path: the names come from
+  // `\usepackage{...}` in a user document, so Rust validates them against a
+  // character whitelist. `null` means the package has no .cwl, which is normal.
+  readCwl: (name: string) =>
+    invoke<string | null>('read_cwl', { name }),
+  listCwlPackages: () =>
+    invoke<string[]>('list_cwl_packages'),
   cleanupWorkdir: (workdirToken: string) =>
     invoke<void>('cleanup_workdir', { workdirToken }),
   synctexForward: (workdirToken: string, line: number, column: number) =>

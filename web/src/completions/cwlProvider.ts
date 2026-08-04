@@ -1,0 +1,246 @@
+/**
+ * Completion provider backed by the bundled TeXstudio `.cwl` corpus.
+ *
+ * Design constraint that shapes everything here: the corpus is ~4465 files and
+ * ~245k commands, but `complete()` sits on the keystroke path. So:
+ *
+ *   - Only packages the document actually loads are read (plus their
+ *     `#include:` dependencies and the always-on base).
+ *   - Reads go through Tauri and are therefore async; `complete()` never awaits
+ *     them. It serves whatever is already parsed and kicks off loading in the
+ *     background, so the popup is never gated on IPC.
+ *   - Parsed packages are cached for the process lifetime. `.cwl` files are
+ *     build-time data and do not change while the app runs.
+ */
+
+import { ipc } from '../api/tauri';
+import { parseCwl, type CwlCommand, type CwlEnvironment, type CwlPackage } from './cwlParser';
+import type { CompletionCandidate, CompletionProvider, CompletionRequest } from './types';
+
+/**
+ * Always loaded: `latex-document.cwl` holds the LaTeX kernel and base classes
+ * (`\section`, `\textbf`, `\frac`, ...), which are available without any
+ * `\usepackage`.
+ */
+const BASE_PACKAGES = ['latex-document'];
+
+/** Class-name to cwl mapping. `\documentclass{beamer}` -> `class-beamer.cwl`. */
+function classPackageName(documentClass: string): string {
+  return `class-${documentClass}`;
+}
+
+/** Parsed packages, keyed by cwl name. `null` marks "no such package". */
+const cache = new Map<string, CwlPackage | null>();
+/** In-flight loads, so concurrent keystrokes do not each fire their own read. */
+const inFlight = new Map<string, Promise<void>>();
+/** Names known to exist, so we never ask for files that cannot be there. */
+let availableNames: Set<string> | null = null;
+let availablePromise: Promise<void> | null = null;
+
+/** Reset all state. Tests only. */
+export function resetCwlCacheForTests(): void {
+  cache.clear();
+  inFlight.clear();
+  availableNames = null;
+  availablePromise = null;
+}
+
+function ensureAvailableNames(): void {
+  if (availableNames || availablePromise) return;
+  availablePromise = ipc
+    .listCwlPackages()
+    .then(names => {
+      availableNames = new Set(names);
+    })
+    .catch(() => {
+      // No corpus (dev checkout without `node tools/fetch-cwl.mjs`, or a
+      // non-Tauri context). Treat as empty rather than retrying forever.
+      availableNames = new Set();
+    })
+    .finally(() => {
+      availablePromise = null;
+    });
+}
+
+/**
+ * Start loading a package if it is not already cached or in flight.
+ * Dependencies are loaded transitively as each file is parsed.
+ */
+function requestPackage(name: string): void {
+  if (cache.has(name) || inFlight.has(name)) return;
+  // Skip names we know are absent; without this, a document loading a dozen
+  // uncovered packages would fire a dozen doomed reads on every scan.
+  if (availableNames && !availableNames.has(name)) {
+    cache.set(name, null);
+    return;
+  }
+
+  const load = ipc
+    .readCwl(name)
+    .then(text => {
+      const pkg = text === null ? null : parseCwl(text, name);
+      cache.set(name, pkg);
+      if (pkg) for (const dep of pkg.deps) requestPackage(dep);
+    })
+    .catch(() => {
+      // Cache the failure: a malformed or unreadable file should not be retried
+      // on every keystroke.
+      cache.set(name, null);
+    })
+    .finally(() => {
+      inFlight.delete(name);
+    });
+
+  inFlight.set(name, load);
+}
+
+/** Strip comments so a `%`-commented `\usepackage` is not treated as active. */
+function withoutComments(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map(line => {
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] !== '%') continue;
+        let slashes = 0;
+        for (let c = i - 1; c >= 0 && line[c] === '\\'; c--) slashes++;
+        if (slashes % 2 === 0) return line.slice(0, i);
+      }
+      return line;
+    })
+    .join('\n');
+}
+
+/**
+ * Package names loaded by a document: `\usepackage{a,b}`, `\RequirePackage{}`,
+ * and the document class.
+ */
+function scanPackages(text: string): string[] {
+  const found = new Set<string>(BASE_PACKAGES);
+  const source = withoutComments(text);
+
+  const usePattern = /\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}/g;
+  for (let m = usePattern.exec(source); m; m = usePattern.exec(source)) {
+    for (const raw of m[1].split(',')) {
+      const name = raw.trim();
+      if (name) found.add(name);
+    }
+  }
+
+  const classPattern = /\\documentclass\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}/g;
+  for (let m = classPattern.exec(source); m; m = classPattern.exec(source)) {
+    const name = m[1].trim();
+    if (name) found.add(classPackageName(name));
+  }
+
+  return [...found];
+}
+
+/**
+ * Cache the package scan per document text.
+ *
+ * `complete()` runs on every keystroke and the scan walks the whole document,
+ * so repeating it unchanged is exactly the redundant-rescan cost that has bitten
+ * this module before.
+ */
+let lastScanText: string | null = null;
+let lastScanResult: string[] = [];
+
+function packagesFor(text: string): string[] {
+  if (text === lastScanText) return lastScanResult;
+  lastScanText = text;
+  lastScanResult = scanPackages(text);
+  return lastScanResult;
+}
+
+/** Every parsed package reachable from the document, following `#include:`. */
+function activePackages(text: string): CwlPackage[] {
+  ensureAvailableNames();
+
+  const wanted = packagesFor(text);
+  const seen = new Set<string>();
+  const out: CwlPackage[] = [];
+  const queue = [...wanted];
+
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+
+    if (!cache.has(name)) {
+      requestPackage(name);
+      continue; // Not available yet; a later keystroke will pick it up.
+    }
+    const pkg = cache.get(name);
+    if (!pkg) continue;
+    out.push(pkg);
+    queue.push(...pkg.deps);
+  }
+  return out;
+}
+
+/** `#*` commands are real but rarely wanted, so they sort below the rest. */
+const BOOST_NORMAL = 2;
+const BOOST_UNUSUAL = -10;
+
+function commandCandidate(command: CwlCommand, pkg: string): CompletionCandidate {
+  return {
+    label: command.label,
+    insertText: command.snippet,
+    detail: pkg,
+    kind: 'command',
+    snippet: command.hasFields,
+    snippetSyntax: 'cm6',
+    boost: command.unusual ? BOOST_UNUSUAL : BOOST_NORMAL,
+  };
+}
+
+function environmentCandidate(environment: CwlEnvironment, pkg: string): CompletionCandidate {
+  return {
+    label: environment.label,
+    insertText: environment.snippet,
+    detail: pkg,
+    kind: 'environment',
+    snippet: true,
+    snippetSyntax: 'cm6',
+    boost: environment.unusual ? BOOST_UNUSUAL : BOOST_NORMAL,
+  };
+}
+
+/**
+ * Warm the cache for a document's packages.
+ *
+ * `complete()` never awaits IPC, so without this the first `\` in a freshly
+ * opened document would show built-in snippets only, with corpus commands
+ * appearing a keystroke or two later. Calling this when a LaTeX document opens
+ * moves that latency off the typing path.
+ */
+export function prefetchCwlForDocument(text: string): void {
+  ensureAvailableNames();
+  for (const name of packagesFor(text)) requestPackage(name);
+}
+
+export const cwlProvider: CompletionProvider = {
+  complete(request: CompletionRequest, site) {
+    if (request.language !== 'latex') return [];
+    // Citations, references and file paths are document-derived; the corpus has
+    // nothing to add there and `latexSemanticProvider` owns them.
+    if (site.kind === 'citation' || site.kind === 'reference' || site.kind === 'file') return [];
+
+    const packages = activePackages(request.text);
+
+    if (site.kind === 'environment') {
+      // `\end{...}` pairing is ranked by `latexSemanticProvider` from the open
+      // environment stack, which beats a static list.
+      if (site.action === 'end') return [];
+      return packages.flatMap(pkg =>
+        pkg.environments.map(environment => environmentCandidate(environment, pkg.name)));
+    }
+
+    if (site.kind === 'command') {
+      return packages.flatMap(pkg =>
+        pkg.commands.map(command => commandCandidate(command, pkg.name)));
+    }
+
+    return [];
+  },
+};

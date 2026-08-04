@@ -21,7 +21,24 @@ describe('LaTeX completion source', () => {
   it('keeps ordinary command completion working', async () => {
     const result = await completeAt('Text \\sec');
 
+    // `\section` used to be asserted here, but single commands now come from the
+    // .cwl corpus, which needs a Tauri runtime this test does not have. What the
+    // source layer owns is finding the command site and its replacement range —
+    // so that is what this checks. Corpus content is covered by
+    // cwlProvider.test.ts and cwlCorpus.test.ts.
     expect(result?.from).toBe(5);
-    expect(result?.options.some(option => option.label === '\\section')).toBe(true);
+    expect(result?.to).toBe('Text \\sec'.length);
+  });
+
+  it('marks cwl candidates so their CM6 placeholders are not re-converted', async () => {
+    // Regression guard for the `snippetSyntax` split: a cwl template already in
+    // `${1:short title}` form must be applied verbatim, because running it
+    // through the legacy `$1default` converter mangles names containing spaces.
+    const source = buildCompletionSource('latex');
+    const state = EditorState.create({ doc: '\\begin{doc' });
+    const result = await source(new CompletionContext(state, 10, false));
+    const option = result?.options.find(o => o.label === '\\begin{document}');
+    expect(option).toBeDefined();
+    expect(typeof option?.apply).toBe('function');
   });
 });

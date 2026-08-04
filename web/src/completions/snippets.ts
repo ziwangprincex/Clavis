@@ -17,41 +17,24 @@ export interface SnippetEntry {
   d: string;
 }
 
+/**
+ * Multi-line LaTeX environment skeletons.
+ *
+ * The single-command entries that used to live here (`\textbf`, `\frac`, greek
+ * letters, operators, symbols — about 130 of them) were removed in favour of the
+ * bundled `.cwl` corpus, which covers the same ground far more completely and
+ * carries upstream argument names.
+ *
+ * What the corpus cannot express is an environment *body*: its environment lines
+ * hold only a name (`\begin{align}#\math,array`), so these skeletons still own
+ * the `\item` / `&` / indentation structure that makes an environment usable the
+ * moment it is inserted. `mergeCandidates` dedups by label, and these outrank
+ * the corpus stubs.
+ *
+ * These use the legacy `$1default` dialect (see `snippetToCM6`); cwl candidates
+ * bypass that converter via `snippetSyntax: 'cm6'`.
+ */
 export const LATEX_COMPLETIONS: SnippetEntry[] = [
-  // structure
-  { l: '\\documentclass', t: '\\documentclass{$1article}', d: 'document class' },
-  { l: '\\usepackage', t: '\\usepackage{$1}', d: 'load package' },
-  { l: '\\title', t: '\\title{$1Title}', d: 'document title' },
-  { l: '\\author', t: '\\author{$1Name}', d: 'document author' },
-  { l: '\\date', t: '\\date{$1\\today}', d: 'document date' },
-  { l: '\\maketitle', t: '\\maketitle', d: 'render title block' },
-  { l: '\\tableofcontents', t: '\\tableofcontents', d: 'table of contents' },
-  { l: '\\newpage', t: '\\newpage', d: 'new page' },
-  { l: '\\clearpage', t: '\\clearpage', d: 'flush floats + new page' },
-  { l: '\\section', t: '\\section{$1Title}', d: 'section' },
-  { l: '\\subsection', t: '\\subsection{$1Title}', d: 'subsection' },
-  { l: '\\subsubsection', t: '\\subsubsection{$1Title}', d: 'subsubsection' },
-  { l: '\\paragraph', t: '\\paragraph{$1Title}', d: 'paragraph' },
-  { l: '\\chapter', t: '\\chapter{$1Title}', d: 'chapter' },
-  // formatting
-  { l: '\\textbf', t: '\\textbf{$1bold}', d: 'bold' },
-  { l: '\\textit', t: '\\textit{$1italic}', d: 'italic' },
-  { l: '\\textsl', t: '\\textsl{$1slanted}', d: 'slanted' },
-  { l: '\\textsc', t: '\\textsc{$1Small Caps}', d: 'small caps' },
-  { l: '\\textsf', t: '\\textsf{$1sans}', d: 'sans serif' },
-  { l: '\\emph', t: '\\emph{$1emphasis}', d: 'emphasis' },
-  { l: '\\texttt', t: '\\texttt{$1code}', d: 'monospace' },
-  { l: '\\underline', t: '\\underline{$1text}', d: 'underline' },
-  { l: '\\textcolor', t: '\\textcolor{$1red}{$2text}', d: 'colored text' },
-  { l: '\\href', t: '\\href{$1url}{$2text}', d: 'hyperlink' },
-  { l: '\\url', t: '\\url{$1url}', d: 'url' },
-  { l: '\\footnote', t: '\\footnote{$1note}', d: 'footnote' },
-  { l: '\\cite', t: '\\cite{$1key}', d: 'citation' },
-  { l: '\\ref', t: '\\ref{$1key}', d: 'reference' },
-  { l: '\\eqref', t: '\\eqref{$1key}', d: 'equation ref' },
-  { l: '\\label', t: '\\label{$1key}', d: 'label' },
-  { l: '\\caption', t: '\\caption{$1caption}', d: 'caption' },
-  { l: '\\includegraphics', t: '\\includegraphics[width=$10.8\\linewidth]{$2path}', d: 'image' },
   // environments
   { l: '\\begin{document}', t: '\\begin{document}\n  $1\n\\end{document}', d: 'document body' },
   { l: '\\begin{itemize}', t: '\\begin{itemize}\n  \\item $1\n\\end{itemize}', d: 'bullet list' },
@@ -78,56 +61,6 @@ export const LATEX_COMPLETIONS: SnippetEntry[] = [
   { l: '\\begin{lemma}', t: '\\begin{lemma}\n  $1\n\\end{lemma}', d: 'lemma' },
   { l: '\\begin{proof}', t: '\\begin{proof}\n  $1\n\\end{proof}', d: 'proof' },
   { l: '\\item', t: '\\item $1', d: 'list item' },
-  // sizes
-  ...['tiny', 'scriptsize', 'footnotesize', 'small', 'normalsize', 'large', 'Large', 'LARGE', 'huge', 'Huge'].map(
-    s => ({ l: '\\' + s, t: '\\' + s + ' ', d: 'font size' }),
-  ),
-  // greek
-  ...[
-    'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'varepsilon', 'zeta', 'eta', 'theta', 'vartheta', 'iota',
-    'kappa', 'lambda', 'mu', 'nu', 'xi', 'pi', 'varpi', 'rho', 'sigma', 'varsigma', 'tau', 'upsilon',
-    'phi', 'varphi', 'chi', 'psi', 'omega',
-    'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi', 'Sigma', 'Upsilon', 'Phi', 'Psi', 'Omega',
-  ].map(s => ({ l: '\\' + s, t: '\\' + s + ' ', d: 'greek' })),
-  // functions
-  ...[
-    'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh',
-    'log', 'ln', 'lg', 'exp', 'min', 'max', 'sup', 'inf', 'lim', 'limsup', 'liminf',
-    'det', 'dim', 'ker', 'arg', 'deg', 'gcd', 'Pr',
-  ].map(s => ({ l: '\\' + s, t: '\\' + s + ' ', d: 'function' })),
-  // big operators
-  ...[
-    'sum', 'prod', 'coprod', 'int', 'iint', 'iiint', 'iiiint', 'oint', 'bigcup', 'bigcap', 'bigvee',
-    'bigwedge', 'bigoplus', 'bigotimes',
-  ].map(s => ({ l: '\\' + s, t: '\\' + s + ' ', d: 'big operator' })),
-  // math constructs
-  { l: '\\frac', t: '\\frac{$1num}{$2den}', d: 'fraction' },
-  { l: '\\dfrac', t: '\\dfrac{$1num}{$2den}', d: 'display fraction' },
-  { l: '\\binom', t: '\\binom{$1n}{$2k}', d: 'binomial' },
-  { l: '\\sqrt', t: '\\sqrt{$1}', d: 'square root' },
-  { l: '\\overline', t: '\\overline{$1}', d: 'overline' },
-  { l: '\\hat', t: '\\hat{$1}', d: 'hat' },
-  { l: '\\widehat', t: '\\widehat{$1}', d: 'wide hat' },
-  { l: '\\bar', t: '\\bar{$1}', d: 'bar' },
-  { l: '\\vec', t: '\\vec{$1}', d: 'vector' },
-  { l: '\\dot', t: '\\dot{$1}', d: 'dot' },
-  { l: '\\ddot', t: '\\ddot{$1}', d: 'ddot' },
-  { l: '\\tilde', t: '\\tilde{$1}', d: 'tilde' },
-  { l: '\\left', t: '\\left$1( $2 \\right$3)', d: 'left/right delim' },
-  // symbols
-  ...[
-    'infty', 'partial', 'nabla', 'cdot', 'cdots', 'ldots', 'dots', 'vdots', 'ddots',
-    'times', 'div', 'pm', 'mp', 'ast', 'star', 'circ', 'bullet', 'oplus', 'ominus', 'otimes', 'oslash',
-    'leq', 'geq', 'll', 'gg', 'neq', 'approx', 'equiv', 'sim', 'simeq', 'cong', 'propto',
-    'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow', 'leftrightarrow', 'Leftrightarrow',
-    'longrightarrow', 'longleftarrow', 'to', 'mapsto', 'hookrightarrow',
-    'forall', 'exists', 'nexists', 'in', 'notin', 'ni', 'subset', 'subseteq', 'supset', 'supseteq',
-    'cup', 'cap', 'setminus', 'emptyset', 'varnothing', 'wedge', 'vee', 'neg', 'top', 'bot',
-    'mathbb', 'mathbf', 'mathcal', 'mathfrak', 'mathrm', 'mathsf', 'mathtt', 'boldsymbol',
-    'aleph', 'hbar', 'ell', 'Re', 'Im', 'wp', 'prime', 'dagger', 'ddagger',
-    'angle', 'triangle', 'square', 'quad', 'qquad',
-    'because', 'therefore', 'iff', 'implies', 'vdash', 'dashv',
-  ].map(s => ({ l: '\\' + s, t: '\\' + s + ' ', d: 'symbol' })),
 ];
 
 export const TYPST_COMPLETIONS: SnippetEntry[] = [
