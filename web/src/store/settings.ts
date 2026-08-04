@@ -51,6 +51,20 @@ export interface Settings {
   problems_panel_open: boolean;
   /** Preview surface: keep it as a light paper page, or derive from the theme. */
   preview_paper: 'light' | 'match';
+  /** Offer commands from the bundled TeXstudio `.cwl` corpus. */
+  cwl_enabled: boolean;
+  /**
+   * Rank commands the corpus marks `#*` (unusual) alongside ordinary ones.
+   * They are always offered — `#*` covers a quarter of the corpus and includes
+   * useful commands — but sort last by default.
+   */
+  cwl_show_unusual: boolean;
+  /**
+   * Filter completions by math/text/environment context, per the corpus's
+   * `#m` / `#n` / `#t` / `/env` classifiers. Turn off to diagnose a command
+   * that should be offered but is not.
+   */
+  cwl_respect_context: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -87,6 +101,9 @@ export const defaultSettings: Settings = {
   ui_color_overrides: {},
   problems_panel_open: true,
   preview_paper: 'light',
+  cwl_enabled: true,
+  cwl_show_unusual: false,
+  cwl_respect_context: true,
 };
 
 interface SettingsStore {

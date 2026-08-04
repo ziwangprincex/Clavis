@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The provider reaches Rust through `ipc`, so the IPC layer is mocked. The
@@ -18,7 +18,7 @@ vi.mock('../api/tauri', () => ({
   },
 }));
 
-const { cwlProvider, resetCwlCacheForTests, prefetchCwlForDocument } = await import('./cwlProvider');
+const { cwlProvider, resetCwlCacheForTests, prefetchCwlForDocument, setCwlOptions } = await import('./cwlProvider');
 import type { CompletionRequest, CompletionSite } from './types';
 
 function request(text: string, position = text.length): CompletionRequest {
@@ -230,5 +230,113 @@ describe('cwl provider candidates', () => {
       COMMAND_SITE,
     );
     expect(out).toEqual([]);
+  });
+});
+
+describe('cwl provider context filtering', () => {
+  /** A corpus exercising each classifier that gates visibility. */
+  const CLASSIFIED = [
+    '\\sqrt{arg}#m',          // math only
+    '\\textbf{text}#n',       // text only
+    '\\multicolumn{n}{c}{t}#t', // tabular only
+    '\\State#/algorithmic',   // specific environment only
+    '\\anywhere',             // unclassified
+  ].join('\n');
+
+  it('offers math-only commands inside $...$ and hides them in prose', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    const inMath = await completeSettled('Let $\\sq');
+    expect(inMath.map(c => c.label)).toContain('\\sqrt');
+
+    const inProse = await completeSettled('Prose \\sq');
+    expect(inProse.map(c => c.label)).not.toContain('\\sqrt');
+  });
+
+  it('hides text-only commands inside math', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    const inMath = await completeSettled('Let $\\tex');
+    expect(inMath.map(c => c.label)).not.toContain('\\textbf');
+
+    const inProse = await completeSettled('Prose \\tex');
+    expect(inProse.map(c => c.label)).toContain('\\textbf');
+  });
+
+  it('applies math filtering inside display environments too', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    const out = await completeSettled('\\begin{align}\n  \\sq');
+    expect(out.map(c => c.label)).toContain('\\sqrt');
+  });
+
+  it('restricts tabular-only commands to tabular-like environments', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    const inTabular = await completeSettled('\\begin{tabular}{cc}\n\\multi');
+    expect(inTabular.map(c => c.label)).toContain('\\multicolumn');
+
+    const inProse = await completeSettled('Prose \\multi');
+    expect(inProse.map(c => c.label)).not.toContain('\\multicolumn');
+  });
+
+  it('restricts /env commands to their declared environment', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    const inEnv = await completeSettled('\\begin{algorithmic}\n\\Sta');
+    expect(inEnv.map(c => c.label)).toContain('\\State');
+
+    const outside = await completeSettled('\\begin{itemize}\n\\Sta');
+    expect(outside.map(c => c.label)).not.toContain('\\State');
+  });
+
+  it('offers unclassified commands everywhere', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    for (const text of ['Prose \\any', 'Math $\\any', '\\begin{tabular}{c}\n\\any']) {
+      const out = await completeSettled(text);
+      expect(out.map(c => c.label), text).toContain('\\anywhere');
+    }
+  });
+
+  it('treats an escaped dollar as text, not math', async () => {
+    // `costs \$5` must not flip the rest of the line into math mode.
+    corpus = { 'latex-document': CLASSIFIED };
+    const out = await completeSettled('costs \\$5 so \\tex');
+    expect(out.map(c => c.label)).toContain('\\textbf');
+  });
+});
+
+describe('cwl provider options', () => {
+  const CLASSIFIED = '\\sqrt{arg}#m\n\\normalcmd\n\\weirdcmd#*';
+
+  afterEach(() => {
+    setCwlOptions({ enabled: true, showUnusual: false, respectContext: true });
+  });
+
+  it('yields nothing when disabled', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    setCwlOptions({ enabled: false });
+    expect(await completeSettled('\\nor')).toEqual([]);
+  });
+
+  it('skips context filtering when respectContext is off', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    setCwlOptions({ respectContext: false });
+    // `\sqrt` is math-only, so this is prose where it would normally be hidden.
+    const out = await completeSettled('Prose \\sq');
+    expect(out.map(c => c.label)).toContain('\\sqrt');
+  });
+
+  it('still offers #* commands by default, just ranked last', async () => {
+    // `#*` is a quarter of the corpus and includes real commands like
+    // \addcontentsline, so it must never be hidden outright.
+    corpus = { 'latex-document': CLASSIFIED };
+    const out = await completeSettled('\\w');
+    const weird = out.find(c => c.label === '\\weirdcmd');
+    expect(weird).toBeDefined();
+    expect(weird!.boost!).toBeLessThan(out.find(c => c.label === '\\normalcmd')!.boost!);
+  });
+
+  it('promotes #* commands to normal rank when showUnusual is on', async () => {
+    corpus = { 'latex-document': CLASSIFIED };
+    setCwlOptions({ showUnusual: true });
+    const out = await completeSettled('\\w');
+    expect(out.find(c => c.label === '\\weirdcmd')!.boost)
+      .toBe(out.find(c => c.label === '\\normalcmd')!.boost);
   });
 });

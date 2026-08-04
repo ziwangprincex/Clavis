@@ -8,10 +8,9 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ## 0. Update - 2026-08-04 (LaTeX completion now backed by the TeXstudio `.cwl` corpus)
 
-**Working state:** on branch **`feat/cwl-completion`** (not `main`). Phase 1 of
-the cwl work is committed; Phase 2 (math-mode filtering) is **not started**.
-159 frontend tests + 21 Rust tests green, `npm run typecheck` and
-`cargo check --all-targets` clean.
+**Working state:** on branch **`feat/cwl-completion`** (not `main`). Phases 1 and
+2 are both committed. 198 frontend tests + 21 Rust tests green,
+`npm run typecheck` and `cargo check --all-targets` clean.
 
 ### Why this exists
 
@@ -92,28 +91,63 @@ public releases, since no licence legally means "all rights reserved".
   the same `tag` token. `stexMath` is whole-document-is-math, useless for mixed
   files. Phase 2 must hand-roll the scan.
 
+### Phase 2 — context filtering (done)
+
+`web/src/completions/mathContext.ts` decides whether a position is math mode, so
+the corpus's `#m` / `#n` / `#t` / `/env` classifiers can be enforced. Measured
+effect on a 5-package document: **1203 commands → 810 offered in prose, 1172 in
+math**, i.e. 362 math-only commands correctly suppressed while writing text.
+
+Design points that matter if you touch it:
+
+- **Bounded scan, not full document.** It walks forward from the nearest anchor
+  above the cursor. A blank line is the strongest anchor because TeX itself
+  forbids one inside `$...$`, so math cannot leak past it; `\begin{document}` and
+  a closing math `\end{}` work too, with a 500-line ceiling as backstop. There is
+  a perf test asserting <5 ms per call on a 20,000-line document — an unbounded
+  version would stall typing in a long file.
+- **Biased toward text when unsure.** A false "math" verdict hides `\textbf` and
+  every other text command, which is far more disruptive than showing a few
+  surplus math operators in prose.
+- Handles `$…$`, `$$…$$`, `\(…\)`, `\[…\]`, math environments incl. starred
+  forms, `\text{...}` islands back to text mode, escaped `\$`, and `%` comments.
+
+**`#*` is downranked, never hidden.** It covers a quarter of the corpus and
+includes genuinely useful commands (`\addcontentsline`, `\arabic`, `\Alph`);
+TeXstudio only tucks them behind an "all" tab. `#S` is the flag that really means
+invisible, and the parser drops those. `cwl_show_unusual` promotes `#*` to normal
+rank rather than revealing anything new.
+
+Three settings ride on the existing `#[serde(flatten)] extra` mechanism, so
+`settings.rs` needed no change: `cwl_enabled`, `cwl_show_unusual`,
+`cwl_respect_context` (the last is an escape hatch for diagnosing a command that
+should appear but does not). They are pushed into the provider via
+`setCwlOptions` from `EditorPane`, because `complete()` is synchronous and on the
+keystroke path.
+
 ### Still unverified (manual, off-sandbox)
 
 - **Never run in a real window.** Everything above is test-verified only; the
   sandbox is headless. Needs `tauri dev`: does `\bin` offer `\binom` with
   tab-through placeholders, does `\usepackage{siunitx}` make `\SI` appear (and
-  deleting it make `\SI` vanish), does a cold-open document feel instant.
+  deleting it make `\SI` vanish), does `\sqrt` stay hidden in prose but appear
+  inside `$…$`, does a cold-open document feel instant.
 - **CI has not run.** The `fetch-cwl.mjs` step is untested on
   macOS/Linux/Windows runners — tar parsing and path handling could differ.
 - **Bundle size / startup.** Corpus is ~10 MB raw, ~1.7 MB compressed (measured
   15.6% gzip on a 17-file sample). Startup should be unaffected because nothing
   is parsed until a package is referenced, but that was never measured on a real
   build.
+- **No settings UI.** The three `cwl_*` toggles exist and work but have no
+  controls in `SettingsDialog.tsx`; they are only reachable by hand-editing
+  `settings.json`. Worth adding if the defaults turn out wrong in practice.
 
-### Phase 2, not started
+### Deferred
 
-Math-mode detection so cwl's `#m` / `#n` classifiers can be honoured (`\sqrt`
-only in math, `\textbf` only in text) — the user explicitly asked for this.
-Hand-rolled scan, bounded backtracking (≤500 lines, stop at blank line /
-`\begin{document}`), defaulting to text when unsure: mis-detecting math hides
-`\textbf`, which is worse than showing a few extra math commands. Also deferred:
-`#t`/`/env` filtering, `#keyvals:` key/value completion, `L0`–`L5` outline
-integration.
+`#keyvals:` key/value completion (`\includegraphics[width=…]`), `L0`–`L5`
+structure levels wired into the existing outline, environment aliases beyond the
+math ones, and a TexLab/LSP adapter (still the long-term option; note TeXLab is
+also GPL-3.0).
 
 ---
 

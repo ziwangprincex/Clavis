@@ -10,7 +10,7 @@
 import { useEffect, useRef } from 'react';
 import { useTabsStore, useSettingsStore, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
-import { prefetchCwlForDocument } from '../completions/cwlProvider';
+import { prefetchCwlForDocument, setCwlOptions } from '../completions/cwlProvider';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
@@ -173,6 +173,17 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     // half-populated list.
     if (activeTab.lang === 'latex') prefetchCwlForDocument(activeTab.content);
   }, [activeTabId, activeTab]);
+
+  // Completion preferences are pushed into the provider rather than read from
+  // the store there, because `complete()` is synchronous and on the keystroke
+  // path.
+  useEffect(() => {
+    setCwlOptions({
+      enabled: settings.cwl_enabled,
+      showUnusual: settings.cwl_show_unusual,
+      respectContext: settings.cwl_respect_context,
+    });
+  }, [settings.cwl_enabled, settings.cwl_show_unusual, settings.cwl_respect_context]);
 
   // Settings live-apply.
   useEffect(() => {

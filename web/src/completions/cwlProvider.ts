@@ -15,6 +15,7 @@
 
 import { ipc } from '../api/tauri';
 import { parseCwl, type CwlCommand, type CwlEnvironment, type CwlPackage } from './cwlParser';
+import { detectMathContext } from './mathContext';
 import type { CompletionCandidate, CompletionProvider, CompletionRequest } from './types';
 
 /**
@@ -36,6 +37,35 @@ const inFlight = new Map<string, Promise<void>>();
 /** Names known to exist, so we never ask for files that cannot be there. */
 let availableNames: Set<string> | null = null;
 let availablePromise: Promise<void> | null = null;
+
+/**
+ * User-facing behaviour switches.
+ *
+ * Pushed in rather than read from the settings store because `complete()` is
+ * synchronous and on the keystroke path; subscribing here would couple this
+ * module to React state for no benefit.
+ */
+interface CwlOptions {
+  enabled: boolean;
+  /**
+   * Promote `#*` commands to normal rank instead of downranking them.
+   *
+   * They are never hidden outright: `#*` covers 26% of the corpus and includes
+   * genuinely useful commands (`\addcontentsline`, `\arabic`, `\Alph`).
+   * TeXstudio itself only tucks them behind an "all" tab rather than dropping
+   * them, so filtering by prefix plus a rank penalty is the honest equivalent.
+   * Commands marked `#S` are the ones actually meant to be invisible, and the
+   * parser drops those.
+   */
+  showUnusual: boolean;
+  respectContext: boolean;
+}
+
+let options: CwlOptions = { enabled: true, showUnusual: false, respectContext: true };
+
+export function setCwlOptions(next: Partial<CwlOptions>): void {
+  options = { ...options, ...next };
+}
 
 /** Reset all state. Tests only. */
 export function resetCwlCacheForTests(): void {
@@ -182,6 +212,12 @@ function activePackages(text: string): CwlPackage[] {
 const BOOST_NORMAL = 2;
 const BOOST_UNUSUAL = -10;
 
+/** Rank for a candidate, honouring the `showUnusual` preference. */
+function rankFor(unusual: boolean): number {
+  if (!unusual || options.showUnusual) return BOOST_NORMAL;
+  return BOOST_UNUSUAL;
+}
+
 function commandCandidate(command: CwlCommand, pkg: string): CompletionCandidate {
   return {
     label: command.label,
@@ -190,7 +226,7 @@ function commandCandidate(command: CwlCommand, pkg: string): CompletionCandidate
     kind: 'command',
     snippet: command.hasFields,
     snippetSyntax: 'cm6',
-    boost: command.unusual ? BOOST_UNUSUAL : BOOST_NORMAL,
+    boost: rankFor(command.unusual),
   };
 }
 
@@ -202,7 +238,7 @@ function environmentCandidate(environment: CwlEnvironment, pkg: string): Complet
     kind: 'environment',
     snippet: true,
     snippetSyntax: 'cm6',
-    boost: environment.unusual ? BOOST_UNUSUAL : BOOST_NORMAL,
+    boost: rankFor(environment.unusual),
   };
 }
 
@@ -219,9 +255,28 @@ export function prefetchCwlForDocument(text: string): void {
   for (const name of packagesFor(text)) requestPackage(name);
 }
 
+/**
+ * Whether a command is valid at a position, per its cwl classifiers.
+ *
+ * `#m` / `#n` / `#t` / `/env` are what make the corpus usable: without them
+ * every one of the ~236k commands is offered everywhere, and typing prose means
+ * wading through math operators.
+ */
+function isApplicable(command: CwlCommand, math: boolean, envs: readonly string[]): boolean {
+  if (command.mathOnly && !math) return false;
+  if (command.textOnly && math) return false;
+  // `#t` means tabular-like. Resolve it through the environment stack rather
+  // than a fixed list, so `tabularx`/`longtable` and friends work too.
+  if (command.tabularOnly && !envs.some(env => /tabular|array|longtable|tabu|matrix/i.test(env))) {
+    return false;
+  }
+  if (command.envs && !command.envs.some(allowed => envs.includes(allowed))) return false;
+  return true;
+}
+
 export const cwlProvider: CompletionProvider = {
   complete(request: CompletionRequest, site) {
-    if (request.language !== 'latex') return [];
+    if (request.language !== 'latex' || !options.enabled) return [];
     // Citations, references and file paths are document-derived; the corpus has
     // nothing to add there and `latexSemanticProvider` owns them.
     if (site.kind === 'citation' || site.kind === 'reference' || site.kind === 'file') return [];
@@ -237,8 +292,12 @@ export const cwlProvider: CompletionProvider = {
     }
 
     if (site.kind === 'command') {
-      return packages.flatMap(pkg =>
-        pkg.commands.map(command => commandCandidate(command, pkg.name)));
+      const { math, envs } = options.respectContext
+        ? detectMathContext(request.text, request.position)
+        : { math: false, envs: [] as string[] };
+      return packages.flatMap(pkg => pkg.commands
+        .filter(command => !options.respectContext || isApplicable(command, math, envs))
+        .map(command => commandCandidate(command, pkg.name)));
     }
 
     return [];
