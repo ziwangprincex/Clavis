@@ -164,12 +164,44 @@ document text, and a test now covers A→B→A switching).
 
 ### Still unverified (manual, off-sandbox)
 
-- **CI has not run.** The `fetch-cwl.mjs` step is untested on
-  macOS/Linux/Windows runners — tar parsing and path handling could differ. This
-  is the largest remaining risk.
+- **`web/tsconfig.json` excludes `cwlCorpus.test.ts`, and the reason is a trap.**
+  That file reads `resources/cwl/` with `node:fs`, but the project has no Node
+  types — `types` is pinned to `vite/client` and `@types/node` is not a
+  dependency. It typechecked locally purely by accident: TypeScript walks parent
+  directories looking for `node_modules`, and a stray
+  `C:\Users\<user>\node_modules\@types\node` *above the repo* satisfied the
+  imports. CI has no such parent, so it failed there and passed here.
+
+  Worth internalising: **`npm ci` and `tsc --force` do not reproduce this** —
+  both were tried, both passed, because the difference is outside the repo
+  entirely. `npx tsc --explainFiles` is what found it, printing the resolved
+  path as `../../node_modules/@types/node`. If a type error appears only in CI,
+  suspect resolution from above the repo root before touching dependencies.
+
+  Cost: type errors inside that file are caught nowhere. Vitest still runs it
+  (esbuild, no type check), so coverage is unaffected — keep it thin and leave
+  logic in the modules it exercises.
+
+- **CI has not run green yet.** Two gates were hit in sequence while cutting
+  1.0.5: `check_release.py` (the tag was created before the version bump was
+  committed, so the tagged tree still said 1.0.4) and `check_handoff.py` (any
+  repository change requires a HANDOFF edit in the same push — including a
+  one-line tsconfig fix). Both are working as designed; the ordering in
+  RELEASING.md §3 exists for exactly this reason.
 - **Bundle size / startup on a real build.** Corpus is ~10 MB raw, ~1.7 MB
   compressed. Nothing is parsed until a package is referenced, so startup should
   be unaffected, but that was never measured on a packaged app.
+
+- **The packaged resource path is the biggest untested link.** `tauri dev` reads
+  `resources/cwl/` straight out of the repo, so the dev verification proves
+  nothing about a real installer. Whether
+  `app.path_resolver().resolve_resource("resources/cwl")` (`src/cwl.rs:50`)
+  lands correctly inside an NSIS/DMG/AppImage bundle has never been exercised —
+  it needs a full `tauri build`, which the sandbox cannot do. **If it resolves
+  wrongly, an installed app shows only the ~30 kept `\begin{...}` skeletons** —
+  the same symptom as running in a browser tab, and easy to misread as the
+  feature being broken. Install the first 1.0.5 artifact and check that `$\fra`
+  offers `\frac` before publishing the draft to anyone.
 - **Browser mode degrades silently.** With no Tauri runtime, completion falls
   back to the kept skeletons with no indication why. Fine for the shipped app,
   confusing for anyone running `npm run dev` alone.
