@@ -1,5 +1,6 @@
 .DS_Store
 target/
+node_modules/
 web/node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo
@@ -7,6 +8,11 @@ __pycache__/
 *.pyc
 .autoresearch/
 REVIEW.md
+
+# TeXstudio .cwl command library — fetched at build time by
+# tools/fetch-cwl.mjs, pinned via tools/cwl-version.json. Not committed: it is
+# ~10 MB of GPLv3 upstream data that would otherwise churn the diff on updates.
+resources/cwl/
 
 # Claude Code / skill tooling — local environment, not project source.
 .agents/

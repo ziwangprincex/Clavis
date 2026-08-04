@@ -1,0 +1,7 @@
+{
+  "repo": "texstudio-org/texstudio",
+  "commit": "f5442c5e942be30e23781b2a550dee92eadf22b6",
+  "expectFiles": 4465,
+  "fetchedFrom": "https://codeload.github.com/texstudio-org/texstudio/tar.gz/<commit>",
+  "note": "Bump `commit` to sync the bundled .cwl command library with upstream, and update `expectFiles` to the new count (`git ls-tree -r --name-only <commit> -- completion | grep -c '\\.cwl$'`). Pinning keeps builds reproducible: the same Clavis tag always ships the same command set. `expectFiles` is a tripwire — the fetch fails loudly rather than silently shipping a partial library."
+}
