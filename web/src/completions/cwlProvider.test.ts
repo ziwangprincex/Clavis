@@ -7,18 +7,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const reads: string[] = [];
 let corpus: Record<string, string> = {};
+/** When set, the mocked ipc throws synchronously, as it does outside the shell. */
+let tauriMissing = false;
 
 vi.mock('../api/tauri', () => ({
+  hasTauri: () => !tauriMissing,
   ipc: {
     readCwl: (name: string) => {
+      if (tauriMissing) throw new Error('Tauri runtime not available (running outside the app shell?)');
       reads.push(name);
       return Promise.resolve(corpus[name] ?? null);
     },
-    listCwlPackages: () => Promise.resolve(Object.keys(corpus)),
+    listCwlPackages: () => {
+      if (tauriMissing) throw new Error('Tauri runtime not available (running outside the app shell?)');
+      return Promise.resolve(Object.keys(corpus));
+    },
   },
 }));
 
 const { cwlProvider, resetCwlCacheForTests, prefetchCwlForDocument, setCwlOptions } = await import('./cwlProvider');
+const { ipc } = await import('../api/tauri');
 import type { CompletionRequest, CompletionSite } from './types';
 
 function request(text: string, position = text.length): CompletionRequest {
@@ -48,7 +56,57 @@ async function completeSettled(text: string, site: CompletionSite = COMMAND_SITE
 beforeEach(() => {
   reads.length = 0;
   corpus = {};
+  tauriMissing = false;
   resetCwlCacheForTests();
+});
+
+describe('cwl provider outside the app shell', () => {
+  // Regression: `ipc` throws synchronously rather than rejecting, so `.catch()`
+  // never saw it. The throw escaped `prefetchCwlForDocument` inside a React
+  // effect and black-screened the editor with "Tauri runtime not available".
+  // api/tauri.ts documents that callers must guard with `hasTauri()`.
+  it('does not throw from prefetch', () => {
+    tauriMissing = true;
+    expect(() => prefetchCwlForDocument('\\usepackage{siunitx}\n')).not.toThrow();
+  });
+
+  it('does not throw from complete, and yields no candidates', async () => {
+    tauriMissing = true;
+    let out;
+    expect(() => { out = cwlProvider.complete(request('\\sec'), COMMAND_SITE); }).not.toThrow();
+    expect(await out).toEqual([]);
+  });
+
+  it('never calls ipc without a runtime', () => {
+    // The try/catch in prefetch would swallow a throw and make the tests above
+    // pass even with the hasTauri() guards removed. Asserting that ipc is not
+    // reached at all is what actually pins the guards in place.
+    tauriMissing = true;
+    let called = false;
+    const spy = vi.spyOn(ipc, 'listCwlPackages').mockImplementation(() => {
+      called = true;
+      throw new Error('should not be reached');
+    });
+    const readSpy = vi.spyOn(ipc, 'readCwl').mockImplementation(() => {
+      called = true;
+      throw new Error('should not be reached');
+    });
+    prefetchCwlForDocument('\\usepackage{siunitx}\n');
+    cwlProvider.complete(request('\\sec'), COMMAND_SITE);
+    expect(called).toBe(false);
+    spy.mockRestore();
+    readSpy.mockRestore();
+  });
+
+  it('recovers once the runtime is available', async () => {
+    tauriMissing = true;
+    prefetchCwlForDocument('\\documentclass{article}\n');
+    tauriMissing = false;
+    resetCwlCacheForTests();
+    corpus = { 'latex-document': '\\section{title}' };
+    const out = await completeSettled('\\sec');
+    expect(out.map(c => c.label)).toContain('\\section');
+  });
 });
 
 describe('cwl provider loading', () => {

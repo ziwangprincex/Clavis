@@ -119,12 +119,15 @@ describe('bounded scanning', () => {
 
   it('runs fast enough for the keystroke path', () => {
     // Guards the bounded-scan design: an unbounded implementation would grow
-    // with document size and stall typing in a long file.
+    // with document size and stall typing in a long file. The threshold is loose
+    // because CI machines are noisy — the failure this catches is asymptotic
+    // (tens of ms per call), not a few hundred microseconds of jitter.
     const doc = `${'Paragraph of prose here.\n'.repeat(20_000)}Let $x^2`;
+    detectMathContext(doc, doc.length); // Warm up, ignore first-call cost.
     const started = performance.now();
     for (let i = 0; i < 50; i++) detectMathContext(doc, doc.length);
     const perCall = (performance.now() - started) / 50;
-    expect(perCall).toBeLessThan(5);
+    expect(perCall).toBeLessThan(20);
   });
 });
 

@@ -13,7 +13,7 @@
  *     build-time data and do not change while the app runs.
  */
 
-import { ipc } from '../api/tauri';
+import { hasTauri, ipc } from '../api/tauri';
 import { parseCwl, type CwlCommand, type CwlEnvironment, type CwlPackage } from './cwlParser';
 import { detectMathContext } from './mathContext';
 import type { CompletionCandidate, CompletionProvider, CompletionRequest } from './types';
@@ -77,14 +77,22 @@ export function resetCwlCacheForTests(): void {
 
 function ensureAvailableNames(): void {
   if (availableNames || availablePromise) return;
+  // `ipc` throws *synchronously* outside the app shell, so it cannot be reached
+  // without this guard: an unguarded throw inside a React effect black-screens
+  // the app (see the note above `appWindow` in api/tauri.ts). Browser preview
+  // and `vite dev` in a plain tab both land here.
+  if (!hasTauri()) {
+    availableNames = new Set();
+    return;
+  }
   availablePromise = ipc
     .listCwlPackages()
     .then(names => {
       availableNames = new Set(names);
     })
     .catch(() => {
-      // No corpus (dev checkout without `node tools/fetch-cwl.mjs`, or a
-      // non-Tauri context). Treat as empty rather than retrying forever.
+      // Corpus missing (a checkout without `node tools/fetch-cwl.mjs`). Treat as
+      // empty rather than retrying on every keystroke.
       availableNames = new Set();
     })
     .finally(() => {
@@ -98,6 +106,10 @@ function ensureAvailableNames(): void {
  */
 function requestPackage(name: string): void {
   if (cache.has(name) || inFlight.has(name)) return;
+  if (!hasTauri()) {
+    cache.set(name, null);
+    return;
+  }
   // Skip names we know are absent; without this, a document loading a dozen
   // uncovered packages would fire a dozen doomed reads on every scan.
   if (availableNames && !availableNames.has(name)) {
@@ -249,10 +261,17 @@ function environmentCandidate(environment: CwlEnvironment, pkg: string): Complet
  * opened document would show built-in snippets only, with corpus commands
  * appearing a keystroke or two later. Calling this when a LaTeX document opens
  * moves that latency off the typing path.
+ *
+ * Never throws. It is called from a React effect, where an escaping error would
+ * take down the editor pane rather than merely degrading completion.
  */
 export function prefetchCwlForDocument(text: string): void {
-  ensureAvailableNames();
-  for (const name of packagesFor(text)) requestPackage(name);
+  try {
+    ensureAvailableNames();
+    for (const name of packagesFor(text)) requestPackage(name);
+  } catch {
+    // Completion data is a nice-to-have; the editor must still open.
+  }
 }
 
 /**
@@ -281,7 +300,15 @@ export const cwlProvider: CompletionProvider = {
     // nothing to add there and `latexSemanticProvider` owns them.
     if (site.kind === 'citation' || site.kind === 'reference' || site.kind === 'file') return [];
 
-    const packages = activePackages(request.text);
+    // The engine already isolates provider failures, but returning [] beats
+    // relying on that: a throw here would drop the built-in snippets from the
+    // same popup.
+    let packages: CwlPackage[];
+    try {
+      packages = activePackages(request.text);
+    } catch {
+      return [];
+    }
 
     if (site.kind === 'environment') {
       // `\end{...}` pairing is ranked by `latexSemanticProvider` from the open
