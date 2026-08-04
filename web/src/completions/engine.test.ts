@@ -111,4 +111,29 @@ describe('completion engine', () => {
     }));
   });
 
+  it('keeps the richer candidate when two providers share a label', async () => {
+    // Regression: dedup keys on label alone so the cwl corpus (which knows an
+    // environment exists but carries only its bare name) collapses into the
+    // hand-written skeleton. That only works if the corpus ranks lower —
+    // cwlProvider shipped at boost 2 against snippetProvider's 1, so the bare
+    // stub won and inserting `\begin{itemize}` produced no `\item`.
+    const stub = { label: String.raw`\begin{itemize}`, insertText: String.raw`\begin{itemize}`, boost: 0 };
+    const skeleton = {
+      label: String.raw`\begin{itemize}`,
+      insertText: '\\begin{itemize}\n  \\item $1\n\\end{itemize}',
+      boost: 1,
+    };
+
+    for (const providers of [
+      [{ complete: () => [stub] }, { complete: () => [skeleton] }],
+      // Order must not matter: highest boost wins either way.
+      [{ complete: () => [skeleton] }, { complete: () => [stub] }],
+    ]) {
+      const result = await complete(request(String.raw`\begin{item`), providers);
+      const matches = result?.candidates.filter(c => c.label === String.raw`\begin{itemize}`);
+      expect(matches).toHaveLength(1);
+      expect(matches?.[0].insertText).toContain(String.raw`\item`);
+    }
+  });
+
 });

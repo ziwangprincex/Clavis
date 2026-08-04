@@ -9,8 +9,21 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 ## 0. Update - 2026-08-04 (LaTeX completion now backed by the TeXstudio `.cwl` corpus)
 
 **Working state:** on branch **`feat/cwl-completion`** (not `main`). Phases 1 and
-2 are both committed. 198 frontend tests + 21 Rust tests green,
-`npm run typecheck` and `cargo check --all-targets` clean.
+2 are both committed, plus a review pass. 206 frontend tests + 21 Rust tests
+green, `npm run typecheck` and `cargo check --all-targets` clean.
+
+**Verified in a real window** (`npm --prefix web exec tauri dev`): package-aware
+loading and math-mode filtering both behave. Two things bit during that session,
+both worth remembering:
+
+- **`npm run dev` alone is not enough.** That serves the frontend in a browser
+  tab, where `window.__TAURI__` is absent, so every `.cwl` read is skipped and
+  LaTeX completion collapses to the ~30 kept `\begin{...}` skeletons. It looks
+  exactly like a broken feature. Use `tauri dev`.
+- **`\binom` is not a base command.** It lives in `amsmath.cwl` and is `#m`, so
+  it needs both `\usepackage{amsmath}` *and* a math context. `\frac` and `\sqrt`
+  are in `latex-document.cwl` (also `#m`) and are the better smoke test for
+  math filtering alone.
 
 ### Why this exists
 
@@ -125,22 +138,45 @@ should appear but does not). They are pushed into the provider via
 `setCwlOptions` from `EditorPane`, because `complete()` is synchronous and on the
 keystroke path.
 
+### Review pass — two real bugs found
+
+- **Rank inversion.** `cwlProvider` shipped at boost 2 while `snippetProvider`
+  gives its entries boost 1, and `mergeCandidates` keys on label alone — so the
+  bare corpus stub (`\begin{itemize}`, name only) *outranked* the hand-written
+  skeleton it was supposed to defer to. Inserting an environment produced no
+  `\item`. `BOOST_NORMAL` is now 0. `engine.test.ts` pins the ordering in both
+  provider orders; nothing had tested cross-provider precedence before, which is
+  exactly why this slipped through.
+- **Classifier false positive.** The hidden-flag test ran against the raw
+  classifier (`/(^|[^a-zA-Z])S/`), so a command restricted to an environment
+  named with a capital S (`#/Sidebar`) would have been dropped entirely. No such
+  env exists upstream today, but the corpus grows. Flags now read only the letter
+  section, with `*` tracked separately since it is punctuation and was never in
+  `CLASSIFIER_LETTERS` (making the old `letters.includes('*')` dead code).
+  Corpus-wide counts are unchanged after the fix — 235,956 commands, 8,800
+  environments, 35 dropped — confirming no existing behaviour moved.
+
+Claims investigated and **refuted**, recorded so they are not re-chased: the
+`textEscapeBraces` double-assignment is harmless (the first `}` does exit text
+mode — the assignment happens before the loop reaches the brace), and the
+module-level caches do not leak across tabs (the package-scan memo is keyed on
+document text, and a test now covers A→B→A switching).
+
 ### Still unverified (manual, off-sandbox)
 
-- **Never run in a real window.** Everything above is test-verified only; the
-  sandbox is headless. Needs `tauri dev`: does `\bin` offer `\binom` with
-  tab-through placeholders, does `\usepackage{siunitx}` make `\SI` appear (and
-  deleting it make `\SI` vanish), does `\sqrt` stay hidden in prose but appear
-  inside `$…$`, does a cold-open document feel instant.
 - **CI has not run.** The `fetch-cwl.mjs` step is untested on
-  macOS/Linux/Windows runners — tar parsing and path handling could differ.
-- **Bundle size / startup.** Corpus is ~10 MB raw, ~1.7 MB compressed (measured
-  15.6% gzip on a 17-file sample). Startup should be unaffected because nothing
-  is parsed until a package is referenced, but that was never measured on a real
-  build.
-- **No settings UI.** The three `cwl_*` toggles exist and work but have no
-  controls in `SettingsDialog.tsx`; they are only reachable by hand-editing
-  `settings.json`. Worth adding if the defaults turn out wrong in practice.
+  macOS/Linux/Windows runners — tar parsing and path handling could differ. This
+  is the largest remaining risk.
+- **Bundle size / startup on a real build.** Corpus is ~10 MB raw, ~1.7 MB
+  compressed. Nothing is parsed until a package is referenced, so startup should
+  be unaffected, but that was never measured on a packaged app.
+- **Browser mode degrades silently.** With no Tauri runtime, completion falls
+  back to the kept skeletons with no indication why. Fine for the shipped app,
+  confusing for anyone running `npm run dev` alone.
+- **No settings UI.** The three `cwl_*` toggles work but have no controls in
+  `SettingsDialog.tsx`; only reachable by hand-editing `settings.json`.
+  `cwl_respect_context` is the one worth exposing — it is the escape hatch if
+  math detection misjudges something.
 
 ### Deferred
 

@@ -113,6 +113,35 @@ describe('cwl classifiers', () => {
     const pkg = parseCwl('\\#', 't');
     expect(cmd(pkg, '#').snippet).toBe('\\#');
   });
+
+  it('does not read env or alias names as classifier letters', () => {
+    // The flags must be read from the letter section only. Testing the raw
+    // classifier for `S` would hide every command restricted to an environment
+    // whose name starts with a capital S, and testing it for `m`/`n`/`t` would
+    // misread almost any env name.
+    const pkg = parseCwl([
+      '\\sidebarCmd#/Sidebar',      // capital S in an env name
+      '\\tabCmd#/Table',            // capital T, and a `t` inside "Table"
+      '\\mathish#\\MyMathAlias',    // `m` letters inside an alias name
+    ].join('\n'), 't');
+
+    const sidebar = cmd(pkg, 'sidebarCmd');
+    expect(sidebar.envs).toEqual(['Sidebar']);
+
+    const tab = cmd(pkg, 'tabCmd');
+    expect(tab.envs).toEqual(['Table']);
+    expect(tab.tabularOnly).toBe(false);
+
+    expect(cmd(pkg, 'mathish').mathOnly).toBe(false);
+  });
+
+  it('reads #* when it is the only classifier and when combined', () => {
+    const pkg = parseCwl('\\lone#*\n\\combined#*m\n\\plain#m', 't');
+    expect(cmd(pkg, 'lone').unusual).toBe(true);
+    expect(cmd(pkg, 'combined').unusual).toBe(true);
+    expect(cmd(pkg, 'combined').mathOnly).toBe(true);
+    expect(cmd(pkg, 'plain').unusual).toBe(false);
+  });
 });
 
 describe('cwl environments', () => {

@@ -220,8 +220,16 @@ function activePackages(text: string): CwlPackage[] {
   return out;
 }
 
-/** `#*` commands are real but rarely wanted, so they sort below the rest. */
-const BOOST_NORMAL = 2;
+/**
+ * Ranks. The corpus is a broad but shallow source, so it deliberately sits
+ * *below* the hand-written snippets: `snippetProvider` gives its entries boost 1,
+ * and `mergeCandidates` keys on label alone, so anything above 1 here would let a
+ * bare corpus stub (`\begin{itemize}`, environment name only) shadow the
+ * multi-line skeleton that carries `\item` and indentation.
+ *
+ * `#*` commands are real but rarely wanted, so they sort below everything.
+ */
+const BOOST_NORMAL = 0;
 const BOOST_UNUSUAL = -10;
 
 /** Rank for a candidate, honouring the `showUnusual` preference. */

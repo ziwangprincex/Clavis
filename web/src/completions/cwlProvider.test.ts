@@ -203,6 +203,31 @@ describe('cwl provider loading', () => {
     expect(reads.filter(n => n === 'nonexistentpkg').length).toBeLessThanOrEqual(1);
   });
 
+  it('does not leak one document\'s packages into another', async () => {
+    // The package-scan memo and the parsed-package cache are module singletons
+    // shared by every tab. The cache is fine to share (a .cwl file means the
+    // same thing everywhere), but the *active set* must follow the document.
+    corpus = {
+      'latex-document': '\\section{title}',
+      siunitx: '\\SI{value}{unit}',
+      tikz: '\\tikzset{opts}',
+    };
+    const docA = '\\usepackage{siunitx}\n';
+    const docB = '\\usepackage{tikz}\n';
+
+    const a1 = await completeSettled(`${docA}\\S`);
+    expect(a1.map(c => c.label)).toContain('\\SI');
+
+    const b = await completeSettled(`${docB}\\t`);
+    expect(b.map(c => c.label)).toContain('\\tikzset');
+    expect(b.map(c => c.label), 'siunitx must not leak into doc B').not.toContain('\\SI');
+
+    // Switching back must not serve doc B's set either.
+    const a2 = await completeSettled(`${docA}\\S`);
+    expect(a2.map(c => c.label)).toContain('\\SI');
+    expect(a2.map(c => c.label), 'tikz must not leak back into doc A').not.toContain('\\tikzset');
+  });
+
   it('prefetches a document\'s packages before any keystroke', async () => {
     corpus = {
       'latex-document': '\\section{title}',

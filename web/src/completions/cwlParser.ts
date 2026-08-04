@@ -126,6 +126,7 @@ function parseClassifier(raw: string | null): Classification {
   // Peel off `/env,env` and `\alias,alias` tails before reading letters, since
   // env names contain letters that would otherwise look like classifiers.
   let letters = '';
+  let unusual = false;
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
     if (ch === '/') {
@@ -145,18 +146,25 @@ function parseClassifier(raw: string | null): Classification {
         .filter(Boolean);
       break;
     }
-    if (CLASSIFIER_LETTERS.includes(ch)) letters += ch;
+    // `*` marks "unusual" and may precede other flags (`#*m`). It is tracked
+    // separately because it is punctuation, not one of the classifier letters.
+    if (ch === '*') unusual = true;
+    else if (CLASSIFIER_LETTERS.includes(ch)) letters += ch;
   }
 
   // Uppercase/lowercase are distinct: `m` is math-only, `M` suppresses use as a
   // description. Only the flags we act on are read; the rest are ignored.
+  //
+  // These read `letters`, not `raw`, on purpose: `letters` excludes the `/env`
+  // and `\alias` tails, whose names contain ordinary letters. Testing `raw` for
+  // `S` would silently hide every command in an environment starting with a
+  // capital S (`#/Sidebar`), and testing it for `*` would misread a `%<...%>`
+  // marker. The corpus has no such env today, but it gains files continuously.
   if (letters.includes('m')) out.mathOnly = true;
   if (letters.includes('n')) out.textOnly = true;
   if (letters.includes('t')) out.tabularOnly = true;
-  if (letters.includes('*')) out.unusual = true;
   if (letters.includes('S')) out.hidden = true;
-  if (raw.includes('*')) out.unusual = true;
-  if (raw.startsWith('S') || /(^|[^a-zA-Z])S/.test(raw)) out.hidden = true;
+  if (unusual) out.unusual = true;
   if (out.aliases.some(a => MATH_ALIASES.has(a))) out.mathOnly = true;
 
   return out;
