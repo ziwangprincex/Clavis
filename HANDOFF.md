@@ -173,10 +173,14 @@ document text, and a test now covers A→B→A switching).
 - **Browser mode degrades silently.** With no Tauri runtime, completion falls
   back to the kept skeletons with no indication why. Fine for the shipped app,
   confusing for anyone running `npm run dev` alone.
-- **No settings UI.** The three `cwl_*` toggles work but have no controls in
-  `SettingsDialog.tsx`; only reachable by hand-editing `settings.json`.
-  `cwl_respect_context` is the one worth exposing — it is the escape hatch if
-  math detection misjudges something.
+- **No settings UI, and deliberately so.** The three `cwl_*` toggles work but
+  have no controls in `SettingsDialog.tsx`. Decided against adding them: two are
+  near-useless (`cwl_enabled` off just disables the feature, `cwl_show_unusual`
+  is a fringe preference) and the third, `cwl_respect_context`, is a diagnostic
+  escape hatch that only matters if math detection misjudges something — which
+  real-window testing did not show. If a misdetection does turn up, fixing the
+  detection beats exposing a switch to work around it. Editing `settings.json`
+  remains available for debugging.
 
 ### Deferred
 
