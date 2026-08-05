@@ -20,6 +20,7 @@ import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
 import { ArtifactsSection } from './components/ArtifactsSection';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
+import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
@@ -74,6 +75,7 @@ export function App() {
   const [doctorOpen, setDoctorOpen] = useState(false);
   const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
   const [renameReferenceOpen, setRenameReferenceOpen] = useState(false);
+  const [tableConvertOpen, setTableConvertOpen] = useState(false);
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
@@ -511,6 +513,12 @@ export function App() {
       reg({ id: 'app.settings', name: 'Open settings', run: () => setSettingsOpen(true) }),
       reg({ id: 'app.checkUpdates', name: 'Check for Updates…', run: () => checkForUpdates({ silent: false }) }),
       reg({
+        id: 'table.convert',
+        name: 'Convert CSV / TSV to Table',
+        when: () => !!useTabsStore.getState().activeTabId,
+        run: () => setTableConvertOpen(true),
+      }),
+      reg({
         id: 'app.symbols',
         name: 'Toggle math symbols panel',
         run: () => setSymbolsOpen(o => !o),
@@ -845,7 +853,13 @@ export function App() {
             refreshReferences();
           })();
         }}
-      />      <SymbolsPanel
+      />      <TableConvertDialog
+        open={tableConvertOpen}
+        lang={lang}
+        onClose={() => setTableConvertOpen(false)}
+        onInsert={text => editorApiRef.current?.insertAtCursor(text)}
+      />
+      <SymbolsPanel
         open={symbolsOpen}
         lang={lang}
         onClose={() => setSymbolsOpen(false)}
