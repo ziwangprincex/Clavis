@@ -346,8 +346,8 @@ function isApplicable(command: CwlCommand, math: boolean, envs: readonly string[
  *
  * The corpus is the package list: every `.cwl` filename minus its extension.
  * Document-class files are excluded (`class-*` belong to `\documentclass`),
- * as is the always-on base file. The list is large, so candidates carry a
- * boost: curated common packages first, then prefix matches, then the rest.
+ * as is the always-on base file. Everything reaching the push below is already
+ * a prefix match, so the only ranking left is curated-common first.
  */
 function packageCandidates(query: string): CompletionCandidate[] {
   ensureAvailableNames();
@@ -357,13 +357,12 @@ function packageCandidates(query: string): CompletionCandidate[] {
   for (const name of availableNames) {
     if (name === 'latex-document' || name.startsWith('class-')) continue;
     if (q && !name.startsWith(q)) continue;
-    const prefix = !!q && name.startsWith(q);
     out.push({
       label: name,
       insertText: name,
       kind: 'package',
       detail: COMMON_PACKAGES.has(name) ? 'common package' : 'package',
-      boost: COMMON_PACKAGES.has(name) ? 20 : prefix ? 10 : 0,
+      boost: COMMON_PACKAGES.has(name) ? 20 : 0,
     });
   }
   return out;
@@ -397,7 +396,10 @@ function classCandidates(query: string): CompletionCandidate[] {
       insertText: cls,
       kind: 'class',
       detail: 'document class',
-      boost: KERNEL_CLASSES.includes(cls) ? 5 : !!q && cls.startsWith(q) ? 10 : 0,
+      // Everything here is already a prefix match, so the kernel classes need a
+      // strictly higher boost to stay on top ? `article` outranking the 27
+      // `class-a*` files the moment the user types `a` is the whole point.
+      boost: KERNEL_CLASSES.includes(cls) ? 20 : 0,
     });
   }
   return out;

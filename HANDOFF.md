@@ -1,8 +1,102 @@
-# Clavis - Handoff (updated 2026-08-04)
+# Clavis - Handoff (updated 2026-08-05)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
 §4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update - 2026-08-05 (keyval site misdetection killed the completion popup)
+
+Review of the previous session's commit (`8894c3a` "Fix LSP funcs") found that
+the new keyval completion silently disabled the popup in ordinary maths.
+Frontend-only, no Rust changes.
+
+**Working state:** `npm --prefix web test` = 234/234 (225 before + 9 new),
+typecheck clean, `npm run build` succeeds.
+
+### The bug: an unclosed `[` swallowed completion entirely
+
+`\left[ ... \right]` is ordinary maths, and **completion was dead for the whole
+span** until the closing `\right]` was typed. Same for `\item[term` in a
+description list.
+
+The chain, which is the part worth remembering:
+
+1. The keyval regex body was `[^[\]]*` — no newline exclusion, no length bound.
+   So *any* unclosed `[` to the left claimed every position after it.
+2. The keyval branch runs **before every other LaTeX site**, so the misdetection
+   won over the command/word sites that should have handled those positions.
+3. No provider answers a keyval site it has no keys for: `latexSemanticProvider`
+   hits its `default`, `snippetProvider` filtered everything out, and
+   `cwlProvider` found no `#keyvals:` for `\left` (verified — the corpus has
+   none for `\left` or `\item`).
+4. `engine.ts` ends with `if (candidates.length === 0) return null`, and null
+   means **no popup at all** — not "fewer candidates". A silent failure.
+
+The lesson generalises past this one regex: **site detection order plus an empty
+candidate list equals a disabled feature.** Any future site added ahead of the
+general ones needs the same scrutiny.
+
+### The fix, in the order it matters
+
+1. **`engine.ts` retries.** If a keyval site produces zero candidates, the
+   engine re-detects with keyval suppressed (new `skipKeyval` param on
+   `detectCompletionSite`) and runs the providers once more. This is the safety
+   net: any *future* misdetection costs one extra pass instead of the popup. It
+   was verified to work in isolation — with the old regex deliberately restored,
+   the "still completes inside `\left[`" test passed on the fallback alone.
+2. **Regex tightened** (`keyvalSite` in `context.ts`, extracted alongside
+   `argumentSite`): body excludes `\r\n`, and the last comma-separated segment
+   must look like an option key (`/^[A-Za-z][\w-]*$/`). This rejects
+   `\left[ \frac`. It cannot reject `\item[Ter` — shaped exactly like a real
+   option list — which is precisely why step 1 is required, not optional.
+3. **Two latent bugs fell out of the rewrite.** `query` was the *whole* bracket
+   body, so a second option never matched (`[width=5cm,he` was looked up
+   verbatim); it is now the segment after the last comma. And typing a *value*
+   (`[width=.5\textw`) now falls through to the command site, so `\textwidth`
+   completes there.
+
+### Also fixed: `classCandidates` rank inversion (same commit)
+
+`article` sank below all 27 `class-a*` files the moment the user typed `a`. The
+`continue` above already filters non-matches, so the old
+`!!q && cls.startsWith(q) ? 10 : 0` was a tautology at 10 while `KERNEL_CLASSES`
+got 5. Kernel classes now get 20, everything else 0. **This is the second
+rank-inversion of the same shape** (see `a690fa6`); the pattern to watch is a
+boost expression re-testing a condition an earlier `continue` already
+guaranteed. The dead `prefix` variable in `packageCandidates` (identical
+tautology, no ordering effect) was removed too.
+
+`snippetProvider` now lists `package`/`class`/`keyval` in an explicit
+`NON_SNIPPET_SITES` set. It returned nothing for them anyway, but only because
+all 25 LaTeX snippets happen to start with `\` — a coincidence, not a contract.
+
+### Verified by test, not by inspection
+
+Every new test was confirmed to **fail against the old code** before being kept
+(old regex restored temporarily: 5 site-detection failures; old boost restored:
+1 failure). Tests asserting rank check `boost` rather than array position,
+because `completeSettled` returns raw provider output — ordering is applied
+later by `mergeCandidates`.
+
+### Still to verify in a real window
+
+Everything below is static/unit-verified only; the sandbox has no display.
+
+- `$\left[ \fra` → popup appears (this was the user-visible bug).
+- `\documentclass{a` → `article` sits first.
+- `\usepackage[` and `\includegraphics[wi` → options still appear (no regression).
+- `\includegraphics[width=5cm,he` → `height` offered; `[width=.5\textw` →
+  `\textwidth` offered.
+
+### Confirmed correct from the previous session (no action needed)
+
+- **Tab accepting completions.** Checked against
+  `node_modules/@codemirror/autocomplete@6.20.2`: `completionKeymap` really does
+  bind Enter only, so the added Tab bindings and the `indentWithTab`-last
+  fall-through order are right.
+- **Theme selection changes** in `controller.ts` — untouched.
 
 ---
 

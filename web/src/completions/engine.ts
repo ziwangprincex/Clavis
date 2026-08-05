@@ -7,6 +7,7 @@ import type {
   CompletionProvider,
   CompletionRequest,
   CompletionResponse,
+  CompletionSite,
 } from './types';
 
 const DEFAULT_PROVIDERS: readonly CompletionProvider[] = [
@@ -41,6 +42,26 @@ export async function complete(
 ): Promise<CompletionResponse | null> {
   const site = detectCompletionSite(request);
   if (!site) return null;
+  const response = await completeAt(request, providers, site);
+  if (response || site.kind !== 'keyval') return response;
+
+  // A keyval site with no candidates is usually a misdetection rather than an
+  // empty option list: an unclosed `[` to the left (`\left[`, `\item[term`) is
+  // indistinguishable from a real option bracket, and because keyval is checked
+  // before every other site, the false positive used to swallow the popup
+  // entirely ? no provider answers a keyval site it has no keys for, and an
+  // empty candidate list means "no popup". Retry with keyval suppressed so the
+  // position falls through to the command / word site it actually belongs to.
+  const fallback = detectCompletionSite(request, true);
+  if (!fallback) return null;
+  return completeAt(request, providers, fallback);
+}
+
+async function completeAt(
+  request: CompletionRequest,
+  providers: readonly CompletionProvider[],
+  site: CompletionSite,
+): Promise<CompletionResponse | null> {
   // Providers are fault-isolated: an unavailable language server must not
   // suppress built-in snippets or local Workspace semantics.
   const groups = await Promise.all(providers.map(async provider => {

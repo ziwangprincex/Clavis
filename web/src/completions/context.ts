@@ -46,25 +46,60 @@ function argumentSite(before: string): CompletionSite | null {
   return null;
 }
 
-export function detectCompletionSite(request: CompletionRequest): CompletionSite | null {
+/**
+ * Key/value option site: the cursor sits inside the *open* optional-argument
+ * brackets of a command or environment (`\includegraphics[wi`, `\begin{Form}[t`).
+ *
+ * Closed bracket pairs are consumed by the `(?:\[[^[\]\r\n]*\])*` group, so only
+ * an unclosed `[` matches, and the body excludes line breaks so a stray bracket
+ * cannot claim the following paragraph. `\[` display-math is a single
+ * punctuation character, not `[A-Za-z@]`, so it never matches.
+ *
+ * An open bracket alone is not proof of an option site, though: `\left[` and
+ * `\item[term` are indistinguishable from `\includegraphics[` looking leftwards.
+ * So the last comma-separated segment must also *look* like an option key — a
+ * bare word, no backslashes or braces. `\left[ \frac` is rejected here;
+ * `\item[Ter` still gets through, which is what the caller's retry exists for.
+ */
+function keyvalSite(before: string, position: number): CompletionSite | null {
+  const match = /\\([A-Za-z@]+\*?|begin\{[^{}]*\}|end\{[^{}]*\})(?:\[[^[\]\r\n]*\])*\[([^[\]\r\n]*)$/.exec(before);
+  if (!match) return null;
+
+  // Only the segment after the last comma is the query: in
+  // `[width=5cm,he` the user is typing `he`, not the whole list.
+  const body = match[2];
+  const query = body.slice(body.lastIndexOf(',') + 1).trimStart();
+  // An option key is a bare word; empty means the bracket was just opened, which
+  // an explicit request answers with the full option list. Anything else — a
+  // value being typed (`width=.5\textwidth`), math, prose — is not a key, and
+  // returning null lets the command/word sites handle it, which is what makes
+  // `\textwidth` still complete inside an option value.
+  if (query !== '' && !/^[A-Za-z][\w-]*$/.test(query)) return null;
+
+  return {
+    kind: 'keyval',
+    from: position - query.length,
+    to: position,
+    query,
+    command: `\\${match[1]}`,
+  };
+}
+
+/**
+ * Where the cursor is, for completion purposes.
+ *
+ * `skipKeyval` suppresses key/value detection for one pass, so `engine.ts` can
+ * retry when a keyval site turns out to have no candidates. See `keyvalSite`.
+ */
+export function detectCompletionSite(
+  request: CompletionRequest,
+  skipKeyval = false,
+): CompletionSite | null {
   const before = request.text.slice(0, request.position);
 
   if (request.language === 'latex') {
-    // Key/value options: the cursor sits inside the optional-argument brackets
-    // of a command or environment (`\includegraphics[wi`, `\begin{Form}[t`).
-    // Closed bracket pairs are consumed by the `(?:\[[^[\]]*\])*` group, so
-    // only an open `[` matches. `\[` display-math is a single punctuation
-    // character, not `[A-Za-z@]`, so it cannot match this pattern.
-    const keyval = /\\([A-Za-z@]+\*?|begin\{[^{}]*\}|end\{[^{}]*\})(?:\[[^[\]]*\])*\[([^[\]]*)$/.exec(before);
-    if (keyval) {
-      return {
-        kind: 'keyval',
-        from: request.position - keyval[2].length,
-        to: request.position,
-        query: keyval[2],
-        command: `\\${keyval[1]}`,
-      };
-    }
+    const keyval = skipKeyval ? null : keyvalSite(before, request.position);
+    if (keyval) return keyval;
 
     const argument = argumentSite(before);
     if (argument) return argument;

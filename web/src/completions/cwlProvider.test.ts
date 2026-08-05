@@ -491,6 +491,29 @@ describe('cwl provider argument sites', () => {
     expect(out.map(c => c.label)).toEqual(['article']);
   });
 
+  it('ranks a kernel class above the class files sharing its prefix', async () => {
+    // Everything reaching the candidate list is already a prefix match, so a
+    // kernel boost lower than the prefix boost sank `article` below all 27 real
+    // `class-a*` files the moment the user typed `a`. Asserting on boost rather
+    // than position because `completeSettled` returns raw provider output —
+    // ordering is applied later, by `mergeCandidates`.
+    corpus = {
+      'latex-document': '',
+      'class-a0poster': '',
+      'class-amsart': '',
+      'class-apa7': '',
+    };
+    const site: CompletionSite = { kind: 'class', from: 0, to: 0, query: 'a' };
+    const out = await completeSettled('\\documentclass{a', site);
+    const article = out.find(c => c.label === 'article');
+    const others = out.filter(c => c.label !== 'article');
+
+    expect(others).not.toHaveLength(0);
+    for (const other of others) {
+      expect(article?.boost ?? 0).toBeGreaterThan(other.boost ?? 0);
+    }
+  });
+
   it('offers keyvals options only for loaded packages', async () => {
     corpus = {
       'latex-document': '',

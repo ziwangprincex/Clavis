@@ -10,7 +10,7 @@ import { snippet } from '@codemirror/autocomplete';
 import { detectCompletionSite } from './context';
 import { complete } from './engine';
 import { snippetToCM6, snippetsForLang } from './snippets';
-import type { CompletionRequest, CompletionWorkspace } from './types';
+import type { CompletionProvider, CompletionRequest, CompletionWorkspace } from './types';
 
 function request(text: string, workspace?: CompletionWorkspace, position = text.length): CompletionRequest {
   return { language: 'latex', text, position, explicit: false, workspace };
@@ -286,5 +286,105 @@ describe('argument-site detection for package/class/keyval', () => {
     // `\[` is a single punctuation command, not a name, so it must not match
     // the keyval pattern — and nothing else applies at this position either.
     expect(detectCompletionSite(request(String.raw`\[a^2 +`))).toBeNull();
+  });
+});
+
+describe('an unclosed [ must not swallow completion', () => {
+  // The keyval site is checked before every other LaTeX site, and no provider
+  // answers a keyval site it has no keys for. So a false positive did not merely
+  // add noise: `complete()` returned null and the popup never opened. The worst
+  // case was `\left[ ... \right]`, which is ordinary maths — completion was dead
+  // for the whole span until the closing `\right]` was typed.
+
+  it('treats \\left[ followed by a command as a command site', () => {
+    expect(detectCompletionSite(request(String.raw`\left[ \fra`))).toEqual(
+      expect.objectContaining({ kind: 'command', query: String.raw`\fra` }),
+    );
+  });
+
+  it('still completes commands while typing inside \\left[', async () => {
+    const result = await complete(request(String.raw`\left[ \fra`));
+
+    expect(result?.candidates.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('treats \\left[ followed by prose as a word site', () => {
+    expect(detectCompletionSite(request(String.raw`\left[ x + alp`))).toEqual(
+      expect.objectContaining({ kind: 'word', query: 'alp' }),
+    );
+  });
+
+  it('does not let an unclosed bracket reach across a line break', () => {
+    // `[^[\]\r\n]*` bounds the bracket body to one line, so the `\alp` on the
+    // next line is a plain command site rather than a 30-character keyval query.
+    const text = '\\item[foo\nprose continues \\alp';
+
+    expect(detectCompletionSite(request(text))).toEqual(
+      expect.objectContaining({ kind: 'command', query: String.raw`\alp` }),
+    );
+  });
+
+  it('falls back to the command site when a keyval site yields nothing', async () => {
+    // `\item[Ter` is shaped exactly like a real option list, so the regex cannot
+    // reject it — `\item` simply has no `#keyvals:` anywhere in the corpus. This
+    // is the case the engine's retry exists for, and the only one that proves it.
+    expect(detectCompletionSite(request(String.raw`\item[Ter`))).toEqual(
+      expect.objectContaining({ kind: 'keyval', command: String.raw`\item` }),
+    );
+
+    const result = await complete(request(String.raw`\item[Ter\tex`));
+
+    expect(result?.candidates.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('retries with the keyval site suppressed, and only then', async () => {
+    // Asserting on the sites the engine actually asks providers about, so the
+    // retry is proven to happen rather than inferred from a non-empty list.
+    const seen: string[] = [];
+    const spy: CompletionProvider = {
+      complete(_request, site) {
+        seen.push(site.kind);
+        // Answer nothing at a keyval site (as every real provider does for a
+        // command with no `#keyvals:`), one candidate everywhere else.
+        return site.kind === 'keyval'
+          ? []
+          : [{ label: 'stub', insertText: 'stub' }];
+      },
+    };
+
+    const retried = await complete(request(String.raw`\item[Ter`), [spy]);
+
+    // `Ter` is a bare word, so the retry lands on the word site — the point is
+    // that a second pass happened at all, not which site it picked.
+    expect(seen).toEqual(['keyval', 'word']);
+    expect(retried?.candidates).toHaveLength(1);
+
+    // A keyval site that does answer must not trigger a second pass.
+    seen.length = 0;
+    const answered: CompletionProvider = {
+      complete(_request, site) {
+        seen.push(site.kind);
+        return [{ label: 'draft', insertText: 'draft' }];
+      },
+    };
+    await complete(request(String.raw`\includegraphics[dr`), [answered]);
+
+    expect(seen).toEqual(['keyval']);
+  });
+
+  it('keeps the query to the segment after the last comma', () => {
+    // The query used to be the entire bracket body, so a second option never
+    // matched anything: `width=5cm,he` was looked up verbatim.
+    expect(detectCompletionSite(request(String.raw`\includegraphics[width=5cm,he`))).toEqual(
+      expect.objectContaining({ kind: 'keyval', query: 'he' }),
+    );
+  });
+
+  it('does not treat an option value as a key', () => {
+    // Typing a value (`width=.5\textwidth`) is not a key position; falling
+    // through is what lets `\textwidth` complete there.
+    expect(detectCompletionSite(request(String.raw`\includegraphics[width=.5\textw`))).toEqual(
+      expect.objectContaining({ kind: 'command' }),
+    );
   });
 });
