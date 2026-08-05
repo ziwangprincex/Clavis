@@ -22,6 +22,7 @@ import { ArtifactsSection } from './components/ArtifactsSection';
 import { AssetsSection } from './components/AssetsSection';
 import { WritingSection } from './components/WritingSection';
 import { GitSection } from './components/GitSection';
+import { SubmissionCheckDialog } from './components/SubmissionCheckDialog';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
@@ -79,6 +80,7 @@ export function App() {
   const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
   const [renameReferenceOpen, setRenameReferenceOpen] = useState(false);
   const [tableConvertOpen, setTableConvertOpen] = useState(false);
+  const [submissionCheckOpen, setSubmissionCheckOpen] = useState(false);
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
@@ -509,6 +511,12 @@ export function App() {
         run: () => useTaskStore.getState().cancel(),
       }),
       reg({
+        id: 'workspace.submission.check',
+        name: 'Run Submission Check',
+        when: () => workspaceFolder !== null,
+        run: () => setSubmissionCheckOpen(true),
+      }),
+      reg({
         id: 'workspace.git.refresh',
         name: 'Refresh Git Status',
         when: () => workspaceFolder !== null,
@@ -924,7 +932,16 @@ export function App() {
         onClose={() => setTableConvertOpen(false)}
         onInsert={text => editorApiRef.current?.insertAtCursor(text)}
       />
-      <SymbolsPanel
+
+      <SubmissionCheckDialog
+        open={submissionCheckOpen}
+        root={workspaceFolder}
+        tabs={tabs}
+        onClose={() => setSubmissionCheckOpen(false)}
+        onActivate={(path, line) =>
+          void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))
+        }
+      />      <SymbolsPanel
         open={symbolsOpen}
         lang={lang}
         onClose={() => setSymbolsOpen(false)}

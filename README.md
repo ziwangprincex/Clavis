@@ -91,6 +91,14 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Submission Check
+
+Run **Submission Check** from the command palette for a read-only preflight of
+the Workspace. It flags TODO/FIXME/XXX markers, obvious absolute local paths,
+LaTeX shell-escape use, and author metadata that may matter for an anonymous
+submission. It uses current open-Document text where available and jumps to the
+relevant line. It does not build, anonymize, modify, or package the project.
+
 ## Git inspection and prose diff
 
 The Git sidebar is intentionally read-only: it shows repository/branch state,

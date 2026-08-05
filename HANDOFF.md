@@ -6,6 +6,42 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (read-only Submission Check preflight)
+
+A bounded, read-only submission preflight is complete. Command palette:
+**Run Submission Check**. It reports visible static issues and jumps to source;
+it does not build, anonymize, alter files, create a zip, or push anything.
+
+- New `src/submission_check.rs` scans Workspace source Documents with open-
+  Document overrides, bounded at 10,000 nodes / 2 MiB per source file and no
+  symlink traversal.
+- Rules: TODO/FIXME/XXX, obvious local absolute Windows/Unix paths, LaTeX author
+  / thanks / affiliation metadata, Markdown author front matter, Typst document
+  author metadata, and LaTeX `\write18` shell-escape markers.
+- Submission Check dialog distinguishes warning/info, reports scanned/truncated
+  state, and jumps to path/line. Non-fatal author metadata is intentionally info
+  rather than pretending every project needs an anonymous manuscript.
+
+### Review findings fixed
+
+1. Initial raw-string absolute-path regex terminated at a quote/apostrophe
+   boundary and did not compile.
+2. First test run was zero tests because the new module had not been registered
+   in `main.rs`; registration exposed the real tests.
+3. Frontend Submission API types/wrapper were missing after an interrupted write,
+   so the dialog was correctly blocked by typecheck until the IPC contract landed.
+4. Open-document override language was initially ignored; it now overrides disk
+   language consistently with other workspace index modules.
+5. A new `main.rs` module line carried CRLF trailing whitespace; fixed before
+   full validation.
+
+**Verified:** 80 Rust + 388 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Reference/asset
+missing diagnostics, clean rebuild, anonymous variants and source bundle creation
+remain separate future cuts.
+
+---
+
 ## 0. Update - 2026-08-05 (read-only Git status, history, and prose diff)
 
 A deliberately read-only Git slice is complete. The Git sidebar shows branch,

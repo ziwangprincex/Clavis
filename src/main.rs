@@ -13,6 +13,7 @@ mod latex;
 mod project_config;
 mod references;
 mod settings;
+mod submission_check;
 mod tasks;
 mod typst_sig;
 mod typst_world;
@@ -359,6 +360,7 @@ fn main() {
             tasks::cancel_project_task,
             workspace_search::search_workspace,
             workspace_search::replace_workspace,
+            submission_check::check_submission,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

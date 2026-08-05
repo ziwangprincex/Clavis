@@ -490,6 +490,21 @@ export interface GitCommit {
   timestamp: string;
 }
 
+export interface SubmissionIssue {
+  code: string;
+  severity: 'warning' | 'info' | 'error';
+  message: string;
+  path?: string | null;
+  line?: number | null;
+}
+
+export interface SubmissionReport {
+  ready: boolean;
+  issues: SubmissionIssue[];
+  scannedFiles: number;
+  truncated: boolean;
+}
+
 export interface ToolInfo {
   name: string;
   path?: string | null;
@@ -598,6 +613,8 @@ export const ipc = {
     invoke<void>('open_artifact_path', { root, path }),
   indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<AssetIndexResult>('index_assets', { options }),
+  checkSubmission: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
+    invoke<SubmissionReport>('check_submission', { options }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
   gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
   gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),
