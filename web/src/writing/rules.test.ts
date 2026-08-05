@@ -17,6 +17,16 @@ describe('local academic writing rules', () => {
     expect(analyzeWriting('`50 % ABC`\n```\np value\n```', 'markdown', 'a.md')).toHaveLength(0);
   });
 
+  it('honors configured spelling style and ignored acronyms', () => {
+    const us = analyzeWriting('Colour appears.', 'markdown', 'a.md', { spelling: 'us' });
+    expect(us.some(item => item.code === 'spelling-variant' && item.message.includes('colour'))).toBe(true);
+    const uk = analyzeWriting('Color appears.', 'markdown', 'a.md', { spelling: 'uk' });
+    expect(uk.some(item => item.code === 'spelling-variant' && item.message.includes('color'))).toBe(true);
+    expect(analyzeWriting('Colour and color both appear.', 'markdown', 'a.md', { spelling: 'mixed' }).some(item => item.code === 'spelling-variant')).toBe(false);
+    const ignored = analyzeWriting('IV rises.', 'markdown', 'a.md', { ignoredAcronyms: ['IV'] });
+    expect(ignored.some(item => item.code === 'undefined-acronym')).toBe(false);
+  });
+
   it('warns when an acronym appears before its definition', () => {
     const diagnostics = analyzeWriting('GDP rises. Gross domestic product (GDP) later appears.', 'markdown', 'a.md');
     expect(diagnostics.some(item => item.code === 'undefined-acronym' && item.message.includes('GDP'))).toBe(true);

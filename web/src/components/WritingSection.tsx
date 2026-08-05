@@ -1,13 +1,16 @@
 ﻿import { useMemo, useState } from 'react';
 import { useWritingStore } from '../store';
+import type { WritingPolicy } from '../writing/options';
+import { writingPolicySummary } from '../writing/options';
 import styles from './WritingSection.module.css';
 
 export interface WritingSectionProps {
   onActivate: (path: string, line: number) => void;
   onRefresh: () => void;
+  policy: WritingPolicy;
 }
 
-export function WritingSection({ onActivate, onRefresh }: WritingSectionProps) {
+export function WritingSection({ onActivate, onRefresh, policy }: WritingSectionProps) {
   const diagnostics = useWritingStore(s => s.diagnostics);
   const [filter, setFilter] = useState('');
   const visible = useMemo(() => {
@@ -19,6 +22,7 @@ export function WritingSection({ onActivate, onRefresh }: WritingSectionProps) {
       <input value={filter} onChange={event => setFilter(event.target.value)} placeholder="filter writing checks…" />
       <button type="button" onClick={onRefresh} title="Refresh writing checks">↻</button>
     </div>
+    <div className={styles.policy} title="Project terms are saved vocabulary only; they do not change current local checks.">{writingPolicySummary(policy)}</div>
     {visible.length === 0 ? <div className={styles.empty}>No writing consistency issues.</div> : <ul className={styles.list}>
       {visible.map((item, index) => <li key={`${item.code}:${item.path}:${item.line}:${item.column}:${index}`} className={styles[item.severity]} onClick={() => item.path && onActivate(item.path, item.line)}>
         <span className={styles.code}>{item.code}</span>

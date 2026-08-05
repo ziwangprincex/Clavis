@@ -37,6 +37,17 @@ pub struct BibliographySection {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingSection {
+    #[serde(default)]
+    pub spelling: Option<String>,
+    #[serde(default, alias = "ignored_acronyms")]
+    pub ignored_acronyms: Vec<String>,
+    #[serde(default)]
+    pub terms: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PathsSection {
     #[serde(default)]
     pub generated: Vec<String>,
@@ -84,6 +95,8 @@ pub struct ProjectConfig {
     pub paths: PathsSection,
     #[serde(default)]
     pub bibliography: BibliographySection,
+    #[serde(default)]
+    pub writing: WritingSection,
     #[serde(default)]
     pub tasks: BTreeMap<String, TaskConfig>,
     #[serde(default)]
@@ -176,6 +189,38 @@ pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
             if !config.tasks.contains_key(dependency) {
                 issues.push(format!("tasks.{name} depends on unknown task {dependency}"));
             }
+        }
+    }
+
+    if let Some(spelling) = config.writing.spelling.as_deref() {
+        if !matches!(spelling, "us" | "uk" | "mixed") {
+            issues.push("writing.spelling must be us, uk, or mixed".to_string());
+        }
+    }
+    if config.writing.ignored_acronyms.len() > 500 || config.writing.terms.len() > 500 {
+        issues.push("writing ignored_acronyms and terms are limited to 500 items each".to_string());
+    }
+    for acronym in &config.writing.ignored_acronyms {
+        if !acronym
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+            || acronym.len() < 2
+            || acronym.len() > 12
+        {
+            issues.push(
+                "writing.ignored_acronyms must be 2-12 uppercase alphanumeric characters"
+                    .to_string(),
+            );
+            break;
+        }
+    }
+
+    for term in &config.writing.terms {
+        if term.trim().is_empty() || term.len() > 200 || term.contains(['\n', '\r']) {
+            issues.push(
+                "writing.terms must be non-empty single-line strings up to 200 characters".to_string(),
+            );
+            break;
         }
     }
 
@@ -680,6 +725,53 @@ sources = ["../secret.csv"]
             .issues
             .iter()
             .any(|issue| issue.contains("artifacts.bad.sources")));
+    }
+
+    #[test]
+    fn validates_writing_config() {
+        let valid = inspect_at(
+            Some(
+                r#"
+[writing]
+spelling = "uk"
+ignored_acronyms = ["GDP", "IV"]
+terms = ["difference-in-differences"]
+"#,
+            ),
+            false,
+        );
+        assert!(valid.issues.is_empty());
+        assert_eq!(
+            valid.config.as_ref().map(|config| config.writing.ignored_acronyms.clone()),
+            Some(vec!["GDP".to_string(), "IV".to_string()])
+        );
+        assert_eq!(
+            valid.config.as_ref().map(|config| config.writing.terms.clone()),
+            Some(vec!["difference-in-differences".to_string()])
+        );
+        let invalid = inspect_at(
+            Some(
+                r#"
+[writing]
+spelling = "canadian"
+ignored_acronyms = ["bad"]
+terms = [""]
+"#,
+            ),
+            false,
+        );
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("writing.spelling")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("writing.ignored_acronyms")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("writing.terms")));
     }
 
     #[test]

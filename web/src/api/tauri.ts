@@ -315,6 +315,7 @@ export interface ClavisProjectConfig {
   project: { name?: string | null; main?: string | null };
   latex: { engine?: string | null; bibliography?: string | null };
   bibliography?: { files: string[]; provider?: string | null };
+  writing?: { spelling?: 'us' | 'uk' | 'mixed' | null; ignoredAcronyms: string[]; terms: string[] };
   paths: { generated: string[]; ignored: string[] };
   tasks: Record<string, ProjectTaskConfig>;
   artifacts?: Record<string, { path: string; task?: string | null; sources: string[]; kind?: string | null; description?: string | null }>;

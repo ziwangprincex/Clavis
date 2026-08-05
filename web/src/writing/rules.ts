@@ -1,4 +1,9 @@
-﻿import type { Lang, Tab } from '../store/tabs';
+import type { Lang, Tab } from '../store/tabs';
+
+export interface WritingOptions {
+  spelling?: 'us' | 'uk' | 'mixed';
+  ignoredAcronyms?: readonly string[];
+}
 
 export interface WritingDiagnostic {
   code: 'percent-space' | 'p-value-style' | 'figure-style' | 'table-style' | 'spelling-variant' | 'undefined-acronym';
@@ -54,13 +59,13 @@ function lineDefinitions(line: string): Map<string, number> {
   return definitions;
 }
 
-export function analyzeWriting(text: string, language: Lang, path: string | null): WritingDiagnostic[] {
+export function analyzeWriting(text: string, language: Lang, path: string | null, options: WritingOptions = {}): WritingDiagnostic[] {
   const lines = maskedLines(text, language);
   const out: WritingDiagnostic[] = [];
   const joined = lines.join('\n').toLowerCase();
   const hasFig = /\bfig\./i.test(joined); const hasFigure = /\bfigure\b/i.test(joined);
   const hasTab = /\btab\./i.test(joined); const hasTable = /\btable\b/i.test(joined);
-  const mixedVariants = VARIANT_PAIRS.filter(([us, uk]) => new RegExp(`\\b${us}\\b`, 'i').test(joined) && new RegExp(`\\b${uk}\\b`, 'i').test(joined));
+  const ignoredAcronyms = new Set([...(options.ignoredAcronyms ?? []), ...ACRONYM_IGNORE]);
   const definedAcronyms = new Set<string>();
   const seenAcronyms = new Set<string>();
 
@@ -72,11 +77,17 @@ export function analyzeWriting(text: string, language: Lang, path: string | null
     addMatch(out, 'p-value-style', 'Use a consistent p-value style (for example, "p < 0.05").', path, lineNo, line, /\bp\s*(?:<|>|=)\s*\d/gi, 'info');
     if (hasFig && hasFigure) addMatch(out, 'figure-style', '"Figure" and "Fig." are both used in this document; choose one style.', path, lineNo, line, /\b(?:Figure|Fig\.)\b/gi, 'info');
     if (hasTab && hasTable) addMatch(out, 'table-style', '"Table" and "Tab." are both used in this document; choose one style.', path, lineNo, line, /\b(?:Table|Tab\.)\b/gi, 'info');
-    for (const [us, uk] of mixedVariants) addMatch(out, 'spelling-variant', `Both "${us}" and "${uk}" appear; choose US or UK spelling.`, path, lineNo, line, new RegExp(`\\b(?:${us}|${uk})\\b`, 'gi'), 'info');
+    for (const [us, uk] of VARIANT_PAIRS) {
+      if (options.spelling === 'us') addMatch(out, 'spelling-variant', `Use US spelling "${us}" instead of "${uk}".`, path, lineNo, line, new RegExp(`\\b${uk}\\b`, 'gi'), 'info');
+      else if (options.spelling === 'uk') addMatch(out, 'spelling-variant', `Use UK spelling "${uk}" instead of "${us}".`, path, lineNo, line, new RegExp(`\\b${us}\\b`, 'gi'), 'info');
+      else if (options.spelling !== 'mixed' && new RegExp(`\\b${us}\\b`, 'i').test(joined) && new RegExp(`\\b${uk}\\b`, 'i').test(joined)) {
+        addMatch(out, 'spelling-variant', `Both "${us}" and "${uk}" appear; choose US or UK spelling.`, path, lineNo, line, new RegExp(`\\b(?:${us}|${uk})\\b`, 'gi'), 'info');
+      }
+    }
     for (const match of line.matchAll(/\b[A-Z]{2,8}\b/g)) {
       const acronym = match[0];
       const at = match.index ?? 0;
-      if (ACRONYM_IGNORE.has(acronym) || seenAcronyms.has(acronym)) continue;
+      if (ignoredAcronyms.has(acronym) || seenAcronyms.has(acronym)) continue;
       seenAcronyms.add(acronym);
       const definedHereBefore = (definitions.get(acronym) ?? Number.MAX_SAFE_INTEGER) <= at;
       if (!definedAcronyms.has(acronym) && !definedHereBefore) {
@@ -88,6 +99,6 @@ export function analyzeWriting(text: string, language: Lang, path: string | null
   return out;
 }
 
-export function analyzeOpenDocuments(tabs: readonly Tab[]): WritingDiagnostic[] {
-  return tabs.flatMap(tab => analyzeWriting(tab.content, tab.lang, tab.filePath));
+export function analyzeOpenDocuments(tabs: readonly Tab[], options: WritingOptions = {}): WritingDiagnostic[] {
+  return tabs.flatMap(tab => analyzeWriting(tab.content, tab.lang, tab.filePath, options));
 }

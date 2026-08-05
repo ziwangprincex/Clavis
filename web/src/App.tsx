@@ -43,6 +43,7 @@ import { Splitter } from './components/Splitter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { inspectAndMaybeTrustWorkspace } from './project/workspace';
 import { isQuartoDocument } from './files/documentIdentity';
+import { writingPolicyFromConfig } from './writing/options';
 import { isRenderableDocument, newestArtifact, startRender, type DocumentFormat, type DocumentTool, type RenderContext } from './documentTools/render';
 import styles from './App.module.css';
 
@@ -173,7 +174,8 @@ export function App() {
   }
 
   function refreshWriting() {
-    useWritingStore.getState().refresh(useTabsStore.getState().tabs);
+    const policy = writingPolicyFromConfig(useProjectStore.getState().workspace?.config);
+    useWritingStore.getState().refresh(useTabsStore.getState().tabs, policy);
   }
 
   function refreshGit(root = workspaceFolder) {
@@ -756,6 +758,7 @@ export function App() {
           ) : null}
           writing={tabs.length > 0 ? (
             <WritingSection
+              policy={writingPolicyFromConfig(workspaceInspection?.config)}
               onRefresh={() => refreshWriting()}
               onActivate={(path, line) =>
                 void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))

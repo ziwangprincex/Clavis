@@ -7,4 +7,12 @@ describe('writing diagnostics store', () => {
     useWritingStore.getState().refresh(tabs);
     expect(useWritingStore.getState().diagnostics).toHaveLength(500);
   });
+
+  it('passes project writing options to the analyzer', () => {
+    const tabs = [{ id: 'a', title: 'a.md', filePath: 'a.md', lang: 'markdown' as const, isDirty: false, content: 'Colour and IV rise.' }];
+    useWritingStore.getState().refresh(tabs, { spelling: 'us', ignoredAcronyms: ['IV'] });
+    const diagnostics = useWritingStore.getState().diagnostics;
+    expect(diagnostics.some(item => item.code === 'spelling-variant' && item.message.includes('colour'))).toBe(true);
+    expect(diagnostics.some(item => item.code === 'undefined-acronym' && item.message.includes('IV'))).toBe(false);
+  });
 });

@@ -6,6 +6,50 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (project writing preferences)
+
+`clavis.toml` can now carry a bounded local Writing policy:
+
+```toml
+[writing]
+spelling = "us" # us | uk | mixed
+ignored_acronyms = ["GDP", "IV"]
+terms = ["difference-in-differences", "heteroskedasticity"]
+```
+
+- Configuration validation accepts only `us`, `uk`, or `mixed`; limits each
+  list to 500 items; requires ignored acronyms to be 2?12 uppercase
+  alphanumeric characters; and rejects blank, multiline, or overlong terms.
+- Writing checks now receive the project policy. A US/UK choice flags the
+  opposite spelling even when its counterpart is absent; `mixed` suppresses
+  spelling-variant diagnostics. Configured ignored acronyms suppress only the
+  matching first-use reminder.
+- The Writing sidebar states the active policy and counts. Saved project terms
+  are explicitly descriptive vocabulary for future spelling adapters; they do
+  not pretend to alter today?s local rules.
+- Frontend IPC has the camelCase writing contract (`ignoredAcronyms`) while TOML
+  keeps the ergonomic `ignored_acronyms` form.
+
+### Review findings fixed
+
+1. The first implementation only warned about a configured US/UK form when
+   both variants appeared. It now enforces the selected convention directly.
+2. The Rust frontend serializer needed `camelCase` on `WritingSection`; an
+   `ignored_acronyms` alias preserves TOML compatibility.
+3. Tests originally checked only a mixed sentence. They now cover one-sided US
+   and UK enforcement, `mixed` suppression, analyzer/store option propagation,
+   config deserialization, and invalid configuration.
+4. `terms` intentionally remains inert. It is surfaced with an explicit UI
+   explanation rather than implying unavailable spellchecking behavior.
+
+**Verified:** 85 Rust + 392 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. The Vite build
+retains its pre-existing dynamic/static `tauri.ts` chunking warning. Next
+planned high-risk slice is manifest-confined clean rebuild / bundle writing;
+Zotero local read-only search remains separate from Better BibTeX.
+
+---
+
 ## 0. Update - 2026-08-05 (LaTeX submission bundle manifest dry run)
 
 The first bundle-related slice is intentionally **read-only**. Submission Check
