@@ -6,6 +6,41 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (read-only Git status, history, and prose diff)
+
+A deliberately read-only Git slice is complete. The Git sidebar shows branch,
+ahead/behind, changed/untracked files, recent commits, raw `HEAD` file diff and
+a word-level prose overlay. No stage, commit, checkout, reset, restore or push
+capability was added.
+
+- New `src/git_inspect.rs` runs only `git status --porcelain=v1 --branch`,
+  `git log`, and `git diff HEAD` with fixed argv, Workspace cwd, relative-path
+  confinement, 5-second timeout, 1 MiB diff cap, null stdin and no shell.
+- Non-repository folders are a normal empty state; history is not requested
+  after status reports `isRepository: false`.
+- Pure frontend `proseDiff` performs bounded word-level LCS (700-token cap) and
+  falls back to line-level insert/delete for large files. LaTeX normalization
+  removes comments, whitespace and common cosmetic emphasis commands first.
+- Git panel refreshes on Workspace open or explicit command; selecting a changed
+  file shows raw diff plus prose insert/delete overlay and five recent commits.
+
+### Review findings fixed
+
+1. IPC parameter `root` shadowed the backend root helper and prevented compile.
+2. Initial file diff only showed unstaged changes; it now compares `HEAD`,
+   covering staged plus unstaged changes.
+3. Non-repository directories initially caused `Promise.all` history failure even
+   after status had a graceful fallback.
+4. Word-diff algorithm gets a hard token cap with a test proving line-level
+   fallback, avoiding quadratic behavior on long papers.
+
+**Verified:** 78 Rust + 388 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Git write
+operations remain intentionally out of scope for a future separately-reviewed
+cut.
+
+---
+
 ## 0. Update - 2026-08-05 (local academic writing consistency checks)
 
 A bounded, local-only writing-quality slice is complete. The new Writing sidebar

@@ -8,6 +8,7 @@ mod assets;
 mod bib;
 mod cwl;
 mod document_tools;
+mod git_inspect;
 mod latex;
 mod project_config;
 mod references;
@@ -351,6 +352,9 @@ fn main() {
             artifacts::inspect_artifacts,
             artifacts::open_artifact_path,
             assets::index_assets,
+            git_inspect::inspect_git_workspace,
+            git_inspect::git_history,
+            git_inspect::git_file_diff,
             tasks::start_project_task,
             tasks::cancel_project_task,
             workspace_search::search_workspace,

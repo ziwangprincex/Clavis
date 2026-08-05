@@ -91,6 +91,14 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Git inspection and prose diff
+
+The Git sidebar is intentionally read-only: it shows repository/branch state,
+ahead/behind counts, changed or untracked files, recent commits, and a file diff.
+A word-level prose view highlights insertions/deletions; LaTeX mode ignores
+comments, whitespace, and common cosmetic formatting commands before comparing.
+This slice does not stage, commit, restore, reset, or push anything.
+
 ## Writing consistency checks
 
 The Writing sidebar provides local, explainable checks across open Markdown,

@@ -11,3 +11,4 @@ export * from './references';
 export * from './artifacts';
 export * from './assets';
 export * from './writing';
+export * from './git';

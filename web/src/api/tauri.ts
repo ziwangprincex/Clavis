@@ -465,6 +465,31 @@ export interface ArtifactStatus {
   sources: ArtifactSourceStatus[];
 }
 
+export interface GitFileStatus {
+  path: string;
+  indexStatus: string;
+  worktreeStatus: string;
+  untracked: boolean;
+}
+
+export interface GitWorkspaceStatus {
+  root: string;
+  isRepository: boolean;
+  branch?: string | null;
+  detached: boolean;
+  ahead: number;
+  behind: number;
+  files: GitFileStatus[];
+}
+
+export interface GitCommit {
+  id: string;
+  shortId: string;
+  author: string;
+  subject: string;
+  timestamp: string;
+}
+
 export interface ToolInfo {
   name: string;
   path?: string | null;
@@ -573,6 +598,9 @@ export const ipc = {
     invoke<void>('open_artifact_path', { root, path }),
   indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<AssetIndexResult>('index_assets', { options }),
+  inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
+  gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
+  gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),
 
   startProjectTask: (root: string, task: string) =>
     invoke<TaskRunStarted>('start_project_task', { root, task }),

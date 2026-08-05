@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -21,6 +21,7 @@ import { ReferencesSection } from './components/ReferencesSection';
 import { ArtifactsSection } from './components/ArtifactsSection';
 import { AssetsSection } from './components/AssetsSection';
 import { WritingSection } from './components/WritingSection';
+import { GitSection } from './components/GitSection';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
@@ -173,6 +174,11 @@ export function App() {
     useWritingStore.getState().refresh(useTabsStore.getState().tabs);
   }
 
+  function refreshGit(root = workspaceFolder) {
+    if (!root || !hasTauri()) return;
+    void useGitStore.getState().refresh(root);
+  }
+
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
@@ -207,6 +213,7 @@ export function App() {
       refreshReferences(workspace.root);
       refreshAssets(workspace.root);
       refreshWriting();
+      refreshGit(workspace.root);
       if (workspace.config) refreshArtifacts(workspace.root);
       else useArtifactsStore.getState().clear();
       if (workspace.issues.length > 0) {
@@ -236,6 +243,7 @@ export function App() {
     useArtifactsStore.getState().clear();
     useAssetsStore.getState().clear();
     useWritingStore.getState().clear();
+    useGitStore.getState().clear();
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -501,6 +509,12 @@ export function App() {
         run: () => useTaskStore.getState().cancel(),
       }),
       reg({
+        id: 'workspace.git.refresh',
+        name: 'Refresh Git Status',
+        when: () => workspaceFolder !== null,
+        run: () => refreshGit(),
+      }),
+      reg({
         id: 'workspace.writing.refresh',
         name: 'Refresh Writing Checks',
         when: () => useTabsStore.getState().tabs.length > 0,
@@ -740,6 +754,7 @@ export function App() {
               }
             />
           ) : null}
+          git={workspaceFolder ? <GitSection root={workspaceFolder} onRefresh={() => refreshGit()} /> : null}
           assets={workspaceFolder ? (
             <AssetsSection
               root={workspaceFolder}
