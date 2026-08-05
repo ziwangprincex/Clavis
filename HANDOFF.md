@@ -6,6 +6,42 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (cross-language research word estimates and limits)
+
+The status bar now reports estimated **Main** and **Abstract** prose words for
+Markdown/Quarto, LaTeX and Typst, plus optional limit warnings configured in
+Settings ? Editor. This is explicitly a submission helper estimate, not a
+publisher/offical word-count claim.
+
+- New pure `computeResearchStats` strips language-specific markup/code/math:
+  Markdown front matter/fenced+inline code/link URLs/math; LaTeX comments,
+  math/verbatim/listing/bibliography environments, common citation/reference
+  commands; Typst comments/raw/math and common inline code calls.
+- Abstract extraction supports Markdown heading, LaTeX abstract environment, and
+  Typst `= Abstract`, continuing across paragraphs until the next section/EOF.
+  Main estimate excludes the Abstract itself.
+- Settings persist optional `writing_main_word_limit` and
+  `writing_abstract_word_limit` (0 disables each). Status cells show `?` and
+  warn only when estimated prose exceeds a configured limit.
+
+### Review findings fixed
+
+1. Initial stats implementation used Rust/PCRE inline regex flags and `\z`;
+   JavaScript/Vite rejected the module before any test ran.
+2. Main prose initially included Abstract despite its name; strict tests now
+   assert exclusion.
+3. A multi-paragraph Abstract regression test was initially written as an
+   invalid multiline single-quoted JS string; converted to template literals.
+4. Abstract lookahead was corrected to stop only at the next heading or real EOF,
+   not each line end under multiline mode.
+
+**Verified:** 76 Rust + 378 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Selection and
+section-level counts, caption/footnote policies, and journal-specific counting
+rules remain future slices.
+
+---
+
 ## 0. Update - 2026-08-05 (cross-language asset references and diagnostics)
 
 A bounded asset-relationship slice is complete. The new Assets sidebar indexes

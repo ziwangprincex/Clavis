@@ -291,6 +291,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       onChange={e => update('editor_line_height', +e.target.value || 1.55)}
                     />
                   </label>
+                  <label>
+                    Main text word limit (0 = off)
+                    <input type="number" min={0} value={draft.writing_main_word_limit} onChange={e => update('writing_main_word_limit', Math.max(0, +e.target.value || 0))} />
+                  </label>
+                  <label>
+                    Abstract word limit (0 = off)
+                    <input type="number" min={0} value={draft.writing_abstract_word_limit} onChange={e => update('writing_abstract_word_limit', Math.max(0, +e.target.value || 0))} />
+                  </label>
                   <label className={styles.inline}>
                     <input
                       type="checkbox"

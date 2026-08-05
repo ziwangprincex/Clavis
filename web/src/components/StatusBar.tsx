@@ -11,8 +11,8 @@
 // instant.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useTabsStore, useCompileStore, useCursorStore, useStatusStore } from '../store';
-import { computeStats } from '../editor/stats';
+import { useTabsStore, useCompileStore, useCursorStore, useStatusStore, useSettingsStore } from '../store';
+import { computeResearchStats, computeStats } from '../editor/stats';
 import { documentLanguageLabel } from '../files/documentIdentity';
 import styles from './StatusBar.module.css';
 
@@ -50,6 +50,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const compileStatus = useCompileStore(s => s.status);
   const errors = useCompileStore(s => s.errors);
+  const writingLimits = useSettingsStore(s => ({ main: s.settings.writing_main_word_limit, abstract: s.settings.writing_abstract_word_limit }));
 
   const shownProblemCount = problemCount ?? errors.length;
   const isLatex = activeTab?.lang === 'latex';
@@ -57,6 +58,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   // Debounce the input to the word-count so long docs don't jank on typing.
   const contentForStats = useDebounced(activeTab?.content ?? '', WORD_COUNT_DEBOUNCE_MS);
   const stats = useMemo(() => computeStats(contentForStats), [contentForStats]);
+  const research = useMemo(() => activeTab ? computeResearchStats(contentForStats, activeTab.lang) : null, [contentForStats, activeTab?.lang]);
 
   const compiling = compileStatus === 'compiling';
 
@@ -76,6 +78,16 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
       <span className={styles.cell} title="Words / characters">
         {stats.words.toLocaleString()} words · {stats.chars.toLocaleString()} chars
       </span>
+      {research && (
+        <span className={`${styles.cell} ${writingLimits.main > 0 && research.mainWords > writingLimits.main ? styles.limit : ''}`} title="Estimated prose words; markup, code and math are excluded">
+          Main ? {research.mainWords.toLocaleString()}{writingLimits.main > 0 ? ` / ${writingLimits.main.toLocaleString()}` : ''}
+        </span>
+      )}
+      {research?.abstractWords != null && (
+        <span className={`${styles.cell} ${writingLimits.abstract > 0 && research.abstractWords > writingLimits.abstract ? styles.limit : ''}`} title="Estimated Abstract prose words">
+          Abstract ? {research.abstractWords.toLocaleString()}{writingLimits.abstract > 0 ? ` / ${writingLimits.abstract.toLocaleString()}` : ''}
+        </span>
+      )}
 
       {isLatex && (
         <button

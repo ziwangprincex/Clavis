@@ -106,3 +106,8 @@ button.cell:hover {
     opacity: 1;
   }
 }
+
+.limit {
+  color: var(--warning);
+  background: var(--tint-warning);
+}

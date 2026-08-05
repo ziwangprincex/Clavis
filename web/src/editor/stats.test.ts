@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStats, countChars, countLines, countWords } from './stats';
+import { computeResearchStats, computeStats, countChars, countLines, countWords } from './stats';
 
 describe('countLines', () => {
   it('returns 1 for empty string (a blank doc still shows Ln 1)', () => {
@@ -42,5 +42,41 @@ describe('computeStats', () => {
       chars: 23,
       lines: 2,
     });
+  });
+});
+
+
+describe('computeResearchStats', () => {
+  it('excludes Markdown front matter, code, math and URLs while finding Abstract', () => {
+    const stats = computeResearchStats('---\ntitle: T\n---\n# Abstract\nThis is the abstract.\n\n# Main\nText with [link](https://x.test) and $x^2$.\n```r\ncode\n```', 'markdown');
+    expect(stats.abstractWords).toBe(4);
+    expect(stats.mainWords).toBe(5);
+  });
+
+  it('counts multi-paragraph Markdown and Typst abstracts until the next section', () => {
+    expect(computeResearchStats(`# Abstract
+First paragraph.
+
+Second paragraph.
+# Main
+Main text.`, 'markdown').abstractWords).toBe(4);
+    expect(computeResearchStats(`= Abstract
+First paragraph.
+
+Second paragraph.
+= Main
+Main text.`, 'typst').abstractWords).toBe(4);
+  });
+
+  it('keeps LaTeX prose arguments but excludes citations, math and abstract environment from main estimate', () => {
+    const stats = computeResearchStats('\\begin{abstract}Short abstract text.\\end{abstract}\n\\section{Intro} Plain \\emph{prose} \\cite{key} $x^2$', 'latex');
+    expect(stats.abstractWords).toBe(3);
+    expect(stats.mainWords).toBeGreaterThanOrEqual(3);
+  });
+
+  it('handles Typst markup, code calls and math', () => {
+    const stats = computeResearchStats('= Abstract\nShort abstract text.\n= Main\nVisible #image("x.png") prose $x^2$.', 'typst');
+    expect(stats.abstractWords).toBe(3);
+    expect(stats.mainWords).toBe(3);
   });
 });

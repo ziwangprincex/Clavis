@@ -67,6 +67,10 @@ export interface Settings {
    * that should be offered but is not.
    */
   cwl_respect_context: boolean;
+  /** Optional estimated main-text word target; 0 disables the warning. */
+  writing_main_word_limit: number;
+  /** Optional estimated Abstract word target; 0 disables the warning. */
+  writing_abstract_word_limit: number;
 }
 
 export const defaultSettings: Settings = {
@@ -107,6 +111,8 @@ export const defaultSettings: Settings = {
   cwl_enabled: true,
   cwl_show_unusual: false,
   cwl_respect_context: true,
+  writing_main_word_limit: 0,
+  writing_abstract_word_limit: 0,
 };
 
 interface SettingsStore {

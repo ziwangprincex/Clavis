@@ -91,6 +91,15 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Research word estimates
+
+The status bar now shows estimated **Main** and **Abstract** prose words for
+Markdown/Quarto, LaTeX, and Typst. It excludes common markup, code, math,
+citations, and bibliography-like content, so it is intended as a submission
+helper rather than a publisher's official count. Configure optional Main and
+Abstract word limits in **Settings ? Editor**; values beyond the limit are
+highlighted.
+
 ## Asset references
 
 The Assets sidebar inventories local research assets and traces explicit image
