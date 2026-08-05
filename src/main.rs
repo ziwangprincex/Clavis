@@ -11,6 +11,7 @@ mod settings;
 mod tasks;
 mod typst_sig;
 mod typst_world;
+mod workspace_search;
 
 use base64::Engine as _;
 use parking_lot::Mutex;
@@ -338,6 +339,8 @@ fn main() {
             project_config::doctor_workspace,
             tasks::start_project_task,
             tasks::cancel_project_task,
+            workspace_search::search_workspace,
+            workspace_search::replace_workspace,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

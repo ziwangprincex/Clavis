@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
+import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
@@ -10,6 +10,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { LogPanel } from './components/LogPanel';
 import { TaskPanel } from './components/TaskPanel';
 import { ProjectDoctorDialog } from './components/ProjectDoctorDialog';
+import { WorkspaceSearchDialog } from './components/WorkspaceSearchDialog';
 import { Tabs } from './components/Tabs';
 import { Sidebar } from './components/Sidebar';
 import { OutlineSection } from './components/OutlineSection';
@@ -20,7 +21,7 @@ import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
-import { resolveIncludeTarget, resolveSyncTexFile } from './files/projectPaths';
+import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile } from './files/projectPaths';
 import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
@@ -66,6 +67,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
+  const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
@@ -406,6 +408,13 @@ export function App() {
         run: () => useTaskStore.getState().cancel(),
       }),
       reg({
+        id: 'workspace.search',
+        name: 'Search / Replace in Workspace',
+        shortcut: 'Ctrl+Shift+F',
+        when: () => workspaceFolder !== null,
+        run: () => setWorkspaceSearchOpen(true),
+      }),
+      reg({
         id: 'workspace.doctor',
         name: 'Run Project Doctor',
         when: () => useProjectStore.getState().workspace !== null,
@@ -484,6 +493,9 @@ export function App() {
       if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setPaletteOpen(true);
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (workspaceFolder) setWorkspaceSearchOpen(true);
       } else if (mod && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         void openFolder();
@@ -670,6 +682,27 @@ export function App() {
         open={doctorOpen}
         workspace={workspaceInspection}
         onClose={() => setDoctorOpen(false)}
+      />
+      <WorkspaceSearchDialog
+        open={workspaceSearchOpen}
+        root={workspaceFolder}
+        onClose={() => setWorkspaceSearchOpen(false)}
+        onOpenMatch={(path, line) =>
+          void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))
+        }
+        dirtyPaths={tabs.filter(tab => tab.isDirty && tab.filePath).map(tab => tab.filePath!)}
+        onFilesChanged={paths => {
+          const tabs = useTabsStore.getState();
+          for (const path of paths) {
+            const open = tabs.tabs.find(tab => pathsEqual(tab.filePath, path));
+            if (open && !open.isDirty) {
+              void fs.readTextFile(path).then(content =>
+                useTabsStore.getState().patchTab(open.id, { content, isDirty: false }),
+              );
+            }
+          }
+          setFolderRefreshKey(key => key + 1);
+        }}
       />
       <SymbolsPanel
         open={symbolsOpen}

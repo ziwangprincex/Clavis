@@ -6,6 +6,36 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (bounded Workspace Search and conflict-safe Replace All)
+
+Workspace-wide text search/replace is implemented behind a bounded Rust module
+(`src/workspace_search.rs`) and a `Ctrl/Cmd+Shift+F` dialog.
+
+- Literal/regex and case-sensitive search; clickable path/line results. Rust's
+  linear-time regex engine is used, never JavaScript backtracking regex.
+- The scanner skips VCS/build/dependency/venv directories, does not follow
+  symlinks, ignores binary/non-UTF-8 files, and caps at 10,000 files, 2 MiB per
+  file, 5,000 matches and 4,096 query bytes. Blocking disk work runs on
+  `spawn_blocking`, not the Tauri event loop.
+- Every match carries a content fingerprint. Replace All validates every selected
+  file before writing and rechecks after staging; an external edit aborts the
+  whole batch before installation. Open dirty Documents also block replacement.
+- Cross-platform same-directory staging/backups support Windows (where rename
+  cannot overwrite an existing file), preserve permissions, and roll back
+  already-installed files if a later installation fails.
+- Literal replacement uses `NoExpand`, so `$1` stays literal; capture expansion
+  is enabled only for regex searches. Truncated searches cannot Replace All.
+
+Review found and fixed: sync filesystem scanning on the UI runtime, Windows
+rename-over-existing failure, literal `$` expansion, dirty open Document
+overwrite, naive Windows path comparison, and Replace All on incomplete results.
+
+**Verified before commit:** 47 Rust tests (including 6 workspace-search tests)
+and 358 frontend tests pass; typecheck/build, `cargo check --all-targets`, and
+`git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-05 (trusted Project Tasks, streaming output, cancellation, and Project Doctor)
 
 The first executable research-workflow slice is complete. Tasks declared in

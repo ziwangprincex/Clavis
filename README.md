@@ -91,6 +91,14 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Workspace search and replace
+
+Use `Ctrl/Cmd+Shift+F` or **Search / Replace in Workspace** from the command
+palette. Search supports literal or Rust-regex patterns, case sensitivity, and
+clickable file/line results. Replace All requires confirmation and is disabled
+for truncated result sets or matching Documents with unsaved edits. Clavis also
+refuses replacement if any file changed on disk after the search.
+
 ## Build from source
 
 For development. To just use the app, download an installer above.

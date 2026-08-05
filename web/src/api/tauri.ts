@@ -320,6 +320,26 @@ export interface WorkspaceTrust {
   trust: 'untrusted' | 'trusted';
 }
 
+export interface WorkspaceSearchMatch {
+  path: string;
+  relativePath: string;
+  line: number;
+  column: number;
+  preview: string;
+  fingerprint: string;
+}
+
+export interface WorkspaceSearchResult {
+  matches: WorkspaceSearchMatch[];
+  scannedFiles: number;
+  truncated: boolean;
+}
+
+export interface WorkspaceReplaceResult {
+  changedFiles: string[];
+  replacements: number;
+}
+
 export interface ProjectDoctorCheck {
   id: string;
   status: 'ok' | 'warning' | 'error';
@@ -418,6 +438,10 @@ export const ipc = {
     invoke<TaskRunStarted>('start_project_task', { root, task }),
   cancelProjectTask: (runId: string) =>
     invoke<boolean>('cancel_project_task', { runId }),
+  searchWorkspace: (options: { root: string; query: string; regex: boolean; caseSensitive: boolean }) =>
+    invoke<WorkspaceSearchResult>('search_workspace', { options }),
+  replaceWorkspace: (options: { root: string; query: string; replacement: string; regex: boolean; caseSensitive: boolean; fingerprints: Record<string, string> }) =>
+    invoke<WorkspaceReplaceResult>('replace_workspace', { options }),
 
   // --- LaTeX ---
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),
