@@ -91,6 +91,14 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Bundle manifest (dry run)
+
+Submission Check can also generate a **Bundle manifest** for a configured LaTeX
+`project.main`. It lists the source, bibliography, style, image, font, and other
+resource files that Clavis' confined project collector can resolve, together with
+missing-dependency warnings. It is a read-only dry run: it does not copy files,
+run LaTeX, create a ZIP, or modify the project.
+
 ## Submission Check
 
 Run **Submission Check** from the command palette for a read-only preflight of

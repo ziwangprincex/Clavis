@@ -505,6 +505,20 @@ export interface SubmissionReport {
   truncated: boolean;
 }
 
+export interface BundleManifestFile {
+  relativePath: string;
+  kind: string;
+  sizeBytes: number;
+}
+
+export interface BundleManifest {
+  root: string;
+  mainDocument: string;
+  files: BundleManifestFile[];
+  warnings: string[];
+  ready: boolean;
+}
+
 export interface ToolInfo {
   name: string;
   path?: string | null;
@@ -615,6 +629,8 @@ export const ipc = {
     invoke<AssetIndexResult>('index_assets', { options }),
   checkSubmission: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<SubmissionReport>('check_submission', { options }),
+  inspectSubmissionBundle: (root: string) =>
+    invoke<BundleManifest>('inspect_submission_bundle', { root }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
   gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
   gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),

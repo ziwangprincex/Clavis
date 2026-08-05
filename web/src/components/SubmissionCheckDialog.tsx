@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { ipc, type SubmissionReport } from '../api/tauri';
+import { ipc, type BundleManifest, type SubmissionReport } from '../api/tauri';
 import type { Tab } from '../store';
 import styles from './SubmissionCheckDialog.module.css';
 
@@ -15,6 +15,8 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   const [report, setReport] = useState<SubmissionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState(0);
+  const [manifest, setManifest] = useState<BundleManifest | null>(null);
+  const [manifestError, setManifestError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !root) return;
@@ -27,6 +29,13 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
     return () => { cancelled = true; };
   }, [open, root, tabs, run]);
 
+  async function inspectManifest() {
+    if (!root) return;
+    setManifest(null); setManifestError(null);
+    try { setManifest(await ipc.inspectSubmissionBundle(root)); }
+    catch (reason) { setManifestError(String(reason)); }
+  }
+
   if (!open) return null;
   return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Submission Check">
@@ -38,8 +47,15 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
             <span>{issue.code}</span><strong>{issue.message}</strong>{issue.path && <small>{issue.path.split(/[\\/]/).pop()}:{issue.line ?? 1}</small>}
           </li>)}</ul>}
         </>}
+        {manifestError && <p className={styles.error}>{manifestError}</p>}
+        {manifest && <div className={styles.manifest}>
+          <strong>{manifest.ready ? 'Bundle manifest ready' : 'Bundle manifest has warnings'}</strong>
+          <span>{manifest.files.length} files ? {manifest.mainDocument.split(/[\/]/).pop()}</span>
+          {manifest.warnings.length > 0 && <ul>{manifest.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+          <details><summary>Files that would be bundled</summary><ul>{manifest.files.map(file => <li key={file.relativePath}><code>{file.relativePath}</code> <small>{file.kind} ? {(file.sizeBytes / 1024).toFixed(1)} KB</small></li>)}</ul></details>
+        </div>}
       </div>
-      <footer><button type="button" onClick={() => setRun(value => value + 1)}>Run again</button></footer>
+      <footer><button type="button" onClick={() => setRun(value => value + 1)}>Run again</button><button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button></footer>
     </section>
   </div>;
 }

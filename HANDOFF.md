@@ -6,6 +6,36 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (LaTeX submission bundle manifest dry run)
+
+The first bundle-related slice is intentionally **read-only**. Submission Check
+now has a Bundle manifest button that reports what Clavis would include for a
+configured LaTeX `project.main`: source, bibliography, styles/classes and binary
+resources, with collector warnings. It does not copy, build, zip, anonymize or
+modify anything.
+
+- New `src/submission_bundle.rs` reuses the existing confined LaTeX project
+  collector rather than implementing another dependency traversal. It requires a
+  valid `clavis.toml` and in-root LaTeX `project.main`.
+- Manifest records relative path, bundle kind and estimated bytes. Existing
+  collector bounds/path warnings determine readiness.
+- UI nests manifest output in Submission Check, including source file list and
+  warnings.
+
+### Review findings fixed
+
+1. The first raw-string path regex in Submission Check did not compile.
+2. Submission modules initially passed zero tests until registered in `main.rs`;
+   real registration was required before treating green tests as evidence.
+3. Bundle write/exec audit showed only test-fixture `std::fs::write`; production
+   manifest code has no copy/rename/remove/Command/spawn path.
+
+**Verified:** 82 Rust + 388 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Clean rebuild,
+anonymous variants and zip creation remain a separate high-risk write slice.
+
+---
+
 ## 0. Update - 2026-08-05 (read-only Submission Check preflight)
 
 A bounded, read-only submission preflight is complete. Command palette:
