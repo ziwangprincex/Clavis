@@ -2,6 +2,7 @@
 // Mirrors the legacy `currentProject` global (ui-legacy/app.js).
 
 import { create } from 'zustand';
+import type { WorkspaceInspection } from '../api/tauri';
 
 export interface ProjectFile {
   /** relative path inside the project (with forward slashes) */
@@ -16,6 +17,7 @@ export interface ProjectFile {
 }
 
 interface ProjectStore {
+  workspace: WorkspaceInspection | null;
   rootAbs: string | null;
   rootBasename: string | null;
   /** path of the file currently being edited within the project */
@@ -27,6 +29,7 @@ interface ProjectStore {
 }
 
 export const useProjectStore = create<ProjectStore>(set => ({
+  workspace: null,
   rootAbs: null,
   rootBasename: null,
   activeAbs: null,
@@ -37,6 +40,7 @@ export const useProjectStore = create<ProjectStore>(set => ({
   },
   reset() {
     set({
+      workspace: null,
       rootAbs: null,
       rootBasename: null,
       activeAbs: null,

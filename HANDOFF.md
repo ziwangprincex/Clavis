@@ -6,6 +6,34 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (project configuration and Workspace Trust foundation)
+
+The first research-workspace infrastructure slice is implemented. An optional
+repository-owned `clavis.toml` can now describe project metadata, LaTeX defaults,
+generated/ignored paths, and a dependency graph of tasks. **No task execution is
+implemented in this slice and opening a workspace never runs a command.**
+
+- New deep Rust module `src/project_config.rs` owns canonical workspace identity,
+  the 256 KiB config limit, TOML parsing, path confinement checks, unknown task
+  dependency checks, cycle detection, and trust persistence.
+- Trust is deliberately stored outside the repository in the Clavis user config
+  directory. A checked-in `clavis.toml` cannot mark itself trusted.
+- New IPC seam: `inspect_workspace(root)` and
+  `set_workspace_trust(root, trusted)`. The frontend orchestration asks exactly
+  once when a valid config contains executable tasks; invalid configs and
+  task-free configs never request trust.
+- Folder open/drop/recent-folder flows now inspect project metadata and retain it
+  in the project store. Declining trust still opens the folder normally.
+- `depends_on` remains the idiomatic TOML spelling while IPC emits `dependsOn`; a
+  failing Rust test caught the initial serde mismatch before integration.
+- README documents the format and explicitly says commands are not yet launched.
+
+Verification for this slice: 6 focused Rust project-config tests and 5 frontend
+trust-orchestration tests pass. Full-suite verification is recorded immediately
+before commit.
+
+---
+
 ## 0. Update - 2026-08-05 (Typst completion rebuilt on the real stdlib, plus a signature tooltip)
 
 Two related features, both driven by typst's own parameter metadata:

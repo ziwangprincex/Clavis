@@ -450,6 +450,7 @@ dependencies = [
  "tauri-build",
  "tempfile",
  "tokio",
+ "toml 0.8.23",
  "ttf-parser 0.25.1",
  "typst",
  "typst-assets",

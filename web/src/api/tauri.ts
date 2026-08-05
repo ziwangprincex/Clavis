@@ -288,6 +288,37 @@ export interface TypstParamSig {
 }
 
 /** A builtin Typst function. Mirrors `FuncSig` in `src/typst_sig.rs`. */
+export type WorkspaceTrustState = 'not-required' | 'untrusted' | 'trusted';
+
+export interface ProjectTaskConfig {
+  command: string;
+  args: string[];
+  cwd?: string | null;
+  env: Record<string, string>;
+  dependsOn: string[];
+}
+
+export interface ClavisProjectConfig {
+  project: { name?: string | null; main?: string | null };
+  latex: { engine?: string | null; bibliography?: string | null };
+  paths: { generated: string[]; ignored: string[] };
+  tasks: Record<string, ProjectTaskConfig>;
+}
+
+export interface WorkspaceInspection {
+  root: string;
+  configPath?: string | null;
+  config?: ClavisProjectConfig | null;
+  issues: string[];
+  trust: WorkspaceTrustState;
+  hasExecutableTasks: boolean;
+}
+
+export interface WorkspaceTrust {
+  root: string;
+  trust: 'untrusted' | 'trusted';
+}
+
 export interface TypstFuncSig {
   /** Call name as written in a document, e.g. `figure` or `calc.pow`. */
   name: string;
@@ -325,6 +356,12 @@ export const ipc = {
   saveSession: (data: string) => invoke<void>('save_session', { data }),
   detectLatexEngines: () => invoke<Record<string, string>>('detect_latex_engines'),
   detectBibEngines: () => invoke<Record<string, string>>('detect_bib_engines'),
+
+  // --- Workspace project configuration and trust ---
+  inspectWorkspace: (root: string) =>
+    invoke<WorkspaceInspection>('inspect_workspace', { root }),
+  setWorkspaceTrust: (root: string, trusted: boolean) =>
+    invoke<WorkspaceTrust>('set_workspace_trust', { root, trusted }),
 
   // --- LaTeX ---
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),

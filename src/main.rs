@@ -6,6 +6,7 @@
 mod bib;
 mod cwl;
 mod latex;
+mod project_config;
 mod settings;
 mod typst_sig;
 mod typst_world;
@@ -329,6 +330,8 @@ fn main() {
             latex::parse_bib,
             cwl::read_cwl,
             cwl::list_cwl_packages,
+            project_config::inspect_workspace,
+            project_config::set_workspace_trust,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

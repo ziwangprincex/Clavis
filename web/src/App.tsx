@@ -30,6 +30,7 @@ import { SymbolsPanel } from './components/SymbolsPanel';
 import { RecentMenu } from './components/RecentMenu';
 import { Splitter } from './components/Splitter';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { inspectAndMaybeTrustWorkspace } from './project/workspace';
 import styles from './App.module.css';
 
 // Lazy-loaded — these pull in CodeMirror 6 (~590KB) and pdfjs-dist (~410KB)
@@ -66,6 +67,7 @@ export function App() {
 
   const editorApiRef = useRef<EditorPaneRef | null>(null);
   const autoCompileTimerRef = useRef<number | null>(null);
+  const workspaceOpenSeqRef = useRef(0);
 
   const [workspaceFolder, setWorkspaceFolder] = useState<string | null>(null);
   const [folderRefreshKey, setFolderRefreshKey] = useState(0);
@@ -133,21 +135,49 @@ export function App() {
   // opt-in disk-autosave interval.
   useSessionPersistence(settings.autosave_enabled);
 
-  // Set the workspace folder and record it in the recent-folders list.
-  function openWorkspaceFolder(path: string) {
+  // Set the workspace folder, inspect optional clavis.toml metadata, and ask
+  // before granting execution trust. Inspection never runs project commands.
+  async function openWorkspaceFolder(path: string) {
+    const openSeq = ++workspaceOpenSeqRef.current;
     setWorkspaceFolder(path);
+    useProjectStore.getState().setProject({ workspace: null });
     void pushRecentFolder(path);
+    if (!hasTauri()) return;
+
+    try {
+      const workspace = await inspectAndMaybeTrustWorkspace(
+        path,
+        ipc,
+        inspection =>
+          openSeq === workspaceOpenSeqRef.current
+            ? dialogConfirm(
+                `This workspace defines ${Object.keys(inspection.config?.tasks ?? {}).length} task(s) that can run local commands.\n\nTrust this workspace? No command will run until you start a task.`,
+                { title: 'Trust workspace?' },
+              )
+            : Promise.resolve(false),
+      );
+      if (openSeq !== workspaceOpenSeqRef.current) return;
+      useProjectStore.getState().setProject({ workspace });
+      if (workspace.issues.length > 0) {
+        setStatus(`Project config: ${workspace.issues[0]}`, 'error');
+      } else if (workspace.trust === 'untrusted') {
+        setStatus('Workspace opened without task execution trust', 'info');
+      }
+    } catch (error) {
+      console.warn('workspace inspection failed', error);
+      setStatus('Workspace opened; project config could not be inspected', 'error');
+    }
   }
 
   // OS file-drop: files open, folders become the workspace.
-  useFileDrop(openWorkspaceFolder);
+  useFileDrop(path => { void openWorkspaceFolder(path); });
 
   async function openFolder() {
     if (!hasTauri()) return;
     try {
       const result = await dialogOpen({ directory: true, multiple: false });
       if (typeof result === 'string') {
-        openWorkspaceFolder(result);
+        await openWorkspaceFolder(result);
       }
     } catch (e) {
       console.error('open folder failed', e);
@@ -316,7 +346,11 @@ export function App() {
         id: 'workspace.closeFolder',
         name: 'Close folder',
         when: () => workspaceFolder !== null,
-        run: () => setWorkspaceFolder(null),
+        run: () => {
+          workspaceOpenSeqRef.current += 1;
+          setWorkspaceFolder(null);
+          useProjectStore.getState().setProject({ workspace: null });
+        },
       }),
       reg({
         id: 'workspace.refreshFolder',
@@ -466,7 +500,11 @@ export function App() {
             <FolderTreeSection
               rootPath={workspaceFolder}
               onOpenFolder={openFolder}
-              onCloseFolder={() => setWorkspaceFolder(null)}
+              onCloseFolder={() => {
+                workspaceOpenSeqRef.current += 1;
+                setWorkspaceFolder(null);
+                useProjectStore.getState().setProject({ workspace: null });
+              }}
               onRefresh={() => setFolderRefreshKey(k => k + 1)}
               onFileActivate={path => void openFileByPath(path)}
               refreshKey={folderRefreshKey}
@@ -585,7 +623,7 @@ export function App() {
         open={recentOpen}
         onClose={() => setRecentOpen(false)}
         onPickPath={path => void openFileByPath(path)}
-        onPickFolder={path => openWorkspaceFolder(path)}
+        onPickFolder={path => { void openWorkspaceFolder(path); }}
         onClear={() =>
           void useSettingsStore
             .getState()

@@ -47,6 +47,31 @@ first, then downloads and restarts into it.
   CJK and custom fonts best).
 - Typst needs nothing extra; it's built in.
 
+## Project configuration and trust
+
+A workspace may include an optional `clavis.toml` with project metadata and task
+definitions. Opening the folder only parses and validates this file; it never runs
+a command. If executable tasks are present, Clavis asks before storing trust in
+the user configuration directory, separately from the repository.
+
+```toml
+[project]
+name = "My paper"
+main = "paper/main.tex"
+
+[tasks.tables]
+command = "Rscript"
+args = ["scripts/tables.R"]
+
+[tasks.paper]
+command = "latexmk"
+args = ["-xelatex", "paper/main.tex"]
+depends_on = ["tables"]
+```
+
+Task execution is being introduced separately; the current project-model layer
+loads, validates, and records trust without launching these commands.
+
 ## Build from source
 
 For development. To just use the app, download an installer above.
