@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -20,6 +20,7 @@ import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
 import { ArtifactsSection } from './components/ArtifactsSection';
 import { AssetsSection } from './components/AssetsSection';
+import { WritingSection } from './components/WritingSection';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
@@ -168,6 +169,10 @@ export function App() {
     void useAssetsStore.getState().refresh(root, useTabsStore.getState().tabs);
   }
 
+  function refreshWriting() {
+    useWritingStore.getState().refresh(useTabsStore.getState().tabs);
+  }
+
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
@@ -201,6 +206,7 @@ export function App() {
       useProjectStore.getState().setProject({ workspace });
       refreshReferences(workspace.root);
       refreshAssets(workspace.root);
+      refreshWriting();
       if (workspace.config) refreshArtifacts(workspace.root);
       else useArtifactsStore.getState().clear();
       if (workspace.issues.length > 0) {
@@ -229,6 +235,7 @@ export function App() {
     useReferencesStore.getState().clear();
     useArtifactsStore.getState().clear();
     useAssetsStore.getState().clear();
+    useWritingStore.getState().clear();
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -293,6 +300,12 @@ export function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCompile, lang, activeTab?.content, activeTab?.id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => refreshWriting(), 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs]);
 
   useEffect(() => {
     if (!pendingRenderRef.current) return;
@@ -486,6 +499,12 @@ export function App() {
         name: 'Stop running project task',
         when: () => useTaskStore.getState().status === 'running',
         run: () => useTaskStore.getState().cancel(),
+      }),
+      reg({
+        id: 'workspace.writing.refresh',
+        name: 'Refresh Writing Checks',
+        when: () => useTabsStore.getState().tabs.length > 0,
+        run: () => refreshWriting(),
       }),
       reg({
         id: 'workspace.references.rename',
@@ -711,6 +730,14 @@ export function App() {
               onRunTask={task => {
                 void useTaskStore.getState().start(task).catch(error => setStatus(String(error), 'error'));
               }}
+            />
+          ) : null}
+          writing={tabs.length > 0 ? (
+            <WritingSection
+              onRefresh={() => refreshWriting()}
+              onActivate={(path, line) =>
+                void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))
+              }
             />
           ) : null}
           assets={workspaceFolder ? (

@@ -13,6 +13,7 @@ export interface SidebarProps {
   references?: ReactNode;
   artifacts?: ReactNode;
   assets?: ReactNode;
+  writing?: ReactNode;
   /** Pixel width of the sidebar. Falls back to 260 when not specified. */
   width?: number;
 }
@@ -52,6 +53,11 @@ export function Sidebar(props: SidebarProps) {
       {props.assets && (
         <SidebarSection title="Assets">
           {props.assets}
+        </SidebarSection>
+      )}
+      {props.writing && (
+        <SidebarSection title="Writing">
+          {props.writing}
         </SidebarSection>
       )}
       {props.bibliography && (

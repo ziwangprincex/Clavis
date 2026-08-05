@@ -1,0 +1,22 @@
+﻿import { create } from 'zustand';
+import type { Tab } from './tabs';
+import { analyzeOpenDocuments, type WritingDiagnostic } from '../writing/rules';
+
+const MAX_DIAGNOSTICS = 500;
+
+interface WritingStore {
+  diagnostics: WritingDiagnostic[];
+  refreshedAt: number;
+  refresh: (tabs: readonly Tab[]) => void;
+  clear: () => void;
+}
+
+export const useWritingStore = create<WritingStore>(set => ({
+  diagnostics: [],
+  refreshedAt: 0,
+  refresh(tabs) {
+    const diagnostics = analyzeOpenDocuments(tabs).slice(0, MAX_DIAGNOSTICS);
+    set({ diagnostics, refreshedAt: Date.now() });
+  },
+  clear() { set({ diagnostics: [], refreshedAt: Date.now() }); },
+}));

@@ -91,6 +91,15 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Writing consistency checks
+
+The Writing sidebar provides local, explainable checks across open Markdown,
+Quarto, LaTeX, and Typst Documents: percent spacing, `p value` style,
+Figure/Fig. and Table/Tab. mixing, common US/UK spelling-pair mixing, and
+first-use acronym reminders. It ignores common comments and code/verbatim
+regions, is debounced, and caps output. These are consistency hints, not a
+replacement for a grammar checker or journal style guide.
+
 ## Research word estimates
 
 The status bar now shows estimated **Main** and **Abstract** prose words for

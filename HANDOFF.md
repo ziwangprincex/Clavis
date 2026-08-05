@@ -6,6 +6,40 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (local academic writing consistency checks)
+
+A bounded, local-only writing-quality slice is complete. The new Writing sidebar
+checks **open** Markdown/Quarto, LaTeX and Typst Documents after a 700 ms debounce
+and caps output at 500 diagnostics.
+
+- Explainable rules: `50 %` spacing, `p value`, p-comparison consistency hints,
+  Figure/Fig. and Table/Tab. mixing, selected US/UK spelling-pair mixing, and
+  first-use acronym reminders. Diagnostics jump to source line.
+- Language-aware masking ignores LaTeX comments/verbatim/lstlisting/minted, Typst
+  comments/raw, and Markdown fenced/inline code. It is intentionally not a
+  grammar, spelling, or style-guide replacement; no external service or text
+  leaves the machine.
+- Acronym detection now respects reading order: a later `(GDP)` definition cannot
+  excuse an earlier `GDP` use; definitions before use are accepted. A small built-
+  in technical acronym ignore set avoids obvious noise.
+
+### Review findings fixed
+
+1. Initial acronym definition collection scanned globally, allowing later
+   definitions to suppress earlier-use diagnostics.
+2. A Python patch inserted control characters for `\b` and a malformed regex,
+   so Vite could not transform the module; the rules module was rewritten with
+   literal-safe source text.
+3. The first default ignore set included GDP, which invalidated the first-use
+   regression test; GDP is now checked like other research abbreviations.
+
+**Verified:** 76 Rust + 383 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Project
+dictionaries, external Harper/Vale/LanguageTool adapters, section/selection
+counts and journal-specific style packs are separate future slices.
+
+---
+
 ## 0. Update - 2026-08-05 (cross-language research word estimates and limits)
 
 The status bar now reports estimated **Main** and **Abstract** prose words for

@@ -10,3 +10,4 @@ export * from './tasks';
 export * from './references';
 export * from './artifacts';
 export * from './assets';
+export * from './writing';
