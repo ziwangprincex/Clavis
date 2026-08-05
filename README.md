@@ -168,6 +168,21 @@ The Artifacts sidebar reports `missing`, `stale`, or `ready`, can open existing
 artifacts, and runs the declared task. A source missing or newer than the
 artifact marks it stale.
 
+## Better BibTeX exports
+
+Optionally declare a local Better BibTeX export in `clavis.toml`:
+
+```toml
+[bibliography]
+provider = "better-bibtex"
+files = ["references/library.bib"]
+```
+
+Clavis polls only these declared in-Workspace `.bib` files every five seconds.
+When size or modification time changes, it refreshes the local bibliography
+browser and cross-language citation index. It does not read or write Zotero's
+database, invoke Zotero, or use the network.
+
 ## Bibliography browser
 
 The Workspace Bibliography section parses local `.bib` files and supports

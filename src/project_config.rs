@@ -29,6 +29,14 @@ pub struct LatexSection {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BibliographySection {
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PathsSection {
     #[serde(default)]
     pub generated: Vec<String>,
@@ -74,6 +82,8 @@ pub struct ProjectConfig {
     pub latex: LatexSection,
     #[serde(default)]
     pub paths: PathsSection,
+    #[serde(default)]
+    pub bibliography: BibliographySection,
     #[serde(default)]
     pub tasks: BTreeMap<String, TaskConfig>,
     #[serde(default)]
@@ -166,6 +176,27 @@ pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
             if !config.tasks.contains_key(dependency) {
                 issues.push(format!("tasks.{name} depends on unknown task {dependency}"));
             }
+        }
+    }
+
+    if let Some(provider) = config.bibliography.provider.as_deref() {
+        if !matches!(provider, "better-bibtex" | "local") {
+            issues.push("bibliography.provider must be better-bibtex or local".to_string());
+        }
+    }
+    if config.bibliography.files.len() > 50 {
+        issues.push("bibliography.files exceeds the 50-file limit".to_string());
+    }
+    for file in &config.bibliography.files {
+        if file.trim().is_empty()
+            || contains_parent_or_absolute(file)
+            || !file.to_ascii_lowercase().ends_with(".bib")
+        {
+            issues.push(
+                "bibliography.files must contain relative .bib paths inside the workspace"
+                    .to_string(),
+            );
+            break;
         }
     }
 
@@ -649,6 +680,39 @@ sources = ["../secret.csv"]
             .issues
             .iter()
             .any(|issue| issue.contains("artifacts.bad.sources")));
+    }
+
+    #[test]
+    fn validates_better_bibtex_export_config() {
+        let valid = inspect_at(
+            Some(
+                r#"
+[bibliography]
+provider = "better-bibtex"
+files = ["references/library.bib"]
+"#,
+            ),
+            false,
+        );
+        assert!(valid.issues.is_empty());
+        let invalid = inspect_at(
+            Some(
+                r#"
+[bibliography]
+provider = "zotero-sqlite"
+files = ["../outside.bib", "notes.txt"]
+"#,
+            ),
+            false,
+        );
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("bibliography.provider")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("bibliography.files")));
     }
 
     #[test]

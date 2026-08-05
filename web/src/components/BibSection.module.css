@@ -21,3 +21,5 @@
 .details p { margin: 0 0 6px; line-height: 1.4; } .details dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 7px; margin: 0; }
 .details dt { color: var(--text-dim); } .details dd { margin: 0; }
 .empty { padding: 8px 12px; color: var(--text-muted); } .error { padding: 8px 12px; color: var(--error); font-size: 11px; }
+
+.exportStatus { padding: 0 8px 5px; color: var(--text-dim); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

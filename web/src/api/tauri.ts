@@ -314,6 +314,7 @@ export interface ProjectTaskConfig {
 export interface ClavisProjectConfig {
   project: { name?: string | null; main?: string | null };
   latex: { engine?: string | null; bibliography?: string | null };
+  bibliography?: { files: string[]; provider?: string | null };
   paths: { generated: string[]; ignored: string[] };
   tasks: Record<string, ProjectTaskConfig>;
   artifacts?: Record<string, { path: string; task?: string | null; sources: string[]; kind?: string | null; description?: string | null }>;
@@ -519,6 +520,15 @@ export interface BundleManifest {
   ready: boolean;
 }
 
+export interface BibliographyExportStatus {
+  provider: string;
+  relativePath: string;
+  path: string;
+  exists: boolean;
+  sizeBytes?: number | null;
+  modifiedMillis?: number | null;
+}
+
 export interface ToolInfo {
   name: string;
   path?: string | null;
@@ -629,6 +639,8 @@ export const ipc = {
     invoke<AssetIndexResult>('index_assets', { options }),
   checkSubmission: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<SubmissionReport>('check_submission', { options }),
+  inspectBibliographyExports: (root: string) =>
+    invoke<BibliographyExportStatus[]>('inspect_bibliography_exports', { root }),
   inspectSubmissionBundle: (root: string) =>
     invoke<BundleManifest>('inspect_submission_bundle', { root }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),

@@ -788,6 +788,7 @@ export function App() {
                   editorApiRef.current?.scrollToLine(l),
                 )
               }
+              onExportChanged={() => refreshReferences()}
             />
           ) : null}
         />

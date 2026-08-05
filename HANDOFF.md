@@ -292,6 +292,43 @@ conversion, image thumbnails, or artifact dependency graph were added yet.
 
 ---
 
+## 0. Update - 2026-08-05 (Better BibTeX local export freshness and refresh)
+
+A local-only Better BibTeX integration slice is complete. It does **not** read
+or write Zotero SQLite, invoke Zotero, open attachments, or use network APIs.
+
+```toml
+[bibliography]
+provider = "better-bibtex"
+files = ["references/library.bib"]
+```
+
+- `clavis.toml` validates provider `better-bibtex|local`, up to 50 relative
+  in-Workspace `.bib` files.
+- New `src/bibliography_export.rs` is a read-only mtime/size status probe for
+  declared exports with canonical containment. It does not watch arbitrary
+  local paths.
+- Bibliography panel polls Better BibTeX exports every five seconds; a changed
+  size/mtime triggers local Bib parser refresh and unified reference/citation
+  index refresh. Status text identifies the export or a missing declared file.
+
+### Review findings fixed
+
+1. First export module test passed zero tests because `main.rs` registration
+   anchor failed; registration was fixed before treating tests as evidence.
+2. Interrupted UI patch attempts left backend/IPC complete but BibSection
+   unchanged; the component was rewritten as one coherent file instead of
+   stacking fragile partial substitutions.
+3. Export changes initially refreshed only the bibliography list, leaving
+   completion and missing-citation diagnostics stale; App now refreshes the
+   unified reference index too.
+
+**Verified:** 84 Rust + 388 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Zotero library
+search and attachment opening remain separate later slices.
+
+---
+
 ## 0. Update - 2026-08-05 (rich local bibliography search and multi-citation insertion)
 
 A deliberately local-only bibliography slice: no Zotero database access, Better

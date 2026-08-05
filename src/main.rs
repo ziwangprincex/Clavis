@@ -6,6 +6,7 @@
 mod artifacts;
 mod assets;
 mod bib;
+mod bibliography_export;
 mod cwl;
 mod document_tools;
 mod git_inspect;
@@ -339,6 +340,7 @@ fn main() {
             latex::distro::detect_distro,
             latex::distro::install_package,
             latex::parse_bib,
+            bibliography_export::inspect_bibliography_exports,
             cwl::read_cwl,
             cwl::list_cwl_packages,
             project_config::inspect_workspace,
