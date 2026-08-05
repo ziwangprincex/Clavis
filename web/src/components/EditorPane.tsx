@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useTabsStore, useSettingsStore, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
 import { prefetchCwlForDocument, setCwlOptions } from '../completions/cwlProvider';
+import { prefetchTypstSignatures } from '../completions/signatures';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
@@ -172,6 +173,9 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     // IPC, so warming the cache here keeps the first `\` from showing a
     // half-populated list.
     if (activeTab.lang === 'latex') prefetchCwlForDocument(activeTab.content);
+    // Same reasoning for Typst: the builtin signature table arrives over IPC, and
+    // a cold cache would leave the first `#` showing only hand-written snippets.
+    if (activeTab.lang === 'typst') prefetchTypstSignatures();
   }, [activeTabId, activeTab]);
 
   // Completion preferences are pushed into the provider rather than read from

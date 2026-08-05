@@ -6,6 +6,180 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (Typst completion rebuilt on the real stdlib, plus a signature tooltip)
+
+Two related features, both driven by typst's own parameter metadata:
+
+1. **Typst function completion** now comes from the standard library instead of an
+   82-entry hand-written list — 391 functions, with real parameter names and
+   idiomatic call shapes.
+2. **A parameter signature tooltip** (LSP `signatureHelp`, not completion): a
+   cursor-following panel listing the enclosing call's parameters with the active
+   one highlighted. Covers Typst builtins, Typst `#let` functions, and LaTeX
+   commands.
+
+**Working state:** 28 Rust + 349 frontend tests green; `cargo check
+--all-targets`, `npm --prefix web run typecheck`, `npm --prefix web run build`
+all clean. A release build was produced successfully
+(`Clavis_1.0.5_x64-setup.exe`, 13.55 MB). **Uncommitted**, and sitting on top of
+the also-uncommitted keyval fix below — they are separate concerns and should be
+two commits.
+
+### The finding that shaped the design
+
+**`typst-ide` has no signature-help function** — not in 0.11, not in 0.15. Its
+whole public API is `autocomplete`, `tooltip`, `jump_*` and `analyze_labels`.
+typst.app's parameter hints are not a library call, and tinymist does not use
+`typst-ide` at all (it reimplemented everything, including a type checker).
+
+So both features are built from `Func::params()`, the metadata the `#[func]`
+macro bakes into the binary. Consequences worth keeping:
+
+- **No `typst-ide` dependency was added.** It would buy nothing.
+- **No typst upgrade needed.** We are on **0.11.1**; upstream is at **0.15.1**
+  (2026-07-17), four releases ahead. `Func::params()` exists in both. Upgrading
+  is a separate and non-trivial job: 0.15 changes `autocomplete` to take
+  `&dyn IdeWorld`, moves `ParamInfo` out of `typst::foundations`, and turns
+  `params()` into an iterator.
+- **`#let` functions cannot come from Rust.** `func.rs` has
+  `Repr::Closure(_) => None`, so closures expose no parameters at all. They are
+  parsed out of the document instead, and the honest cost is that custom
+  functions show parameter *names and defaults but no types* — typst infers those
+  at compile time, and reproducing that means a type checker.
+
+### Architecture: position logic in TS, Rust supplies a static table
+
+The tooltip refreshes on **every cursor move**, so an IPC round trip per
+keystroke was never viable. Builtin signatures are compile-time constants, so
+Rust dumps the whole table once and the frontend caches it for the session —
+measured at **391 functions / 239 KiB JSON**. Keeping all offset arithmetic in TS
+also sidesteps the UTF-8 (Rust) versus UTF-16 (JS) offset hazard entirely.
+
+New files: `src/typst_sig.rs`; `web/src/completions/{callSite,signatures,typstLetScan,typstProvider}.ts`;
+`web/src/editor/signatureTooltip.ts` (plus a test file each, and
+`popupIntegration.test.ts` — see below for why that one exists).
+
+### Call shapes: the part that was wrong twice
+
+First attempt generated `#emph()`. Typst writes `#emph[...]`, and the rule is in
+the spec: *"An arbitrary number of content blocks can be passed as trailing
+arguments to functions. That is, `list([A], [B])` is equivalent to
+`list[A][B]`."* So `callTemplate` now puts a **trailing `content`-typed positional
+parameter in a bracket**, keeping anything before it in parens:
+
+    emph      body!P:content                 → #emph[${1:body}]
+    link      dest!P:str, body!P:content      → #link("${1:dest}")[${2:body}]
+    list      children!PV:content             → #list[${1:children}]
+    calc.pow  base!P, exponent!P              → #calc.pow(${1:base}, ${2:exponent})
+    pagebreak (nothing required)              → #pagebreak()
+
+Two exceptions that metadata alone gets wrong, both verified against the docs:
+
+- **`figure`** is `PAREN_BODY_FUNCTIONS`. Its body *is* content-typed, but every
+  upstream example writes `#figure(image("a.png"), caption: [..])` — the body is
+  an image, not prose.
+- **Math mode suppresses brackets entirely.** `frac`'s parameters are also
+  `content`, yet it is written `$ frac(x, y) $`, never `frac(x)[y]`. Content
+  blocks are markup syntax.
+
+### Ranking, and the math/markup split
+
+A dump of the real 434-candidate list for a bare `#` showed the first 40 entries
+were pure alphabet **and full of math functions**: `#alpha`, `#beta`, `#binom`,
+`#frac`, `#integral`, `#kappa`. Meanwhile `#heading`, `#text` and `#table` were
+nowhere. `#frac(a, b)` in markup does not compile, so this was wrong, not just
+badly sorted.
+
+Fixes:
+
+- `FuncSig.math_only` in Rust, set by comparing the `global` and `math` scopes.
+  **40 functions exist only in math.** The frontend filters them out of markup and
+  drops the `#` inside `$...$` (`inTypstMath` — a Typst-specific scan, because
+  `mathContext.ts` is LaTeX-only: `%` comments and `\(`/`\[`).
+- The curated snippets in `snippets.ts` gained a `math?: true` flag for the same
+  reason: hash-prefixing them wholesale had started offering `#alpha` in markup.
+- Boosts are now four interleaved tiers, documented in `typstProvider.ts`. The
+  non-obvious part: `heading`, `text` and `par` have **no** curated snippet, so
+  "curated always beats generated" would bury the most common functions under
+  `#circle`/`#ellipse`. Both providers therefore split on the same
+  `isCommonTypstName` predicate.
+
+Result for a bare `#`: `#align #block #box #cite #emph #figure #footnote #image
+#link #ref …`; inside `$...$`: `abs binom cases frac integral mat …`, no hash.
+
+### Three bugs that only a boundary test could catch
+
+The provider suite was green while the popup showed nothing. **CodeMirror filters
+`option.label` against `state.sliceDoc(from, to)`**, and our completion site
+starts at the `#` — so a `figure` label never matches a `#figu` pattern and is
+dropped *after* the provider returns it. Both providers now hash-prefix their
+typst labels, which also makes them collide so `mergeCandidates` can pick the
+curated one.
+
+`popupIntegration.test.ts` exists specifically to cross that boundary: it drives
+the real `buildCompletionSource` and replays CM6's own filter. It was written
+failing (`#figu` → 0 candidates, `#` → 17) and is the only test in the suite that
+would have caught this.
+
+The same file pins a second failure mode: **completion is synchronous, so the
+first request only starts the IPC fetch.** LaTeX already solved this with
+`prefetchCwlForDocument` on tab switch (`EditorPane.tsx`); the Typst equivalent
+was missing, which is why the first `#` showed 17 entries. `prefetchTypstSignatures`
+now mirrors it.
+
+Third: **O(n²) call-site scanning.** `calleeBefore` did `text.slice(0, i)` per
+delimiter; 50k open parens took 267 ms for one cursor move. Bounded by
+`LOOKBEHIND`, with a timing test guarding it.
+
+### Other things measured rather than assumed
+
+- **Nested scope recursion triples coverage.** A flat walk of `global`/`math`
+  finds 126 functions; recursing one level into function, module and type scopes
+  (`table.cell`, `calc.pow`, `array.map`) reaches **394**. Depth is fixed at one
+  because typst nests no deeper, which also means no cycle detection.
+- **Docs had to be truncated.** Full `ParamInfo::docs` Markdown is ~145 KiB
+  versus ~64 KiB for first sentences. `first_sentence` approximates `typst-ide`'s
+  private `plain_docs_sentence`.
+- **`CastInfo` has no `Display` in 0.11**, so `render_type` is ours. Unions are
+  flattened with `walk` and capped at 6 alternatives — some params accept every
+  named colour.
+- **No CSS or new dependency was needed for the tooltip.** `EditorPane.module.css`
+  sets `overflow: hidden`, which looked like it would clip the panel, but
+  CodeMirror tooltips default to `position: fixed`. `@codemirror/autocomplete`
+  publishes its popup through the *same* `showTooltip` facet, so `above: true` is
+  what keeps the two from colliding.
+- **A `%` comment breaks LaTeX argument grouping** unless stripped:
+  `\frac{a}% note\n{b}` is one command with two arguments, because TeX discards
+  the comment.
+
+`callSite.ts` also inherits the lesson from the keyval bug below: every scan
+starts from a blank line or a hard character budget, so an unclosed delimiter can
+never claim the rest of the document.
+
+### Still to verify in a real window
+
+Unit and static verification only — the sandbox has no display. A release build
+was installed and the completion list was checked by hand, which is how the
+`#emph()` and "only 17 entries" defects were found; the list below is what a
+fresh pass should confirm.
+
+- `#emph` / `#strong` / `#link` insert bracket forms.
+- A bare `#` starts with authoring verbs and contains no `#alpha` / `#frac`.
+- `$ fr` offers `frac` with no `#`.
+- `#figure(` shows the tooltip; `caption` highlights after `caption:`; the panel
+  and the completion popup do not overlap.
+- `\frac{` shows `num`/`den` and advances to `den` after `}{`.
+- A custom `#let f(a, b: 1)` shows `a` and `b = 1`, tagged `(local)`.
+
+### Known gap, not started
+
+`#set` / `#show` have no dedicated completion. `#set` takes only settable
+parameters and `#show` has a selector-then-function shape; today there are just 8
+hand-written `#set` templates, and the 391-function table is not adapted for
+either position.
+
+---
+
 ## 0. Update - 2026-08-05 (keyval site misdetection killed the completion popup)
 
 Review of the previous session's commit (`8894c3a` "Fix LSP funcs") found that

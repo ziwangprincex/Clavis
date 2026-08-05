@@ -36,6 +36,7 @@ import type { Lang } from '../store';
 import { buildCompletionSource, type CompletionWorkspace } from '../completions/source';
 import { inputLinkExtension } from './inputLinks';
 import { buildEditorKeymap } from './keymaps';
+import { signatureTheme, signatureTooltipExt } from './signatureTooltip';
 
 // Minimal Typst syntax (StreamLanguage).
 const typstStream = StreamLanguage.define({
@@ -193,7 +194,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
 };
 
 /** `#rrggbb` → `rgba(r, g, b, a)`; anything else passes through unchanged. */
-function withAlpha(hex: string, alpha: number): string {
+export function withAlpha(hex: string, alpha: number): string {
   const n = parseInt(hex.slice(1), 16);
   if (hex.length !== 7 || Number.isNaN(n)) return hex;
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
@@ -320,6 +321,8 @@ export class EditorController {
   private indentCompartment = new Compartment();
   private tabSizeCompartment = new Compartment();
   private includeLinkCompartment = new Compartment();
+  private signatureCompartment = new Compartment();
+  private signatureThemeCompartment = new Compartment();
   private suppressEvents = false;
   private currentLang: Lang;
   private themeSpec: ThemeSpec;
@@ -360,6 +363,11 @@ export class EditorController {
         }),
       ),
       highlightSelectionMatches(),
+      // Parameter signature panel. It publishes through the same `showTooltip`
+      // facet as the completion popup, so it asks to sit above the cursor and
+      // leaves the space below to the completion list.
+      this.signatureCompartment.of(signatureTooltipExt(this.currentLang)),
+      this.signatureThemeCompartment.of(signatureTheme(this.themeSpec)),
       this.highlightCompartment.of(buildHighlightExt(this.themeSpec)),
       this.themeCompartment.of(buildThemeExt(this.themeSpec)),
       this.fontCompartment.of(buildFontExt(this.font)),
@@ -442,6 +450,7 @@ export class EditorController {
           }),
         ),
         this.includeLinkCompartment.reconfigure(this.includeLinkExt(lang)),
+        this.signatureCompartment.reconfigure(signatureTooltipExt(lang)),
       ],
     });
   }
@@ -461,6 +470,7 @@ export class EditorController {
       effects: [
         this.themeCompartment.reconfigure(buildThemeExt(spec)),
         this.highlightCompartment.reconfigure(buildHighlightExt(spec)),
+        this.signatureThemeCompartment.reconfigure(signatureTheme(spec)),
       ],
     });
   }

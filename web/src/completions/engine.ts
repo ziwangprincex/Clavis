@@ -2,6 +2,7 @@ import { detectCompletionSite } from './context';
 import { cwlProvider } from './cwlProvider';
 import { latexSemanticProvider } from './latexSemanticProvider';
 import { snippetProvider } from './snippetProvider';
+import { typstProvider } from './typstProvider';
 import type {
   CompletionCandidate,
   CompletionProvider,
@@ -14,6 +15,7 @@ const DEFAULT_PROVIDERS: readonly CompletionProvider[] = [
   latexSemanticProvider,
   snippetProvider,
   cwlProvider,
+  typstProvider,
 ];
 
 /**
@@ -49,7 +51,7 @@ export async function complete(
   // empty option list: an unclosed `[` to the left (`\left[`, `\item[term`) is
   // indistinguishable from a real option bracket, and because keyval is checked
   // before every other site, the false positive used to swallow the popup
-  // entirely ? no provider answers a keyval site it has no keys for, and an
+  // entirely — no provider answers a keyval site it has no keys for, and an
   // empty candidate list means "no popup". Retry with keyval suppressed so the
   // position falls through to the command / word site it actually belongs to.
   const fallback = detectCompletionSite(request, true);

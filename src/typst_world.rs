@@ -91,7 +91,7 @@ static FONTS: Lazy<(Prehashed<FontBook>, Vec<FontSlot>)> = Lazy::new(|| {
     (Prehashed::new(book), slots)
 });
 
-static LIBRARY: Lazy<Prehashed<Library>> =
+pub(crate) static LIBRARY: Lazy<Prehashed<Library>> =
     Lazy::new(|| Prehashed::new(Library::default()));
 
 pub struct SimpleWorld {

@@ -236,6 +236,28 @@ function activePackages(text: string): CwlPackage[] {
 }
 
 /**
+ * Look up one command by name across the packages the document loads.
+ *
+ * For the signature tooltip, which needs a single command's argument template
+ * rather than a ranked candidate list. Returns null while the corpus is still
+ * loading, which is normal — the tooltip retries on the next keystroke.
+ */
+export function findCwlCommand(text: string, name: string): CwlCommand | null {
+  let packages: CwlPackage[];
+  try {
+    packages = activePackages(text);
+  } catch {
+    return null;
+  }
+  for (const pkg of packages) {
+    for (const command of pkg.commands) {
+      if (command.name === name) return command;
+    }
+  }
+  return null;
+}
+
+/**
  * Ranks. The corpus is a broad but shallow source, so it deliberately sits
  * *below* the hand-written snippets: `snippetProvider` gives its entries boost 1,
  * and `mergeCandidates` keys on label alone, so anything above 1 here would let a
@@ -397,7 +419,7 @@ function classCandidates(query: string): CompletionCandidate[] {
       kind: 'class',
       detail: 'document class',
       // Everything here is already a prefix match, so the kernel classes need a
-      // strictly higher boost to stay on top ? `article` outranking the 27
+      // strictly higher boost to stay on top — `article` outranking the 27
       // `class-a*` files the moment the user types `a` is the whole point.
       boost: KERNEL_CLASSES.includes(cls) ? 20 : 0,
     });

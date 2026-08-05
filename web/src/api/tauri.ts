@@ -273,6 +273,35 @@ export interface SyncTexEdit {
   inputFile: string;
 }
 
+/** One parameter of a builtin Typst function. Mirrors `ParamSig` in `src/typst_sig.rs`. */
+export interface TypstParamSig {
+  name: string;
+  /** Rendered type, e.g. `none | content`. Empty when the type is unconstrained. */
+  typeName: string;
+  /** First sentence of the upstream docs. */
+  docs: string;
+  required: boolean;
+  positional: boolean;
+  named: boolean;
+  variadic: boolean;
+  settable: boolean;
+}
+
+/** A builtin Typst function. Mirrors `FuncSig` in `src/typst_sig.rs`. */
+export interface TypstFuncSig {
+  /** Call name as written in a document, e.g. `figure` or `calc.pow`. */
+  name: string;
+  title: string;
+  returns: string;
+  /**
+   * Reachable only inside `$...$`. ~40 names (`frac`, `vec`, `binom`, `sqrt`)
+   * live in typst's math scope and nowhere else, so offering them in markup
+   * would suggest code that does not compile.
+   */
+  mathOnly: boolean;
+  params: TypstParamSig[];
+}
+
 export interface DistroInfo {
   name: string;
   manager: string;
@@ -333,6 +362,12 @@ export const ipc = {
   compileTypstPdf: (source: string, docPath?: string | null) =>
     invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath }),
   listTypstFonts: () => invoke<string[]>('list_typst_fonts'),
+  // Builtin function signatures for the parameter tooltip. Fetched once and
+  // cached client-side: the tooltip refreshes on every cursor move, and the data
+  // is a compile-time constant in the typst binary, so there is nothing to
+  // invalidate. ~240 KiB for 391 functions.
+  listTypstSignatures: () =>
+    invoke<TypstFuncSig[]>('list_typst_signatures'),
 
   // --- Filesystem ---
   scanFolderShallow: (root: string) => invoke<TreeNode>('scan_folder_shallow', { root }),

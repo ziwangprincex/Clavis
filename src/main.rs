@@ -7,6 +7,7 @@ mod bib;
 mod cwl;
 mod latex;
 mod settings;
+mod typst_sig;
 mod typst_world;
 
 use base64::Engine as _;
@@ -309,6 +310,7 @@ fn main() {
             compile_typst,
             compile_typst_pdf,
             list_typst_fonts,
+            typst_sig::list_typst_signatures,
             scan_folder,
             scan_folder_shallow,
             save_binary_file,

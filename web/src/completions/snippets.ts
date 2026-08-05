@@ -15,6 +15,14 @@ export interface SnippetEntry {
   l: string;
   t: string;
   d: string;
+  /**
+   * Typst only: valid inside `$...$` and nowhere else.
+   *
+   * Typst math is a separate scope with its own syntax — `frac(a, b)` and the
+   * greek names below exist only there, and they take no `#`. Without this flag
+   * the markup completion would offer `#alpha`, which does not compile.
+   */
+  math?: true;
 }
 
 /**
@@ -128,23 +136,23 @@ export const TYPST_COMPLETIONS: SnippetEntry[] = [
   { l: 'cmyk', t: 'cmyk($10%, $20%, $30%, $4100%)', d: 'cmyk color' },
   { l: 'luma', t: 'luma($150%)', d: 'grayscale' },
   // math
-  { l: 'sum', t: 'sum_($1i=1)^($2n) $3', d: 'sum' },
-  { l: 'prod', t: 'prod_($1i=1)^($2n) $3', d: 'product' },
-  { l: 'integral', t: 'integral_($10)^($21) $3', d: 'integral' },
-  { l: 'frac', t: 'frac($1a, $2b)', d: 'fraction' },
-  { l: 'sqrt', t: 'sqrt($1)', d: 'sqrt' },
-  { l: 'root', t: 'root($1n, $2x)', d: 'nth root' },
-  { l: 'vec', t: 'vec($1)', d: 'vector' },
-  { l: 'mat', t: 'mat($1)', d: 'matrix' },
-  { l: 'cases', t: 'cases($1)', d: 'cases' },
-  { l: 'binom', t: 'binom($1n, $2k)', d: 'binomial' },
-  { l: 'abs', t: 'abs($1)', d: 'abs' },
-  { l: 'norm', t: 'norm($1)', d: 'norm' },
+  { l: 'sum', t: 'sum_($1i=1)^($2n) $3', d: 'sum', math: true },
+  { l: 'prod', t: 'prod_($1i=1)^($2n) $3', d: 'product', math: true },
+  { l: 'integral', t: 'integral_($10)^($21) $3', d: 'integral', math: true },
+  { l: 'frac', t: 'frac($1a, $2b)', d: 'fraction', math: true },
+  { l: 'sqrt', t: 'sqrt($1)', d: 'sqrt', math: true },
+  { l: 'root', t: 'root($1n, $2x)', d: 'nth root', math: true },
+  { l: 'vec', t: 'vec($1)', d: 'vector', math: true },
+  { l: 'mat', t: 'mat($1)', d: 'matrix', math: true },
+  { l: 'cases', t: 'cases($1)', d: 'cases', math: true },
+  { l: 'binom', t: 'binom($1n, $2k)', d: 'binomial', math: true },
+  { l: 'abs', t: 'abs($1)', d: 'abs', math: true },
+  { l: 'norm', t: 'norm($1)', d: 'norm', math: true },
   // greek for math
   ...[
     'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lambda',
     'mu', 'nu', 'xi', 'pi', 'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega',
-  ].map(s => ({ l: s, t: s + ' ', d: 'greek (math)' })),
+  ].map(s => ({ l: s, t: s + ' ', d: 'greek (math)', math: true as const })),
 ];
 
 export const MARKDOWN_COMPLETIONS: SnippetEntry[] = [
