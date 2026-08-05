@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -8,6 +8,8 @@ import { StatusBar } from './components/StatusBar';
 import { CommandPalette } from './components/CommandPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { LogPanel } from './components/LogPanel';
+import { TaskPanel } from './components/TaskPanel';
+import { ProjectDoctorDialog } from './components/ProjectDoctorDialog';
 import { Tabs } from './components/Tabs';
 import { Sidebar } from './components/Sidebar';
 import { OutlineSection } from './components/OutlineSection';
@@ -57,9 +59,13 @@ export function App() {
   const addTab = useTabsStore(s => s.addTab);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const lang: Lang = activeTab?.lang ?? 'markdown';
+  const workspaceInspection = useProjectStore(s => s.workspace);
+  const taskStatus = useTaskStore(s => s.status);
+  const taskPanelOpen = taskStatus !== 'idle';
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [doctorOpen, setDoctorOpen] = useState(false);
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
@@ -138,6 +144,14 @@ export function App() {
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
+    if (useTaskStore.getState().status === 'running') {
+      const stop = await dialogConfirm(
+        'A project task is still running. Stop it before opening another workspace?',
+        { title: 'Stop running task?' },
+      );
+      if (!stop) return;
+      await useTaskStore.getState().cancel();
+    }
     const openSeq = ++workspaceOpenSeqRef.current;
     setWorkspaceFolder(path);
     useProjectStore.getState().setProject({ workspace: null });
@@ -167,6 +181,20 @@ export function App() {
       console.warn('workspace inspection failed', error);
       setStatus('Workspace opened; project config could not be inspected', 'error');
     }
+  }
+
+  async function closeWorkspaceFolder() {
+    if (useTaskStore.getState().status === 'running') {
+      const stop = await dialogConfirm(
+        'A project task is still running. Stop it and close the workspace?',
+        { title: 'Stop running task?' },
+      );
+      if (!stop) return;
+      await useTaskStore.getState().cancel();
+    }
+    workspaceOpenSeqRef.current += 1;
+    setWorkspaceFolder(null);
+    useProjectStore.getState().setProject({ workspace: null });
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -346,17 +374,42 @@ export function App() {
         id: 'workspace.closeFolder',
         name: 'Close folder',
         when: () => workspaceFolder !== null,
-        run: () => {
-          workspaceOpenSeqRef.current += 1;
-          setWorkspaceFolder(null);
-          useProjectStore.getState().setProject({ workspace: null });
-        },
+        run: () => closeWorkspaceFolder(),
       }),
       reg({
         id: 'workspace.refreshFolder',
         name: 'Refresh folder',
         when: () => workspaceFolder !== null,
         run: () => setFolderRefreshKey(k => k + 1),
+      }),
+      ...Object.keys(workspaceInspection?.config?.tasks ?? {}).map(task =>
+        reg({
+          id: `task.run.${task}`,
+          name: `Run project task: ${task}`,
+          when: () => {
+            const workspace = useProjectStore.getState().workspace;
+            return workspace?.trust === 'trusted' && useTaskStore.getState().status !== 'running';
+          },
+          run: async () => {
+            try {
+              await useTaskStore.getState().start(task);
+            } catch (error) {
+              setStatus(String(error), 'error');
+            }
+          },
+        }),
+      ),
+      reg({
+        id: 'task.cancel',
+        name: 'Stop running project task',
+        when: () => useTaskStore.getState().status === 'running',
+        run: () => useTaskStore.getState().cancel(),
+      }),
+      reg({
+        id: 'workspace.doctor',
+        name: 'Run Project Doctor',
+        when: () => useProjectStore.getState().workspace !== null,
+        run: () => setDoctorOpen(true),
       }),
       reg({ id: 'app.settings', name: 'Open settings', run: () => setSettingsOpen(true) }),
       reg({ id: 'app.checkUpdates', name: 'Check for Updates…', run: () => checkForUpdates({ silent: false }) }),
@@ -422,7 +475,7 @@ export function App() {
     ];
     return () => offs.forEach(off => off());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceFolder, activeTab?.id, lang]);
+  }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus]);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -500,11 +553,7 @@ export function App() {
             <FolderTreeSection
               rootPath={workspaceFolder}
               onOpenFolder={openFolder}
-              onCloseFolder={() => {
-                workspaceOpenSeqRef.current += 1;
-                setWorkspaceFolder(null);
-                useProjectStore.getState().setProject({ workspace: null });
-              }}
+              onCloseFolder={() => { void closeWorkspaceFolder(); }}
               onRefresh={() => setFolderRefreshKey(k => k + 1)}
               onFileActivate={path => void openFileByPath(path)}
               refreshKey={folderRefreshKey}
@@ -577,7 +626,7 @@ export function App() {
               </Suspense>
             </div>
           </div>
-          {lang === 'latex' && settings.problems_panel_open && (
+          {(taskPanelOpen || (lang === 'latex' && settings.problems_panel_open)) && (
             <>
               <Splitter
                 orientation="vertical"
@@ -589,16 +638,20 @@ export function App() {
                 className={styles.logArea}
                 style={logHeight ? { height: `${logHeight}px` } : undefined}
               >
-                <LogPanel
-                  onJumpTo={(file, line) => {
-                    const project = useProjectStore.getState();
-                    const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
-                    void openFileAndScrollToLine(absPath, line, l =>
-                      editorApiRef.current?.scrollToLine(l),
-                    );
-                  }}
-                  onInstallPackage={pkg => void installPackage(pkg)}
-                />
+                {taskPanelOpen ? (
+                  <TaskPanel />
+                ) : (
+                  <LogPanel
+                    onJumpTo={(file, line) => {
+                      const project = useProjectStore.getState();
+                      const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
+                      void openFileAndScrollToLine(absPath, line, l =>
+                        editorApiRef.current?.scrollToLine(l),
+                      );
+                    }}
+                    onInstallPackage={pkg => void installPackage(pkg)}
+                  />
+                )}
               </div>
             </>
           )}
@@ -613,6 +666,11 @@ export function App() {
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ProjectDoctorDialog
+        open={doctorOpen}
+        workspace={workspaceInspection}
+        onClose={() => setDoctorOpen(false)}
+      />
       <SymbolsPanel
         open={symbolsOpen}
         lang={lang}

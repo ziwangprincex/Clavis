@@ -69,8 +69,27 @@ args = ["-xelatex", "paper/main.tex"]
 depends_on = ["tables"]
 ```
 
-Task execution is being introduced separately; the current project-model layer
-loads, validates, and records trust without launching these commands.
+Trusted tasks appear in the command palette as **Run project task: _name_**.
+Dependencies run once in order, stdout/stderr stream into a task panel, and the
+running process tree can be stopped. Commands are launched directly with an
+argument vector, never through a shell. Optional task fields include:
+
+```toml
+[tasks.paper]
+command = "quarto"
+args = ["render", "paper.qmd"]
+cwd = "."
+timeout_seconds = 900
+depends_on = ["tables"]
+
+[tasks.paper.env]
+PAPER_PROFILE = "anonymous"
+```
+
+Use **Run Project Doctor** from the command palette to check `clavis.toml`, the
+main document, task working directories, trust, and whether task commands are
+available. Clavis re-reads both configuration and trust immediately before every
+run, so changing a project after it was opened cannot bypass validation.
 
 ## Build from source
 

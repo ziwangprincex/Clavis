@@ -6,3 +6,4 @@ export * from './compile';
 export * from './pdf';
 export * from './commands';
 export * from './status';
+export * from './tasks';

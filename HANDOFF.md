@@ -6,6 +6,58 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (trusted Project Tasks, streaming output, cancellation, and Project Doctor)
+
+The first executable research-workflow slice is complete. Tasks declared in
+`clavis.toml` now appear in the command palette for trusted workspaces and can
+run dependency graphs for R/Python/Quarto/latexmk or any installed CLI.
+
+### Execution model and safety
+
+- New deep Rust module `src/tasks.rs`: dependency planning, one active run,
+  direct argv process launch (**no shell**), confined/canonicalized `cwd`, env,
+  per-step timeout (default 15 minutes, configurable 1?3600 seconds), streamed
+  stdout/stderr events, process-tree cancellation, and bounded output draining.
+- Configuration and trust are re-read immediately before every run, closing the
+  open-workspace/start-task TOCTOU gap. Backend state atomically rejects a second
+  concurrent run even if two frontend requests race.
+- macOS/Linux GUI PATH enrichment is shared by Doctor and execution so Finder-
+  launched apps can find Homebrew CLIs; workspace-relative executables are also
+  supported.
+- Switching or closing a workspace while a task runs requires confirmation and
+  cancellation. App shutdown cancels all tracked task runs.
+
+### Frontend and Doctor
+
+- New task store subscribes before the start IPC (so immediate output cannot be
+  missed), filters events by run ID, caps output at 10,000 lines, exposes Stop,
+  and reports dependency order/current step/final status in `TaskPanel`.
+- Every configured task registers a `Run project task: <name>` command.
+- `Run Project Doctor` checks config validity, main-document existence, trust,
+  command availability, and task working directories in a dedicated dialog.
+- Domain language for Project Task, Task Run and Workspace Trust is recorded in
+  `CONTEXT.md`; README documents execution and optional fields.
+
+### Review findings fixed before commit
+
+1. Task commands initially did not subscribe to async workspace inspection, so
+   they could remain absent until an unrelated re-render.
+2. Closing/switching a workspace could orphan its running process.
+3. Frontend single-run checks were insufficient: two IPC starts could race; the
+   backend now reserves the active slot atomically.
+4. Child descendants can inherit stdout pipes after the parent exits; drain now
+   has a 2-second bound and aborts stuck readers.
+5. Doctor and runtime originally used different PATH semantics on macOS.
+6. A frontend listener test initially cleared process-lifetime listeners between
+   cases; the fixture was corrected to model the real app lifecycle.
+
+**Verified:** 41 Rust + 358 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Real-window
+verification remains advisable for cancellation of R/Quarto child processes and
+the native Workspace Trust dialog.
+
+---
+
 ## 0. Update - 2026-08-05 (project configuration and Workspace Trust foundation)
 
 The first research-workspace infrastructure slice is implemented. An optional

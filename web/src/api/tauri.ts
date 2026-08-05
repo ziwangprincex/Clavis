@@ -295,6 +295,7 @@ export interface ProjectTaskConfig {
   args: string[];
   cwd?: string | null;
   env: Record<string, string>;
+  timeoutSeconds?: number | null;
   dependsOn: string[];
 }
 
@@ -317,6 +318,54 @@ export interface WorkspaceInspection {
 export interface WorkspaceTrust {
   root: string;
   trust: 'untrusted' | 'trusted';
+}
+
+export interface ProjectDoctorCheck {
+  id: string;
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+}
+
+export interface ProjectDoctorReport {
+  root: string;
+  ok: boolean;
+  checks: ProjectDoctorCheck[];
+}
+
+export interface TaskRunStarted {
+  runId: string;
+  requestedTask: string;
+  plan: string[];
+}
+
+export interface TaskStepStarted {
+  runId: string;
+  task: string;
+  command: string;
+}
+
+export interface TaskOutput {
+  runId: string;
+  task: string;
+  stream: 'stdout' | 'stderr';
+  text: string;
+}
+
+export interface TaskStepFinished {
+  runId: string;
+  task: string;
+  ok: boolean;
+  exitCode?: number | null;
+  reason?: string | null;
+}
+
+export interface TaskRunFinished {
+  runId: string;
+  requestedTask: string;
+  ok: boolean;
+  cancelled: boolean;
+  failedTask?: string | null;
+  reason?: string | null;
 }
 
 export interface TypstFuncSig {
@@ -362,6 +411,13 @@ export const ipc = {
     invoke<WorkspaceInspection>('inspect_workspace', { root }),
   setWorkspaceTrust: (root: string, trusted: boolean) =>
     invoke<WorkspaceTrust>('set_workspace_trust', { root, trusted }),
+  doctorWorkspace: (root: string) =>
+    invoke<ProjectDoctorReport>('doctor_workspace', { root }),
+
+  startProjectTask: (root: string, task: string) =>
+    invoke<TaskRunStarted>('start_project_task', { root, task }),
+  cancelProjectTask: (runId: string) =>
+    invoke<boolean>('cancel_project_task', { runId }),
 
   // --- LaTeX ---
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),
@@ -432,4 +488,14 @@ export const events = {
     listen<LatexLogPayload>('latex-log', handler),
   onLatexRunStart: (handler: (p: LatexRunStartPayload) => void) =>
     listen<LatexRunStartPayload>('latex-run-start', handler),
+  onTaskRunStarted: (handler: (p: TaskRunStarted) => void) =>
+    listen<TaskRunStarted>('task-run-started', handler),
+  onTaskStepStarted: (handler: (p: TaskStepStarted) => void) =>
+    listen<TaskStepStarted>('task-step-started', handler),
+  onTaskOutput: (handler: (p: TaskOutput) => void) =>
+    listen<TaskOutput>('task-output', handler),
+  onTaskStepFinished: (handler: (p: TaskStepFinished) => void) =>
+    listen<TaskStepFinished>('task-step-finished', handler),
+  onTaskRunFinished: (handler: (p: TaskRunFinished) => void) =>
+    listen<TaskRunFinished>('task-run-finished', handler),
 };

@@ -8,6 +8,7 @@ mod cwl;
 mod latex;
 mod project_config;
 mod settings;
+mod tasks;
 mod typst_sig;
 mod typst_world;
 
@@ -280,6 +281,7 @@ fn main() {
 
     let state = Arc::new(AppState::default());
     let latex_state = latex::LatexState::default();
+    let task_state = Arc::new(tasks::TaskState::default());
 
     // macOS gets the standard system menu (provides ⌘Q, ⌘W, ⌘M, ⌘H, Edit menu
     // with Cut/Copy/Paste/Undo bindings, etc.). Other platforms use no menu —
@@ -293,6 +295,7 @@ fn main() {
         .menu(menu)
         .manage(state)
         .manage(latex_state)
+        .manage(task_state)
         .setup(|app| {
             #[cfg(windows)]
             if let Some(window) = app.get_window("main") {
@@ -332,6 +335,9 @@ fn main() {
             cwl::list_cwl_packages,
             project_config::inspect_workspace,
             project_config::set_workspace_trust,
+            project_config::doctor_workspace,
+            tasks::start_project_task,
+            tasks::cancel_project_task,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,
@@ -343,6 +349,9 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event.event() {
                 if let Some(s) = event.window().try_state::<latex::LatexState>() {
                     s.clear();
+                }
+                if let Some(s) = event.window().try_state::<Arc<tasks::TaskState>>() {
+                    s.cancel_all();
                 }
             }
         })

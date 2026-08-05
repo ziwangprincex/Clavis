@@ -27,3 +27,19 @@ _Avoid_: Current file, selected tab
 **Scratch Document**:
 A Document without a file path whose content exists only in the Workspace and Session Snapshot.
 _Avoid_: Untitled file, temporary file
+
+**Project Task**:
+A named, repository-configured command with arguments, environment, working
+directory, timeout, and optional dependencies. It may execute only while its
+Workspace root is explicitly trusted.
+_Avoid_: Shell command, script
+
+**Task Run**:
+One dependency-ordered execution of a requested Project Task, including streamed
+output, cancellation, and final status.
+_Avoid_: Build, terminal session
+
+**Workspace Trust**:
+A user-owned permission, stored outside the Project, allowing Project Tasks at a
+canonical Workspace root to execute. A Project cannot grant itself trust.
+_Avoid_: Project setting, allowlist flag

@@ -46,6 +46,8 @@ pub struct TaskConfig {
     pub cwd: Option<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    #[serde(default, alias = "timeout_seconds")]
+    pub timeout_seconds: Option<u64>,
     #[serde(default, alias = "depends_on")]
     pub depends_on: Vec<String>,
 }
@@ -78,6 +80,22 @@ pub struct WorkspaceInspection {
 pub struct WorkspaceTrust {
     pub root: String,
     pub trust: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDoctorCheck {
+    pub id: String,
+    pub status: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDoctorReport {
+    pub root: String,
+    pub ok: bool,
+    pub checks: Vec<ProjectDoctorCheck>,
 }
 
 fn canonical_workspace(root: &str) -> Result<PathBuf, String> {
@@ -115,6 +133,11 @@ fn validate_config(config: &ProjectConfig) -> Vec<String> {
         }
         if task.command.trim().is_empty() {
             issues.push(format!("tasks.{name}.command must not be empty"));
+        }
+        if matches!(task.timeout_seconds, Some(0 | 3601..)) {
+            issues.push(format!(
+                "tasks.{name}.timeoutSeconds must be between 1 and 3600"
+            ));
         }
         if let Some(cwd) = task.cwd.as_deref() {
             if cwd.trim().is_empty() || contains_parent_or_absolute(cwd) {
@@ -252,6 +275,134 @@ fn inspect_with_trust(root: PathBuf, trusted: &BTreeSet<String>) -> WorkspaceIns
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct ExecutableWorkspace {
+    pub root: PathBuf,
+    pub config: ProjectConfig,
+}
+
+/// Re-read configuration and trust immediately before execution. This closes the
+/// time-of-check/time-of-use gap between opening a folder and starting a task.
+pub(crate) fn executable_workspace(root: &str) -> Result<ExecutableWorkspace, String> {
+    let root = canonical_workspace(root)?;
+    let inspection = inspect_with_trust(root.clone(), &read_trusted_roots());
+    if !inspection.issues.is_empty() {
+        return Err(format!(
+            "invalid project configuration: {}",
+            inspection.issues.join("; ")
+        ));
+    }
+    if inspection.trust != "trusted" {
+        return Err("workspace is not trusted for task execution".to_string());
+    }
+    let config = inspection
+        .config
+        .ok_or_else(|| "workspace has no clavis.toml".to_string())?;
+    Ok(ExecutableWorkspace { root, config })
+}
+
+fn command_available(root: &Path, command: &str) -> bool {
+    crate::tasks::resolve_program(root, command).is_ok()
+}
+
+#[tauri::command]
+pub fn doctor_workspace(root: String) -> Result<ProjectDoctorReport, String> {
+    let root = canonical_workspace(&root)?;
+    let inspection = inspect_with_trust(root.clone(), &read_trusted_roots());
+    let mut checks = Vec::new();
+    if inspection.config_path.is_none() {
+        checks.push(ProjectDoctorCheck {
+            id: "config".to_string(),
+            status: "warning".to_string(),
+            message: "No clavis.toml; project tasks and shared metadata are unavailable"
+                .to_string(),
+        });
+    } else if inspection.issues.is_empty() {
+        checks.push(ProjectDoctorCheck {
+            id: "config".to_string(),
+            status: "ok".to_string(),
+            message: "clavis.toml is valid".to_string(),
+        });
+    } else {
+        for issue in &inspection.issues {
+            checks.push(ProjectDoctorCheck {
+                id: "config".to_string(),
+                status: "error".to_string(),
+                message: issue.clone(),
+            });
+        }
+    }
+
+    if let Some(config) = inspection.config.as_ref() {
+        if let Some(main) = config.project.main.as_deref() {
+            let exists = root.join(main).is_file();
+            checks.push(ProjectDoctorCheck {
+                id: "main".to_string(),
+                status: if exists { "ok" } else { "error" }.to_string(),
+                message: if exists {
+                    format!("Main document found: {main}")
+                } else {
+                    format!("Main document is missing: {main}")
+                },
+            });
+        }
+        if !config.tasks.is_empty() {
+            checks.push(ProjectDoctorCheck {
+                id: "trust".to_string(),
+                status: if inspection.trust == "trusted" {
+                    "ok"
+                } else {
+                    "warning"
+                }
+                .to_string(),
+                message: if inspection.trust == "trusted" {
+                    "Workspace is trusted for task execution".to_string()
+                } else {
+                    "Workspace tasks are disabled until the workspace is trusted".to_string()
+                },
+            });
+        }
+        for (name, task) in &config.tasks {
+            let available = command_available(&root, &task.command);
+            checks.push(ProjectDoctorCheck {
+                id: format!("task-command:{name}"),
+                status: if available { "ok" } else { "error" }.to_string(),
+                message: if available {
+                    format!("Task {name}: command found ({})", task.command)
+                } else {
+                    format!("Task {name}: command not found ({})", task.command)
+                },
+            });
+            if let Some(cwd) = task.cwd.as_deref() {
+                let valid = confined_relative_dir_for_doctor(&root, cwd);
+                checks.push(ProjectDoctorCheck {
+                    id: format!("task-cwd:{name}"),
+                    status: if valid { "ok" } else { "error" }.to_string(),
+                    message: if valid {
+                        format!("Task {name}: working directory found ({cwd})")
+                    } else {
+                        format!("Task {name}: working directory is missing or outside the workspace ({cwd})")
+                    },
+                });
+            }
+        }
+    }
+    let ok = !checks.iter().any(|check| check.status == "error");
+    Ok(ProjectDoctorReport {
+        root: portable_path(&root),
+        ok,
+        checks,
+    })
+}
+
+fn confined_relative_dir_for_doctor(root: &Path, relative: &str) -> bool {
+    if contains_parent_or_absolute(relative) {
+        return false;
+    }
+    std::fs::canonicalize(root.join(relative))
+        .is_ok_and(|path| path.is_dir() && path.starts_with(root))
+}
+
 #[tauri::command]
 pub fn inspect_workspace(root: String) -> Result<WorkspaceInspection, String> {
     let root = canonical_workspace(&root)?;
@@ -380,6 +531,35 @@ depends_on = ["a"]
             false,
         );
         assert!(cycle.issues.iter().any(|x| x.contains("cycle")));
+    }
+
+    #[test]
+    fn doctor_reports_missing_main_and_command() {
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(CONFIG_NAME),
+            r#"[project]
+main = "paper/main.tex"
+[tasks.paper]
+command = "definitely-not-a-real-clavis-command"
+"#,
+        )
+        .unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let inspection = inspect_with_trust(root.clone(), &BTreeSet::new());
+        let config = inspection.config.unwrap();
+        assert!(!root.join(config.project.main.unwrap()).is_file());
+        assert!(!command_available(&root, &config.tasks["paper"].command));
+    }
+
+    #[test]
+    fn doctor_confines_task_working_directories() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("scripts")).unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        assert!(confined_relative_dir_for_doctor(&root, "scripts"));
+        assert!(!confined_relative_dir_for_doctor(&root, "../outside"));
+        assert!(!confined_relative_dir_for_doctor(&root, "missing"));
     }
 
     #[test]
