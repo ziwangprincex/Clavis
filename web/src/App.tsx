@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -19,6 +19,7 @@ import { FilesSection } from './components/FilesSection';
 import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
 import { ArtifactsSection } from './components/ArtifactsSection';
+import { AssetsSection } from './components/AssetsSection';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
@@ -162,6 +163,11 @@ export function App() {
     void useArtifactsStore.getState().refresh(root);
   }
 
+  function refreshAssets(root = workspaceFolder) {
+    if (!root || !hasTauri()) return;
+    void useAssetsStore.getState().refresh(root, useTabsStore.getState().tabs);
+  }
+
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
@@ -194,6 +200,7 @@ export function App() {
       if (openSeq !== workspaceOpenSeqRef.current) return;
       useProjectStore.getState().setProject({ workspace });
       refreshReferences(workspace.root);
+      refreshAssets(workspace.root);
       if (workspace.config) refreshArtifacts(workspace.root);
       else useArtifactsStore.getState().clear();
       if (workspace.issues.length > 0) {
@@ -221,6 +228,7 @@ export function App() {
     useProjectStore.getState().setProject({ workspace: null });
     useReferencesStore.getState().clear();
     useArtifactsStore.getState().clear();
+    useAssetsStore.getState().clear();
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -486,6 +494,12 @@ export function App() {
         run: () => setRenameReferenceOpen(true),
       }),
       reg({
+        id: 'workspace.assets.refresh',
+        name: 'Refresh Asset Index',
+        when: () => workspaceFolder !== null,
+        run: () => refreshAssets(),
+      }),
+      reg({
         id: 'workspace.artifacts.refresh',
         name: 'Refresh Generated Artifacts',
         when: () => workspaceFolder !== null,
@@ -697,6 +711,15 @@ export function App() {
               onRunTask={task => {
                 void useTaskStore.getState().start(task).catch(error => setStatus(String(error), 'error'));
               }}
+            />
+          ) : null}
+          assets={workspaceFolder ? (
+            <AssetsSection
+              root={workspaceFolder}
+              onRefresh={() => refreshAssets()}
+              onActivate={(path, line) =>
+                void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))
+              }
             />
           ) : null}
           references={workspaceFolder ? (

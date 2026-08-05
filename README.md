@@ -91,6 +91,14 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Asset references
+
+The Assets sidebar inventories local research assets and traces explicit image
+references from LaTeX `\includegraphics`, Typst `#image("...")`, and
+Markdown/Quarto image syntax. It reports missing references and unused local
+assets, opens an asset, and jumps to a usage. Dynamic paths, remote URLs, and
+code/verbatim examples are intentionally excluded.
+
 ## CSV / TSV table conversion
 
 Use **Convert CSV / TSV to Table** from the command palette to paste a delimited

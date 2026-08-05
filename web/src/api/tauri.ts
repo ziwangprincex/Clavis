@@ -410,6 +410,41 @@ export interface ProjectDoctorReport {
   checks: ProjectDoctorCheck[];
 }
 
+export interface AssetUsage {
+  assetPath: string;
+  relativeAssetPath: string;
+  sourcePath: string;
+  relativeSourcePath: string;
+  language: 'latex' | 'typst' | 'markdown';
+  line: number;
+  column: number;
+  rawPath: string;
+}
+
+export interface WorkspaceAsset {
+  path: string;
+  relativePath: string;
+  extension: string;
+  sizeBytes: number;
+  usages: AssetUsage[];
+}
+
+export interface AssetDiagnostic {
+  code: 'missing-asset' | 'unused-asset';
+  severity: 'error' | 'warning';
+  message: string;
+  path?: string | null;
+  line?: number | null;
+}
+
+export interface AssetIndexResult {
+  assets: WorkspaceAsset[];
+  missingUsages: AssetUsage[];
+  diagnostics: AssetDiagnostic[];
+  scannedFiles: number;
+  truncated: boolean;
+}
+
 export interface ArtifactSourceStatus {
   relativePath: string;
   path: string;
@@ -536,6 +571,8 @@ export const ipc = {
     invoke<ArtifactStatus[]>('inspect_artifacts', { root }),
   openArtifactPath: (root: string, path: string) =>
     invoke<void>('open_artifact_path', { root, path }),
+  indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
+    invoke<AssetIndexResult>('index_assets', { options }),
 
   startProjectTask: (root: string, task: string) =>
     invoke<TaskRunStarted>('start_project_task', { root, task }),

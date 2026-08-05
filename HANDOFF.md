@@ -6,6 +6,43 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (cross-language asset references and diagnostics)
+
+A bounded asset-relationship slice is complete. The new Assets sidebar indexes
+local image/PDF-like assets and their explicit usages across LaTeX, Typst, and
+Markdown/Quarto.
+
+- New `src/assets.rs`: scans local PNG/JPEG/SVG/PDF/EPS/GIF/WebP/TIFF assets and
+  source Documents with bounded 10,000-node / 2 MiB source-file limits, no
+  symlink following, and Workspace canonical containment.
+- Usage recognition: LaTeX `\includegraphics` (including extensionless paths),
+  Typst static `#image("...")`, and Markdown/Quarto `![...](...)`. Remote/data
+  URLs and dynamic/escaped Typst paths are intentionally not guessed.
+- Diagnostics: missing asset usage (error) and unused local asset (warning).
+  Missing/unused conclusions are not overclaimed when scan truncates.
+- Code examples are excluded: LaTeX comments/verbatim/lstlisting/minted and
+  Markdown inline/fenced code do not create fake missing assets.
+- Assets panel can refresh, open a local asset with the OS handler, or jump from
+  a usage/diagnostic back to its source.
+
+### Review findings fixed
+
+1. First `cargo test assets` passed zero tests because the module had not been
+   registered; registration exposed fixture and Typst AST argument-shape bugs.
+2. Test overrides must reference real Workspace paths; the index intentionally
+   does not index ghost/scratch paths as saved Workspace Documents.
+3. Typst `#image` has direct `Str` argument nodes in 0.11, unlike wrapped forms
+   seen elsewhere; both safe forms are handled.
+4. Markdown masking was constructed but accidentally unused; code-block false
+   positives caught it.
+
+**Verified:** 76 Rust + 374 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. This slice does
+not include thumbnails, drag/drop copy, OCR, generated-image provenance, or
+automatic path rewriting; those remain separate follow-ups.
+
+---
+
 ## 0. Update - 2026-08-05 (CSV/TSV to Markdown, LaTeX booktabs, and Typst table)
 
 A small, self-contained table-conversion slice is complete. Command palette:
