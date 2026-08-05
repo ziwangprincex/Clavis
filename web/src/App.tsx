@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -18,6 +18,7 @@ import { FolderTreeSection } from './components/FolderTreeSection';
 import { FilesSection } from './components/FilesSection';
 import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
+import { ArtifactsSection } from './components/ArtifactsSection';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
@@ -154,6 +155,11 @@ export function App() {
     void useReferencesStore.getState().refresh(root, useTabsStore.getState().tabs);
   }
 
+  function refreshArtifacts(root = workspaceFolder) {
+    if (!root || !hasTauri()) return;
+    void useArtifactsStore.getState().refresh(root);
+  }
+
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
@@ -186,6 +192,8 @@ export function App() {
       if (openSeq !== workspaceOpenSeqRef.current) return;
       useProjectStore.getState().setProject({ workspace });
       refreshReferences(workspace.root);
+      if (workspace.config) refreshArtifacts(workspace.root);
+      else useArtifactsStore.getState().clear();
       if (workspace.issues.length > 0) {
         setStatus(`Project config: ${workspace.issues[0]}`, 'error');
       } else if (workspace.trust === 'untrusted') {
@@ -210,6 +218,7 @@ export function App() {
     setWorkspaceFolder(null);
     useProjectStore.getState().setProject({ workspace: null });
     useReferencesStore.getState().clear();
+    useArtifactsStore.getState().clear();
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -281,6 +290,12 @@ export function App() {
     else if (taskStatus === 'error' || taskStatus === 'cancelled') pendingRenderRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskStatus]);
+
+  useEffect(() => {
+    if (!workspaceFolder || !workspaceInspection?.config || !['ok', 'error', 'cancelled'].includes(taskStatus)) return;
+    refreshArtifacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskStatus, workspaceFolder, workspaceInspection]);
 
   async function exportLatexPdf() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
@@ -467,6 +482,12 @@ export function App() {
         name: 'Rename Label or Citation Key',
         when: () => workspaceFolder !== null,
         run: () => setRenameReferenceOpen(true),
+      }),
+      reg({
+        id: 'workspace.artifacts.refresh',
+        name: 'Refresh Generated Artifacts',
+        when: () => workspaceFolder !== null,
+        run: () => refreshArtifacts(),
       }),
       reg({
         id: 'workspace.references.refresh',
@@ -661,6 +682,15 @@ export function App() {
               <FilesSection onFileActivate={path => void openFileByPath(path)} />
             ) : null
           }
+          artifacts={workspaceFolder && workspaceInspection?.config ? (
+            <ArtifactsSection
+              root={workspaceFolder}
+              onRefresh={() => refreshArtifacts()}
+              onRunTask={task => {
+                void useTaskStore.getState().start(task).catch(error => setStatus(String(error), 'error'));
+              }}
+            />
+          ) : null}
           references={workspaceFolder ? (
             <ReferencesSection
               onRefresh={() => refreshReferences()}

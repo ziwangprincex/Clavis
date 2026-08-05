@@ -3,6 +3,7 @@
 
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
+mod artifacts;
 mod bib;
 mod cwl;
 mod document_tools;
@@ -346,6 +347,8 @@ fn main() {
             document_tools::start_document_render,
             document_tools::list_document_artifacts,
             document_tools::open_document_artifact,
+            artifacts::inspect_artifacts,
+            artifacts::open_artifact_path,
             tasks::start_project_task,
             tasks::cancel_project_task,
             workspace_search::search_workspace,

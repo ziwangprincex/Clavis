@@ -1,0 +1,11 @@
+﻿.root { min-height: 48px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; padding: 3px 7px 6px; color: var(--text-dim); font-size: 10px; }
+.toolbar button { border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
+.list { list-style: none; margin: 0; padding: 0 3px; max-height: 340px; overflow: auto; }
+.item { padding: 6px 7px; border-left: 2px solid var(--border); border-radius: 4px; margin-bottom: 3px; background: var(--panel-soft); }
+.item.missing { border-left-color: var(--error); } .item.stale { border-left-color: var(--warning); } .item.ready { border-left-color: var(--ok); }
+.heading { display: flex; align-items: center; gap: 5px; } .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); } .missing .dot { background: var(--error); } .stale .dot { background: var(--warning); } .ready .dot { background: var(--ok); }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-size: 11px; } .kind { margin-left: auto; color: var(--text-dim); font-size: 9px; text-transform: uppercase; }
+.path, .reason, .description, .sources { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; } .path { color: var(--accent); font-family: var(--font-mono); margin-top: 2px; } .reason { color: var(--text-muted); margin-top: 2px; } .description { color: var(--text-muted); margin-top: 2px; } .sources { color: var(--text-dim); margin-top: 2px; }
+.actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 4px; } .actions button { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; padding: 1px 3px; font-size: 9px; } .actions button:hover { color: var(--accent); } .actions button:disabled { opacity: .4; cursor: default; }
+.empty, .error { padding: 7px 10px; font-size: 11px; color: var(--text-muted); } .error { color: var(--error); }

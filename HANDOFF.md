@@ -6,6 +6,51 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (Generated Artifacts foundation)
+
+One bounded research-artifact slice is complete: project configuration can now
+declare generated tables, figures and documents, tie them to source files and an
+existing Project Task, and surface their freshness in the sidebar.
+
+```toml
+[artifacts.baseline_table]
+path = "paper/tables/baseline.tex"
+kind = "table"
+task = "tables"
+sources = ["scripts/tables.R", "data/derived/analysis.csv"]
+```
+
+- New `ArtifactConfig` validates relative artifact/source paths, source count
+  (max 200), and referenced task existence in the existing `clavis.toml` seam.
+- New deep backend module `src/artifacts.rs` reports `missing`, `stale`, or
+  `ready`: missing artifact; missing source; or any source newer than artifact.
+  It uses canonical containment checks, does not follow symlinks, and only opens
+  existing files inside the Workspace.
+- New Artifacts sidebar panel displays status/reason/sources and can open an
+  artifact or invoke its already-declared Task via the existing Task Run seam.
+  It refreshes on Workspace open, explicit refresh, and terminal Task state.
+- Artifact reads run in `spawn_blocking`; stale async frontend results are
+  generation-gated. Ordinary folders with no valid `clavis.toml` do not show a
+  misleading artifact error.
+
+### Review findings fixed
+
+1. Initial implementation returned a reference to a temporary source path.
+2. A PowerShell heredoc mistake aborted before frontend store files were written;
+   the retry was performed with native PowerShell writes and then checked.
+3. Adding required `artifacts` to the frontend config type broke existing test
+   fixtures; it is optional at the IPC type seam for old configs.
+4. Artifact status initially would show config-read errors for any opened folder.
+5. `rustfmt`-caused LaTeX module noise remains unstaged; only semantic files are
+   included in the eventual commit.
+
+**Verified:** 72 Rust + 369 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Status uses
+declared source timestamps only; no glob dependencies, content hashing, CSV
+conversion, image thumbnails, or artifact dependency graph were added yet.
+
+---
+
 ## 0. Update - 2026-08-05 (rich local bibliography search and multi-citation insertion)
 
 A deliberately local-only bibliography slice: no Zotero database access, Better

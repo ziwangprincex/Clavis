@@ -91,6 +91,24 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Generated artifacts
+
+Declare generated tables, figures, or other files in `clavis.toml` and connect
+them to their source files and an existing Project Task:
+
+```toml
+[artifacts.baseline_table]
+path = "paper/tables/baseline.tex"
+kind = "table"
+task = "tables"
+sources = ["scripts/tables.R", "data/derived/analysis.csv"]
+description = "Baseline regression results"
+```
+
+The Artifacts sidebar reports `missing`, `stale`, or `ready`, can open existing
+artifacts, and runs the declared task. A source missing or newer than the
+artifact marks it stale.
+
 ## Bibliography browser
 
 The Workspace Bibliography section parses local `.bib` files and supports

@@ -53,6 +53,20 @@ pub struct TaskConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactConfig {
+    pub path: String,
+    #[serde(default)]
+    pub task: Option<String>,
+    #[serde(default)]
+    pub sources: Vec<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectConfig {
     #[serde(default)]
     pub project: ProjectSection,
@@ -62,6 +76,8 @@ pub struct ProjectConfig {
     pub paths: PathsSection,
     #[serde(default)]
     pub tasks: BTreeMap<String, TaskConfig>,
+    #[serde(default)]
+    pub artifacts: BTreeMap<String, ArtifactConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -117,7 +133,7 @@ fn contains_parent_or_absolute(path: &str) -> bool {
             .any(|part| matches!(part, Component::ParentDir | Component::Prefix(_)))
 }
 
-fn validate_config(config: &ProjectConfig) -> Vec<String> {
+pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
     let mut issues = Vec::new();
     if let Some(main) = config.project.main.as_deref() {
         if main.trim().is_empty() {
@@ -150,6 +166,33 @@ fn validate_config(config: &ProjectConfig) -> Vec<String> {
             if !config.tasks.contains_key(dependency) {
                 issues.push(format!("tasks.{name} depends on unknown task {dependency}"));
             }
+        }
+    }
+
+    for (name, artifact) in &config.artifacts {
+        if name.trim().is_empty() {
+            issues.push("artifact names must not be empty".to_string());
+        }
+        if artifact.path.trim().is_empty() || contains_parent_or_absolute(&artifact.path) {
+            issues.push(format!(
+                "artifacts.{name}.path must be a relative path inside the workspace"
+            ));
+        }
+        if let Some(task) = artifact.task.as_deref() {
+            if !config.tasks.contains_key(task) {
+                issues.push(format!("artifacts.{name} references unknown task {task}"));
+            }
+        }
+        for source in &artifact.sources {
+            if source.trim().is_empty() || contains_parent_or_absolute(source) {
+                issues.push(format!(
+                    "artifacts.{name}.sources must contain relative paths inside the workspace"
+                ));
+                break;
+            }
+        }
+        if artifact.sources.len() > 200 {
+            issues.push(format!("artifacts.{name} exceeds the 200-source limit"));
         }
     }
 
@@ -237,7 +280,7 @@ fn inspect_with_trust(root: PathBuf, trusted: &BTreeSet<String>) -> WorkspaceIns
         Ok(_) => match std::fs::read_to_string(&config_path) {
             Ok(text) => match toml::from_str::<ProjectConfig>(&text) {
                 Ok(parsed) => {
-                    issues.extend(validate_config(&parsed));
+                    issues.extend(validate_project_config(&parsed));
                     Some(parsed)
                 }
                 Err(error) => {
@@ -569,6 +612,43 @@ command = "definitely-not-a-real-clavis-command"
         assert!(confined_relative_dir_for_doctor(&root, "scripts"));
         assert!(!confined_relative_dir_for_doctor(&root, "../outside"));
         assert!(!confined_relative_dir_for_doctor(&root, "missing"));
+    }
+
+    #[test]
+    fn validates_artifact_paths_tasks_and_source_limits() {
+        let invalid = inspect_at(
+            Some(
+                r#"
+[tasks.tables]
+command = "Rscript"
+[artifacts.good]
+path = "paper/tables/good.tex"
+task = "tables"
+sources = ["scripts/tables.R"]
+[artifacts.bad]
+path = "../escape.tex"
+task = "missing"
+sources = ["../secret.csv"]
+"#,
+            ),
+            false,
+        );
+        assert!(!invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("artifacts.good")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("artifacts.bad.path")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("unknown task")));
+        assert!(invalid
+            .issues
+            .iter()
+            .any(|issue| issue.contains("artifacts.bad.sources")));
     }
 
     #[test]

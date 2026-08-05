@@ -8,3 +8,4 @@ export * from './commands';
 export * from './status';
 export * from './tasks';
 export * from './references';
+export * from './artifacts';

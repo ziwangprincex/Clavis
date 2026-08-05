@@ -1,4 +1,4 @@
-// Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
+﻿// Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
 //
 // Why not @tauri-apps/api? The legacy ui/ ships with `withGlobalTauri: true`
 // (see tauri.conf.json) and uses `window.__TAURI__` directly. Sticking with
@@ -6,7 +6,7 @@
 // (still in ui-legacy/) and the React panels during the migration window.
 //
 // As panels migrate, prefer importing the named functions from this module
-// over reaching into `window.__TAURI__` directly — that way the entire IPC
+// over reaching into `window.__TAURI__` directly 鈥?that way the entire IPC
 // surface is type-checked in one place.
 
 type InvokeArgs = Record<string, unknown> | undefined;
@@ -114,7 +114,7 @@ export function relaunch(): Promise<void> {
 
 // ---------- Window controls ----------
 //
-// Only reachable when `hasTauri()` — in browser preview these throw. Callers
+// Only reachable when `hasTauri()` 鈥?in browser preview these throw. Callers
 // (TitleBar) MUST guard with hasTauri(); an unguarded throw inside a React
 // effect black-screens the whole app (previously bit us via getAppVersion in
 // SettingsDialog, see HANDOFF gotchas).
@@ -168,7 +168,7 @@ export function dialogMessage(message: string, opts?: { title?: string }): Promi
 // These route through Rust commands (read_text_file / write_text_file /
 // path_exists) rather than Tauri's JS `fs` API. The `fs` allowlist has been
 // removed from tauri.conf.json, so the webview has no direct filesystem
-// capability — all reads/writes are auditable Rust commands. Paths still
+// capability 鈥?all reads/writes are auditable Rust commands. Paths still
 // originate from user-driven open/save dialogs.
 
 export const fs = {
@@ -180,7 +180,7 @@ export const fs = {
 
 // ---------- Domain types ----------
 //
-// Kept loose on purpose — fields are added as panels are migrated and need
+// Kept loose on purpose 鈥?fields are added as panels are migrated and need
 // the precision. The Rust side serialises with serde rename_all = "camelCase".
 
 export interface ProjectFile {
@@ -252,7 +252,7 @@ export interface TreeNode {
 
 // --- Multi-file project + SyncTeX + distro shapes (mirror the Rust structs;
 //     serde serializes them camelCase). Kept precise so the IPC boundary is
-//     type-checked — a loose `unknown` here is exactly what let the SyncTeX
+//     type-checked 鈥?a loose `unknown` here is exactly what let the SyncTeX
 //     `file` vs `inputFile` field-name bug slip through. ---
 
 export interface CollectedFile {
@@ -316,6 +316,7 @@ export interface ClavisProjectConfig {
   latex: { engine?: string | null; bibliography?: string | null };
   paths: { generated: string[]; ignored: string[] };
   tasks: Record<string, ProjectTaskConfig>;
+  artifacts?: Record<string, { path: string; task?: string | null; sources: string[]; kind?: string | null; description?: string | null }>;
 }
 
 export interface WorkspaceInspection {
@@ -407,6 +408,26 @@ export interface ProjectDoctorReport {
   root: string;
   ok: boolean;
   checks: ProjectDoctorCheck[];
+}
+
+export interface ArtifactSourceStatus {
+  relativePath: string;
+  path: string;
+  exists: boolean;
+  modifiedMillis?: number | null;
+}
+
+export interface ArtifactStatus {
+  name: string;
+  relativePath: string;
+  path: string;
+  kind: string;
+  description?: string | null;
+  task?: string | null;
+  status: 'missing' | 'stale' | 'ready';
+  reason: string;
+  modifiedMillis?: number | null;
+  sources: ArtifactSourceStatus[];
 }
 
 export interface ToolInfo {
@@ -511,6 +532,10 @@ export const ipc = {
     invoke<WorkspaceTrust>('set_workspace_trust', { root, trusted }),
   doctorWorkspace: (root: string) =>
     invoke<ProjectDoctorReport>('doctor_workspace', { root }),
+  inspectArtifacts: (root: string) =>
+    invoke<ArtifactStatus[]>('inspect_artifacts', { root }),
+  openArtifactPath: (root: string, path: string) =>
+    invoke<void>('open_artifact_path', { root, path }),
 
   startProjectTask: (root: string, task: string) =>
     invoke<TaskRunStarted>('start_project_task', { root, task }),
