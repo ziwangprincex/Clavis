@@ -91,6 +91,15 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## CSV / TSV table conversion
+
+Use **Convert CSV / TSV to Table** from the command palette to paste a delimited
+table and insert native Markdown/Quarto, LaTeX `booktabs`, or Typst `#table`
+syntax. The converter handles quoted CSV cells, tabs, ragged rows, and common
+escaping. It is intentionally a text-table converter: it does not yet infer
+numeric columns, significance stars, standard errors, or regression-table
+semantics.
+
 ## Generated artifacts
 
 Declare generated tables, figures, or other files in `clavis.toml` and connect

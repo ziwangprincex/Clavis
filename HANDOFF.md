@@ -6,6 +6,39 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (CSV/TSV to Markdown, LaTeX booktabs, and Typst table)
+
+A small, self-contained table-conversion slice is complete. Command palette:
+**Convert CSV / TSV to Table** ? paste data ? choose output ? preview ? insert
+into the active Document.
+
+- New pure `tables/delimited.ts`: bounded 1 MiB input / 500 rows / 100 columns,
+  quoted CSV cells, TSV auto-detection, CRLF, embedded quoted newlines, ragged
+  row padding, and clear unclosed-quote errors.
+- Native output: Markdown/Quarto pipe table, LaTeX `booktabs` tabular, or Typst
+  `#table` with a `table.header`. Escaping is deliberately rendered per character
+  for LaTeX, avoiding the classic bug where replacement order re-escapes the
+  newly generated `\textbackslash{}`.
+- The dialog has no file IO, no clipboard permission, no data persistence and no
+  computation beyond local conversion. It inserts text through the existing
+  editor seam.
+
+### Review findings fixed
+
+1. Initial LaTeX escape replacement order could corrupt its own generated escape
+   macro; the regression test now includes backslash and braces.
+2. Initial preview used `setState` inside `useMemo`; preview is now a pure derived
+   `{text,error}` value.
+3. Initial CSS used unscoped `header`, `footer`, and `button` selectors that could
+   affect unrelated dialogs; selectors are now module-scoped.
+4. Typst output intentionally calls `text("...")` for every cell, so numerical
+   formatting/alignment is not claimed. Regression-table semantics are deferred.
+
+**Verified:** 72 Rust + 374 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-05 (Generated Artifacts foundation)
 
 One bounded research-artifact slice is complete: project configuration can now
