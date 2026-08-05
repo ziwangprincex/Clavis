@@ -7,3 +7,4 @@ export * from './pdf';
 export * from './commands';
 export * from './status';
 export * from './tasks';
+export * from './references';

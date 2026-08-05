@@ -15,6 +15,7 @@ import { prefetchTypstSignatures } from '../completions/signatures';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
+import { citationText } from './citationText';
 
 function languageForPath(path: string): Lang {
   const ext = path.toLowerCase().split('.').at(-1);
@@ -54,7 +55,11 @@ function completionWorkspace() {
  * If the cursor is already inside a \cite{...} group, append `, key` before
  * the closing brace. Otherwise insert a brand-new \cite{key}.
  */
-function insertCiteAtCursor(ctrl: EditorController, key: string): void {
+function insertCiteAtCursor(ctrl: EditorController, key: string, language: Lang): void {
+  if (language !== 'latex') {
+    ctrl.insertAtCursor(citationText(key, language));
+    return;
+  }
   const cursor = ctrl.view.state.selection.main.from;
   const before = ctrl.docSlice(0, cursor);
   const after = ctrl.docSlice(cursor, ctrl.docLength);
@@ -153,7 +158,10 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
       focus: () => ctrl.focus(),
       insertAtCursor: (text: string) => ctrl.insertAtCursor(text),
       cursorLine: () => ctrl.cursorLine(),
-      insertCite: (key: string) => insertCiteAtCursor(ctrl, key),
+      insertCite: (key: string) => {
+        const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+        insertCiteAtCursor(ctrl, key, tab?.lang ?? 'markdown');
+      },
     });
     return () => {
       ctrl.destroy();

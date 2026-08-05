@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ipc, type BibEntry } from '../api/tauri';
-import { useProjectStore } from '../store';
+import { useProjectStore, useReferencesStore } from '../store';
 import styles from './BibSection.module.css';
 
 export interface BibSectionProps {
@@ -18,13 +18,19 @@ const MAX_VISIBLE = 200;
 
 export function BibSection({ onInsertCite, onJumpToSource }: BibSectionProps) {
   const files = useProjectStore(s => s.files);
+  const indexedOccurrences = useReferencesStore(s => s.result?.occurrences ?? []);
   const [entries, setEntries] = useState<BibEntry[]>([]);
   const [filter, setFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const bibPaths = useMemo(
-    () => files.filter(f => f.isBib).map(f => f.absPath),
-    [files],
+    () => [...new Set([
+      ...files.filter(f => f.isBib).map(f => f.absPath),
+      ...indexedOccurrences
+        .filter(item => item.language === 'bibtex' && item.role === 'definition')
+        .map(item => item.path),
+    ])],
+    [files, indexedOccurrences],
   );
   const sig = bibPaths.join('|');
 

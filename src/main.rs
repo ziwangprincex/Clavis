@@ -7,6 +7,7 @@ mod bib;
 mod cwl;
 mod latex;
 mod project_config;
+mod references;
 mod settings;
 mod tasks;
 mod typst_sig;
@@ -337,6 +338,9 @@ fn main() {
             project_config::inspect_workspace,
             project_config::set_workspace_trust,
             project_config::doctor_workspace,
+            references::index_references,
+            references::preview_reference_rename,
+            references::apply_reference_rename,
             tasks::start_project_task,
             tasks::cancel_project_task,
             workspace_search::search_workspace,

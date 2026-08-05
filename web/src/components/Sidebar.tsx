@@ -10,6 +10,7 @@ export interface SidebarProps {
   folderTree?: ReactNode;
   files?: ReactNode;
   bibliography?: ReactNode;
+  references?: ReactNode;
   /** Pixel width of the sidebar. Falls back to 260 when not specified. */
   width?: number;
 }
@@ -34,6 +35,11 @@ export function Sidebar(props: SidebarProps) {
       {props.files && (
         <SidebarSection title="Project files">
           {props.files}
+        </SidebarSection>
+      )}
+      {props.references && (
+        <SidebarSection title="References">
+          {props.references}
         </SidebarSection>
       )}
       {props.bibliography && (

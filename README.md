@@ -91,6 +91,19 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## References and citations
+
+The Workspace References section builds one index across LaTeX, Typst, BibTeX,
+and the research-oriented subset of Markdown/Quarto. It reports duplicate,
+missing, unused, unresolved, and ambiguous labels/citations; symbols expand to
+their definitions and usage locations.
+
+**Rename Label or Citation Key** previews exact indexed edits, rejects collisions,
+unsaved Documents, generated Markdown heading slugs, escaped Typst strings, and
+stale files, then updates LaTeX, Typst, Pandoc/Quarto citations, and BibTeX keys
+with staged writes and rollback. Bibliography insertion uses native syntax:
+`\cite{key}` for LaTeX, `@key` for Typst, and `[@key]` for Markdown/Quarto.
+
 ## Workspace search and replace
 
 Use `Ctrl/Cmd+Shift+F` or **Search / Replace in Workspace** from the command

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
@@ -17,6 +17,8 @@ import { OutlineSection } from './components/OutlineSection';
 import { FolderTreeSection } from './components/FolderTreeSection';
 import { FilesSection } from './components/FilesSection';
 import { BibSection } from './components/BibSection';
+import { ReferencesSection } from './components/ReferencesSection';
+import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
@@ -68,6 +70,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
   const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
+  const [renameReferenceOpen, setRenameReferenceOpen] = useState(false);
   const [symbolsOpen, setSymbolsOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
@@ -143,6 +146,11 @@ export function App() {
   // opt-in disk-autosave interval.
   useSessionPersistence(settings.autosave_enabled);
 
+  function refreshReferences(root = workspaceFolder) {
+    if (!root || !hasTauri()) return;
+    void useReferencesStore.getState().refresh(root, useTabsStore.getState().tabs);
+  }
+
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
   async function openWorkspaceFolder(path: string) {
@@ -174,6 +182,7 @@ export function App() {
       );
       if (openSeq !== workspaceOpenSeqRef.current) return;
       useProjectStore.getState().setProject({ workspace });
+      refreshReferences(workspace.root);
       if (workspace.issues.length > 0) {
         setStatus(`Project config: ${workspace.issues[0]}`, 'error');
       } else if (workspace.trust === 'untrusted') {
@@ -197,6 +206,7 @@ export function App() {
     workspaceOpenSeqRef.current += 1;
     setWorkspaceFolder(null);
     useProjectStore.getState().setProject({ workspace: null });
+    useReferencesStore.getState().clear();
   }
 
   // OS file-drop: files open, folders become the workspace.
@@ -408,6 +418,18 @@ export function App() {
         run: () => useTaskStore.getState().cancel(),
       }),
       reg({
+        id: 'workspace.references.rename',
+        name: 'Rename Label or Citation Key',
+        when: () => workspaceFolder !== null,
+        run: () => setRenameReferenceOpen(true),
+      }),
+      reg({
+        id: 'workspace.references.refresh',
+        name: 'Refresh References Index',
+        when: () => workspaceFolder !== null,
+        run: () => refreshReferences(),
+      }),
+      reg({
         id: 'workspace.search',
         name: 'Search / Replace in Workspace',
         shortcut: 'Ctrl+Shift+F',
@@ -576,7 +598,15 @@ export function App() {
               <FilesSection onFileActivate={path => void openFileByPath(path)} />
             ) : null
           }
-          bibliography={lang === 'latex' ? (
+          references={workspaceFolder ? (
+            <ReferencesSection
+              onRefresh={() => refreshReferences()}
+              onActivate={(path, line) =>
+                void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))
+              }
+            />
+          ) : null}
+          bibliography={workspaceFolder ? (
             <BibSection
               onInsertCite={key => editorApiRef.current?.insertCite(key)}
               onJumpToSource={(absPath, line) =>
@@ -704,7 +734,25 @@ export function App() {
           setFolderRefreshKey(key => key + 1);
         }}
       />
-      <SymbolsPanel
+
+      <RenameReferenceDialog
+        open={renameReferenceOpen}
+        root={workspaceFolder}
+        tabs={tabs}
+        onClose={() => setRenameReferenceOpen(false)}
+        onApplied={paths => {
+          void (async () => {
+            for (const path of paths) {
+              const open = useTabsStore.getState().tabs.find(tab => pathsEqual(tab.filePath, path));
+              if (open && !open.isDirty) {
+                const content = await fs.readTextFile(path);
+                useTabsStore.getState().patchTab(open.id, { content, isDirty: false });
+              }
+            }
+            refreshReferences();
+          })();
+        }}
+      />      <SymbolsPanel
         open={symbolsOpen}
         lang={lang}
         onClose={() => setSymbolsOpen(false)}

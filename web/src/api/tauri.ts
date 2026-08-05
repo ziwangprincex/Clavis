@@ -320,6 +320,51 @@ export interface WorkspaceTrust {
   trust: 'untrusted' | 'trusted';
 }
 
+export interface ReferenceOccurrence {
+  key: string;
+  namespace: 'label' | 'citation' | 'unresolved' | 'ambiguous';
+  role: 'definition' | 'usage';
+  language: 'latex' | 'typst' | 'markdown' | 'bibtex';
+  path: string;
+  relativePath: string;
+  line: number;
+  column: number;
+  start: number;
+  end: number;
+  fingerprint: string;
+  renameable: boolean;
+}
+
+export interface ReferenceDiagnostic {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  key: string;
+  namespace: string;
+  path?: string | null;
+  line?: number | null;
+}
+
+export interface ReferenceIndexResult {
+  occurrences: ReferenceOccurrence[];
+  diagnostics: ReferenceDiagnostic[];
+  scannedFiles: number;
+  truncated: boolean;
+}
+
+export interface RenameReferencePreview {
+  namespace: 'label' | 'citation';
+  oldKey: string;
+  newKey: string;
+  totalOccurrences: number;
+  files: Array<{ path: string; relativePath: string; language: string; occurrences: number; firstLine: number; fingerprint: string }>;
+}
+
+export interface ApplyRenameResult {
+  changedFiles: string[];
+  replacements: number;
+}
+
 export interface WorkspaceSearchMatch {
   path: string;
   relativePath: string;
@@ -442,6 +487,12 @@ export const ipc = {
     invoke<WorkspaceSearchResult>('search_workspace', { options }),
   replaceWorkspace: (options: { root: string; query: string; replacement: string; regex: boolean; caseSensitive: boolean; fingerprints: Record<string, string> }) =>
     invoke<WorkspaceReplaceResult>('replace_workspace', { options }),
+  indexReferences: (options: { root: string; documents: Array<{ path: string; language: string; text: string; isDirty: boolean }> }) =>
+    invoke<ReferenceIndexResult>('index_references', { options }),
+  previewReferenceRename: (options: { root: string; documents: Array<{ path: string; language: string; text: string; isDirty: boolean }>; namespace: 'label' | 'citation'; oldKey: string; newKey: string }) =>
+    invoke<RenameReferencePreview>('preview_reference_rename', { options }),
+  applyReferenceRename: (options: { root: string; namespace: 'label' | 'citation'; oldKey: string; newKey: string; fingerprints: Record<string, string> }) =>
+    invoke<ApplyRenameResult>('apply_reference_rename', { options }),
 
   // --- LaTeX ---
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),

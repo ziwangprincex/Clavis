@@ -6,6 +6,69 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (cross-language reference index, diagnostics, navigation, and safe rename)
+
+A unified reference layer now treats **LaTeX and Typst as equal first-class
+languages**, with deliberately smaller Pandoc/Quarto Markdown coverage.
+
+### Index and diagnostics
+
+- New deep Rust module `src/references.rs` indexes Workspace disk files with
+  open-Document overrides, bounded at 10,000 files / 2 MiB each / 50,000
+  occurrences and run on `spawn_blocking`.
+- Two namespaces: document `label` and bibliography `citation`. Diagnostics cover
+  duplicate definitions, missing usages, unused definitions, unresolved Typst
+  `@key`, and the honest ambiguous case where a Typst key exists as both label
+  and bibliography entry. Truncated indexes suppress unsafe unused conclusions.
+- LaTeX covers label/ref variants, multi-key `cref`/citations, comments, verbatim,
+  `lstlisting`, `minted`, and `verb`. BibTeX excludes comment/string/preamble.
+- Typst uses the real `typst-syntax` AST for `<label>`, `@key`, `ref(...)`, and
+  variadic `cite(...)`; comments, raw content and strings are therefore not
+  guessed with regex. `label("x")` is correctly treated as a value constructor,
+  not a document definition.
+- Markdown is intentionally narrow: headings/explicit anchors, local fragment
+  links, Pandoc citations and Quarto fig/tbl/eq/sec/lst references, excluding
+  fenced and inline code.
+
+### Navigation, citation UX and safe rename
+
+- Sidebar References panel shows issues plus symbols; symbols jump to definition
+  and expand to all definition/reference locations (go-to-definition + find
+  references from one index). Stale async results are generation-gated.
+- Bibliography is no longer LaTeX-only: `.bib` paths also come from the unified
+  index, and insertion uses `\cite{key}` / `@key` / `[@key]` for LaTeX / Typst /
+  Markdown respectively.
+- Rename Label or Citation Key previews affected files and exact occurrence
+  counts. It refuses collisions, dirty Documents, truncated indexes, generated
+  Markdown slugs and escaped Typst strings. Apply rechecks every preview
+  fingerprint, re-indexes disk state, stages same-directory files, preserves
+  permissions, and rolls back on partial installation failure. Tests cover a
+  single citation-key rename across LaTeX, Typst, Quarto and BibTeX.
+
+### Review findings fixed
+
+1. Typst initially used a hand scanner despite `typst-syntax` already exposing
+   real Label/Ref nodes; it was replaced with AST traversal.
+2. `#ref(<x>)` child labels could be misclassified as definitions.
+3. Bare unresolved `@key` was initially biased toward label instead of diagnosed.
+4. LaTeX multi-key refs and repeated cite keys needed distinct exact ranges.
+5. Typst variadic cite could accidentally index named string options.
+6. `label("x")` is a constructor, not an attached document definition.
+7. Citation insertion symmetry test caught a missing LaTeX backslash.
+8. Bibliography UI was made visible to Typst but still read only LaTeX Project
+   files; its data source now also uses the unified index.
+9. Rename apply initially re-indexed before checking preview fingerprints, making
+   stale errors indirect; it now validates preview files first.
+10. Open-Document refresh had to finish before rebuilding the post-rename index.
+
+**Verified:** 64 Rust + 361 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. GUI verification
+remains for sidebar density, native confirmation flow, and multi-file rename in a
+real LaTeX/Typst/Quarto workspace. The index refresh is explicit/on-workspace-open
+for now; this is not claimed to be a live language server.
+
+---
+
 ## 0. Update - 2026-08-05 (bounded Workspace Search and conflict-safe Replace All)
 
 Workspace-wide text search/replace is implemented behind a bounded Rust module
