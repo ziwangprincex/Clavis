@@ -26,16 +26,18 @@ export type CompletionSite =
   | { kind: 'citation'; from: number; to: number; query: string }
   | { kind: 'reference'; from: number; to: number; query: string }
   | { kind: 'file'; from: number; to: number; query: string; command: string }
+  | { kind: 'package'; from: number; to: number; query: string }
+  | { kind: 'class'; from: number; to: number; query: string }
+  | { kind: 'keyval'; from: number; to: number; query: string; command: string }
   | { kind: 'word'; from: number; to: number; query: string };
 
 export interface CompletionCandidate {
   label: string;
   insertText: string;
   detail?: string;
-  kind?: 'command' | 'environment' | 'reference' | 'citation' | 'file' | 'snippet';
+  kind?: 'command' | 'environment' | 'reference' | 'citation' | 'file' | 'package' | 'class' | 'keyval' | 'snippet';
   snippet?: boolean;
-  /**
-   * Placeholder dialect of `insertText` when `snippet` is set.
+  /** Placeholder dialect of `insertText` when `snippet` is set.
    *
    * `'legacy'` (the default) is the hand-written `$1default` form used by
    * `snippets.ts`, converted by `snippetToCM6` at insertion time. That form is
@@ -45,6 +47,14 @@ export interface CompletionCandidate {
    * (`${1:short title}`) and bypass the converter.
    */
   snippetSyntax?: 'legacy' | 'cm6';
+  /**
+   * After applying this candidate, force the completion popup open again at
+   * the new cursor position. Argument-only commands (`\usepackage`,
+   * `\documentclass`) use it: their snippet drops the cursor into an empty
+   * argument where the package/class providers take over, and re-opening here
+   * makes the list appear immediately instead of on the next keystroke.
+   */
+  reopenCompletion?: boolean;
   boost?: number;
 }
 

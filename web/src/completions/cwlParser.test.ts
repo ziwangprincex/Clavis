@@ -209,6 +209,47 @@ describe('cwl directives', () => {
   });
 });
 
+describe('cwl keyvals', () => {
+  it('parses a #keyvals block into per-command key lists', () => {
+    const pkg = parseCwl(String.raw`#keyvals:\usepackage/graphics#c,\ExecuteBibliographyOptions#c
+draft
+final
+hiresbb
+#endkeyvals
+\includegraphics{file}`, 'graphics');
+    const usepackage = pkg.keyvals.find(k => k.command === '\\usepackage');
+    expect(usepackage?.pkg).toBe('graphics');
+    expect(usepackage?.keys).toEqual(['draft', 'final', 'hiresbb']);
+    const options = pkg.keyvals.find(k => k.command === '\\ExecuteBibliographyOptions');
+    expect(options?.pkg).toBeNull();
+    expect(options?.keys).toEqual(['draft', 'final', 'hiresbb']);
+  });
+
+  it('parses environment keyvals and multi-command headers', () => {
+    const pkg = parseCwl(String.raw`#keyvals:\begin{Form},\includegraphics#c
+SubmitName
+SubmitAction
+#endkeyvals
+`, 'hyperref');
+    const form = pkg.keyvals.find(k => k.command === '\\begin{Form}');
+    expect(form?.pkg).toBeNull();
+    expect(form?.keys).toEqual(['SubmitName', 'SubmitAction']);
+    const graphic = pkg.keyvals.find(k => k.command === '\\includegraphics');
+    expect(graphic?.keys).toEqual(['SubmitName', 'SubmitAction']);
+  });
+
+  it('does not treat keyvals bodies as commands', () => {
+    const pkg = parseCwl(String.raw`#keyvals:\pagestyle#c
+plain
+empty
+headings
+#endkeyvals
+`, 'latex-document');
+    expect(pkg.commands).toEqual([]);
+    expect(pkg.keyvals[0].keys).toEqual(['plain', 'empty', 'headings']);
+  });
+});
+
 describe('cwl safety and robustness', () => {
   it('rejects shell-escape constructs', () => {
     const text = [

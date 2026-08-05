@@ -60,8 +60,27 @@ export interface CwlPackage {
   deps: readonly string[];
   commands: readonly CwlCommand[];
   environments: readonly CwlEnvironment[];
+  /** `#keyvals:` blocks — option key names for commands/environments. */
+  keyvals: readonly CwlKeyvals[];
   /** Lines we could not classify. Surfaced for tests, not for users. */
   droppedLines: number;
+}
+
+/**
+ * One `#keyvals:` block, expanded to a single command.
+ *
+ * A header may list several commands (`#keyvals:\pagestyle#c,\thispagestyle#c`);
+ * each expands to its own `CwlKeyvals` sharing the same keys. The optional
+ * `/pkg` qualifier (`#keyvals:\usepackage/biblatex#c`) records which package
+ * the option set belongs to, which completion surfaces as the candidate detail.
+ */
+export interface CwlKeyvals {
+  /** Command as written in the header, e.g. `\usepackage` or `\begin{Form}`. */
+  command: string;
+  /** Package qualifier from `/pkg`, if any (`biblatex` for the example above). */
+  pkg: string | null;
+  /** Option key names. */
+  keys: readonly string[];
 }
 
 /**
@@ -374,6 +393,35 @@ function buildEnvironmentSnippet(name: string, args: string, trailer: string, fi
 }
 
 /**
+ * Parse a `#keyvals:` header: comma-separated `\cmd[/pkg][#class]` entries.
+ *
+ * Real forms: `\pagestyle#c`, `\usepackage/biblatex#c`, `\begin{filecontents}`.
+ * The classification tail (`#c`, ...) and the `/pkg` qualifier are both
+ * optional; everything after a `#` is discarded, then the `/pkg` qualifier is
+ * split off the command name.
+ */
+function parseKeyvalsHeader(header: string): { command: string; pkg: string | null }[] {
+  const out: { command: string; pkg: string | null }[] = [];
+  for (const raw of header.split(',')) {
+    const part = raw.trim();
+    if (!part) continue;
+    const hash = part.indexOf('#');
+    const core = (hash === -1 ? part : part.slice(0, hash)).trim();
+    if (!core) continue;
+    const slash = core.indexOf('/');
+    if (slash === -1) {
+      out.push({ command: core, pkg: null });
+    } else {
+      out.push({
+        command: core.slice(0, slash).trim(),
+        pkg: core.slice(slash + 1).trim() || null,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Parse one `.cwl` file.
  *
  * @param text     File contents (UTF-8).
@@ -383,18 +431,35 @@ export function parseCwl(text: string, pkgName: string): CwlPackage {
   const deps: string[] = [];
   const commands: CwlCommand[] = [];
   const environments: CwlEnvironment[] = [];
+  const keyvals: CwlKeyvals[] = [];
   let droppedLines = 0;
 
   // `#keyvals:` blocks list key names, not commands, so their bodies must not
-  // be parsed as command lines. v1 does not offer key/value completion.
+  // be parsed as command lines. Their keys are parsed into `keyvals` instead.
   let inKeyvals = false;
+  let keyvalsHeader: { command: string; pkg: string | null }[] = [];
+  let keyvalsKeys: string[] = [];
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
 
     if (inKeyvals) {
-      if (line.startsWith('#endkeyvals')) inKeyvals = false;
+      if (line.startsWith('#endkeyvals')) {
+        for (const entry of keyvalsHeader) {
+          keyvals.push({ command: entry.command, pkg: entry.pkg, keys: keyvalsKeys });
+        }
+        keyvalsHeader = [];
+        keyvalsKeys = [];
+        inKeyvals = false;
+      } else if (line.startsWith('#')) {
+        // Other directives inside a keyvals block are data noise; skip.
+      } else {
+        // An option key, possibly carrying a classification suffix (`key#c`).
+        const hash = line.indexOf('#');
+        const key = (hash === -1 ? line : line.slice(0, hash)).trim();
+        if (key && !keyvalsKeys.includes(key)) keyvalsKeys.push(key);
+      }
       continue;
     }
 
@@ -403,6 +468,8 @@ export function parseCwl(text: string, pkgName: string): CwlPackage {
         const dep = line.slice('#include:'.length).trim();
         if (dep) deps.push(dep);
       } else if (line.startsWith('#keyvals:')) {
+        keyvalsHeader = parseKeyvalsHeader(line.slice('#keyvals:'.length));
+        keyvalsKeys = [];
         inKeyvals = true;
       }
       // `#ifOption:`/`#endif` are passed over: the commands they guard are real,
@@ -467,5 +534,5 @@ export function parseCwl(text: string, pkgName: string): CwlPackage {
     });
   }
 
-  return { name: pkgName, deps, commands, environments, droppedLines };
+  return { name: pkgName, deps, commands, environments, keyvals, droppedLines };
 }

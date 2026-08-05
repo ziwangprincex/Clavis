@@ -3,11 +3,15 @@ import type { CompletionRequest, CompletionSite } from './types';
 const COMMANDS_WITH_CITATIONS = new Set(['cite', 'citep', 'citet', 'autocite', 'parencite', 'textcite']);
 const COMMANDS_WITH_REFERENCES = new Set(['ref', 'eqref', 'pageref', 'autoref', 'cref', 'Cref']);
 const COMMANDS_WITH_FILES = new Set(['input', 'include', 'subfile', 'includegraphics', 'bibliography', 'addbibresource']);
+const COMMANDS_WITH_PACKAGES = new Set(['usepackage', 'RequirePackage']);
+const COMMANDS_WITH_CLASSES = new Set(['documentclass']);
 
-function siteKindForCommand(command: string): 'citation' | 'reference' | 'file' | null {
+function siteKindForCommand(command: string): 'citation' | 'reference' | 'file' | 'package' | 'class' | null {
   if (COMMANDS_WITH_CITATIONS.has(command)) return 'citation';
   if (COMMANDS_WITH_REFERENCES.has(command)) return 'reference';
   if (COMMANDS_WITH_FILES.has(command)) return 'file';
+  if (COMMANDS_WITH_PACKAGES.has(command)) return 'package';
+  if (COMMANDS_WITH_CLASSES.has(command)) return 'class';
   return null;
 }
 
@@ -37,6 +41,8 @@ function argumentSite(before: string): CompletionSite | null {
   if (kind === 'citation') return { kind, from, to, query };
   if (kind === 'reference') return { kind, from, to, query };
   if (kind === 'file') return { kind, from, to, query, command };
+  if (kind === 'package') return { kind, from, to, query };
+  if (kind === 'class') return { kind, from, to, query };
   return null;
 }
 
@@ -44,6 +50,22 @@ export function detectCompletionSite(request: CompletionRequest): CompletionSite
   const before = request.text.slice(0, request.position);
 
   if (request.language === 'latex') {
+    // Key/value options: the cursor sits inside the optional-argument brackets
+    // of a command or environment (`\includegraphics[wi`, `\begin{Form}[t`).
+    // Closed bracket pairs are consumed by the `(?:\[[^[\]]*\])*` group, so
+    // only an open `[` matches. `\[` display-math is a single punctuation
+    // character, not `[A-Za-z@]`, so it cannot match this pattern.
+    const keyval = /\\([A-Za-z@]+\*?|begin\{[^{}]*\}|end\{[^{}]*\})(?:\[[^[\]]*\])*\[([^[\]]*)$/.exec(before);
+    if (keyval) {
+      return {
+        kind: 'keyval',
+        from: request.position - keyval[2].length,
+        to: request.position,
+        query: keyval[2],
+        command: `\\${keyval[1]}`,
+      };
+    }
+
     const argument = argumentSite(before);
     if (argument) return argument;
 

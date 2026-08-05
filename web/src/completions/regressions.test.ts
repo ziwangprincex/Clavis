@@ -236,3 +236,55 @@ describe('open-environment ranking is computed once per request', () => {
     expect(result?.candidates[0]?.label).toBe(String.raw`\end{itemize}`);
   });
 });
+
+describe('argument-site detection for package/class/keyval', () => {
+  it('detects a package argument inside \\usepackage braces', () => {
+    expect(detectCompletionSite(request(String.raw`\usepackage[utf8]{in`))).toEqual({
+      kind: 'package',
+      from: 18,
+      to: 20,
+      query: 'in',
+    });
+  });
+
+  it('detects a document class argument', () => {
+    expect(detectCompletionSite(request(String.raw`\documentclass{be`))).toEqual({
+      kind: 'class',
+      from: 15,
+      to: 17,
+      query: 'be',
+    });
+  });
+
+  it('detects a keyval site inside open optional brackets', () => {
+    expect(detectCompletionSite(request(String.raw`\includegraphics[wi`))).toEqual({
+      kind: 'keyval',
+      from: 17,
+      to: 19,
+      query: 'wi',
+      command: '\\includegraphics',
+    });
+  });
+
+  it('detects a keyval site on an environment', () => {
+    expect(detectCompletionSite(request(String.raw`\begin{Form}[t`))).toEqual({
+      kind: 'keyval',
+      from: 13,
+      to: 14,
+      query: 't',
+      command: '\\begin{Form}',
+    });
+  });
+
+  it('does not misdetect a closed optional argument as keyval', () => {
+    expect(detectCompletionSite(request(String.raw`\cite[p. 3]{k`))).toEqual(
+      expect.objectContaining({ kind: 'citation' }),
+    );
+  });
+
+  it('does not misdetect display-math brackets as keyval', () => {
+    // `\[` is a single punctuation command, not a name, so it must not match
+    // the keyval pattern — and nothing else applies at this position either.
+    expect(detectCompletionSite(request(String.raw`\[a^2 +`))).toBeNull();
+  });
+});

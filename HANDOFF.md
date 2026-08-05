@@ -6,6 +6,104 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-04 (completion UX: Tab accepts, package/class/keyval argument completion, selection highlight)
+
+Three user-facing fixes, frontend-only. **Uncommitted on `main`** (per repo rule,
+HANDOFF updated in the same push).
+
+**Working state:** `npm --prefix web test` = 224/224 (206 before + 18 new),
+typecheck clean, `npm run build` succeeds. No Rust files changed. Corpus
+verification against the real 4465-file corpus: 235,956 commands / 8,800
+environments / 35 dropped — unchanged — plus newly parsed **16,569 `#keyvals:`
+blocks (402,186 option keys across 7,368 commands)**.
+
+### 1. Tab now accepts an open completion
+
+Root cause: `@codemirror/autocomplete@6.20.x` `completionKeymap` binds **Enter
+only** — Tab never accepted. `web/src/editor/keymaps.ts` now prepends
+`{ key: 'Tab', run: acceptCompletion }` then the snippet-field bindings
+(`{ key: 'Tab', run: nextSnippetField, shift: prevSnippetField }`), with
+`indentWithTab` last as the fallback. Each `run` returns false when its state is
+absent, so a plain Tab still indents when there is no popup/snippet.
+
+### 2. Argument-site completion: package / class / keyvals
+
+TeXifier-style two-level completion. `\us` → `\usepackage` now inserts the bare
+command (`\usepackage{${1}}`, cursor in the braces) instead of the corpus
+placeholder template `\usepackage[options%keyvals]{package}` — `ARG_ONLY_COMMANDS`
+(`usepackage`, `RequirePackage`, `documentclass`) overrides the snippet in
+`commandCandidate` (`cwlProvider.ts`).
+
+- `context.ts`: new sites — `\usepackage{`/`\RequirePackage{` → `package`,
+  `\documentclass{` → `class`, and inside open optional brackets
+  (`\includegraphics[wi`, `\begin{Form}[t`) → `keyval` (with `command`).
+  `\[` display-math cannot match the keyval pattern (verified by test).
+- `cwlProvider.ts`: `package` candidates from `availableNames` (the existing
+  `list_cwl_packages` Rust command — zero Rust changes), excluding `class-*` /
+  `latex-document`; `class` candidates from `class-*.cwl` stems; `keyval`
+  candidates from the `#keyvals:` blocks of packages the document loads.
+  Prefix matching (startsWith), ~45 curated common packages boosted to top.
+- `cwlParser.ts`: `#keyvals:` blocks now parsed (multi-command comma headers,
+  `/pkg` qualifiers, `#c` classification tails) into `CwlKeyvals` on each
+  `CwlPackage`. Bodies are still not command lines, so nothing leaked into
+  commands; corpus drop count unchanged at 35.
+
+### 3. Selection highlight is visible again
+
+`BUILTIN_THEMES` selection colours brightened across dark themes (github-dark's
+semi-transparent `#264f7833` → opaque `#1f4e79`; dracula/material/one-dark/nord
+all lifted), and `.cm-selectionBackground` gained a 1px accent outline
+(`withAlpha(accent, 0.55)`). `::selection` and `.cm-selectionMatch` keep the
+plain fill. Users can still override via `editor_theme_overrides.selection`.
+
+### Still verify manually (headless sandbox)
+
+- `tauri dev`: `\us` → Tab/Enter accepts → cursor lands in `{}` → package list
+  pops automatically (depends on CodeMirror re-triggering after snippet apply;
+  if it does not, add a `startCompletion` dispatch to the `\usepackage` apply).
+- Tab accepts while popup open; Tab still indents with no popup; Tab jumps
+  snippet fields after accepting `\begin{document}`; Shift-Tab goes back.
+- `\usepackage[` after `\usepackage{graphics}` offers `draft`/`final`/…;
+  `\documentclass[` offers `a4paper`/`11pt`/…; `\includegraphics[` offers
+  options only when the owning package is loaded.
+- Selection box outline is per-line (CodeMirror paints one rect per line) —
+  check it does not look like a fence; drop the outline if so.
+
+### Follow-up fix after real-window report ("documentclass has no candidates")
+
+User reported `\documentclass{` offering nothing. Static verification showed the
+whole chain was fine (site detection, provider, Rust `list_cwl_packages`
+registered and returning 4465 stems, resources present in
+`target/debug/resources/cwl` — dev `resource_dir()` resolves to the exe dir,
+i.e. `target/debug/`, so `resolve_resource("resources/cwl")` = that folder,
+repopulated by tauri-build on each build). Two real weaknesses found and fixed:
+
+1. **`availableNames` failure was permanent.** A single failed
+   `list_cwl_packages` IPC set the list to an empty Set forever, silently
+   killing package/class completion for the session. Now a failure leaves the
+   cache null and retries after a 10 s cooldown (`nextListAttemptAt`); success
+   resets it. `resetCwlCacheForTests` clears the cooldown.
+2. **Argument-only apply relied on CodeMirror auto-reactivation.** Accepting
+   `\usepackage`/`\documentclass` (snippet `\name{${1}}`) re-runs the
+   completion source after the `input.complete` transaction in theory, but
+   users could land in the braces with no popup. New `reopenCompletion` flag on
+   the candidate: `source.ts` `buildApply` wraps the snippet apply and calls
+   `startCompletion(view)` right after, so the package/class list appears
+   immediately. Also note: the corpus has **no `class-article.cwl`** — article
+   is genuinely absent from TeXstudio's files (402 `class-*` files, beamer
+   present); that is data, not a bug.
+3. **Kernel classes are now always offered.** article (and `minimal`) have no
+   `class-*.cwl` because their commands live in latex-document.cwl, so the raw
+   stem list omits them. `classCandidates` now merges a `KERNEL_CLASSES`
+   whitelist (`['article', 'minimal']`, boosted 5) with the `class-*` stems;
+   book/report/letter/slides/proc already have files and dedupe cleanly.
+
+A likely confounder: the user's report matches the **old build**
+(`\usepackage[options%keyvals]{package}` insert and faint selection are both
+pre-change behaviour). Rebuild the frontend and retest before chasing further.
+
+---
+
 ## 0. Update - 2026-08-04 (LaTeX completion now backed by the TeXstudio `.cwl` corpus)
 
 **Working state:** on `main`. Phases 1 and 2 are committed along with a review

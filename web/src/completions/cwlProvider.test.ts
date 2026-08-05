@@ -423,3 +423,97 @@ describe('cwl provider options', () => {
       .toBe(out.find(c => c.label === '\\normalcmd')!.boost);
   });
 });
+
+describe('cwl provider argument sites', () => {
+  it('inserts \\usepackage without option placeholders', async () => {
+    // The corpus carries both forms; whichever the merge keeps, the inserted
+    // text must be the bare command with an empty argument so the package
+    // completion takes over inside the braces.
+    corpus = {
+      'latex-document': '\\usepackage[options%keyvals]{package}\n\\usepackage{package}',
+    };
+    const out = await completeSettled('\\us');
+    const usepackage = out.find(c => c.label === '\\usepackage');
+    expect(usepackage?.insertText).toBe('\\usepackage{${1}}');
+  });
+
+  it('inserts \\documentclass without option placeholders', async () => {
+    corpus = { 'latex-document': '\\documentclass[keyvals]{class}\n\\documentclass{class}' };
+    const out = await completeSettled('\\doc');
+    const dc = out.find(c => c.label === '\\documentclass');
+    expect(dc?.insertText).toBe('\\documentclass{${1}}');
+  });
+
+  it('offers package names from the corpus index, excluding classes', async () => {
+    corpus = {
+      'latex-document': '',
+      amsmath: '\\align',
+      geometry: '\\geometry',
+      beamer: '\\frame',
+      'class-article': '',
+    };
+    const site: CompletionSite = { kind: 'package', from: 0, to: 0, query: 'am' };
+    const out = await completeSettled('\\usepackage{am', site);
+    expect(out.map(c => c.label)).toEqual(['amsmath']);
+  });
+
+  it('boosts common packages to the top of the package list', async () => {
+    corpus = {
+      'latex-document': '',
+      amsmath: '',
+      amssymb: '',
+      a4wide: '',
+      amsfonts: '',
+    };
+    const site: CompletionSite = { kind: 'package', from: 0, to: 0, query: 'a' };
+    const out = await completeSettled('\\usepackage{a', site);
+    const labels = out.map(c => c.label);
+    expect(labels.indexOf('amsmath')).toBeLessThan(labels.indexOf('a4wide'));
+  });
+
+  it('offers document classes from class-*.cwl stems', async () => {
+    corpus = {
+      'latex-document': '',
+      'class-beamer': '',
+      'class-ctexart': '',
+    };
+    const site: CompletionSite = { kind: 'class', from: 0, to: 0, query: 'be' };
+    const out = await completeSettled('\\documentclass{be', site);
+    expect(out.map(c => c.label)).toEqual(['beamer']);
+  });
+
+  it('always offers the TeX kernel classes even without a cwl file (article)', async () => {
+    // article has no class-*.cwl upstream (its commands live in
+    // latex-document.cwl), but every TeX distribution ships it.
+    corpus = { 'latex-document': '' };
+    const site: CompletionSite = { kind: 'class', from: 0, to: 0, query: 'ar' };
+    const out = await completeSettled('\\documentclass{ar', site);
+    expect(out.map(c => c.label)).toEqual(['article']);
+  });
+
+  it('offers keyvals options only for loaded packages', async () => {
+    corpus = {
+      'latex-document': '',
+      graphics: '#keyvals:\\usepackage/graphics#c\ndraft\nfinal\nhiresbb\n#endkeyvals\n\\includegraphics{file}',
+    };
+    const site: CompletionSite = { kind: 'keyval', from: 0, to: 0, query: 'd', command: '\\usepackage' };
+    const out = await completeSettled('\\usepackage{graphics}\n\\usepackage[d', site);
+    expect(out.map(c => c.label)).toEqual(['draft']);
+  });
+
+  it('offers keyvals options for environments', async () => {
+    corpus = {
+      'latex-document': '',
+      hyperref: '#keyvals:\\begin{Form},\\includegraphics#c\nSubmitName\nSubmitAction\n#endkeyvals',
+    };
+    const site: CompletionSite = { kind: 'keyval', from: 0, to: 0, query: 'Sub', command: '\\begin{Form}' };
+    const out = await completeSettled('\\usepackage{hyperref}\n\\begin{Form}[Sub', site);
+    expect(out.map(c => c.label)).toEqual(['SubmitName', 'SubmitAction']);
+  });
+
+  it('returns nothing for a keyval command the corpus has no data for', async () => {
+    corpus = { 'latex-document': '' };
+    const site: CompletionSite = { kind: 'keyval', from: 0, to: 0, query: '', command: '\\nonexistent' };
+    expect(await completeSettled('\\nonexistent[', site)).toEqual([]);
+  });
+});

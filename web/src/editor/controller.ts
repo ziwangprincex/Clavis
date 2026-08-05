@@ -91,7 +91,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#1e1e1e', fg: '#d4d4d4',
     gutterBg: '#1e1e1e', gutterFg: '#666',
-    activeBg: '#252526', cursor: '#ffffff', selection: '#264f78',
+    activeBg: '#252526', cursor: '#ffffff', selection: '#2b5d96',
     accent: '#4aa5ff',
   },
   'vscode-light': {
@@ -107,7 +107,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#0d1117', fg: '#c9d1d9',
     gutterBg: '#0d1117', gutterFg: '#484f58',
-    activeBg: '#161b22', cursor: '#58a6ff', selection: '#264f7833',
+    activeBg: '#161b22', cursor: '#58a6ff', selection: '#1f4e79',
     accent: '#58a6ff',
   },
   'github-light': {
@@ -123,7 +123,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#282c34', fg: '#abb2bf',
     gutterBg: '#282c34', gutterFg: '#5c6370',
-    activeBg: '#2c313a', cursor: '#528bff', selection: '#3e4451',
+    activeBg: '#2c313a', cursor: '#528bff', selection: '#4b5263',
     accent: '#61afef',
   },
   'solarized-dark': {
@@ -131,7 +131,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#002b36', fg: '#93a1a1',
     gutterBg: '#073642', gutterFg: '#586e75',
-    activeBg: '#073642', cursor: '#fdf6e3', selection: '#073642',
+    activeBg: '#073642', cursor: '#fdf6e3', selection: '#0f5468',
     accent: '#268bd2',
   },
   'solarized-light': {
@@ -139,7 +139,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: false,
     bg: '#fdf6e3', fg: '#586e75',
     gutterBg: '#eee8d5', gutterFg: '#93a1a1',
-    activeBg: '#eee8d5', cursor: '#586e75', selection: '#cae0e0',
+    activeBg: '#eee8d5', cursor: '#586e75', selection: '#c0ddd3',
     accent: '#268bd2',
   },
   monokai: {
@@ -147,7 +147,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#272822', fg: '#f8f8f2',
     gutterBg: '#272822', gutterFg: '#75715e',
-    activeBg: '#3e3d32', cursor: '#f8f8f0', selection: '#49483e',
+    activeBg: '#3e3d32', cursor: '#f8f8f0', selection: '#5f5e4f',
     accent: '#66d9ef',
   },
   dracula: {
@@ -155,7 +155,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#282a36', fg: '#f8f8f2',
     gutterBg: '#282a36', gutterFg: '#6272a4',
-    activeBg: '#44475a', cursor: '#f8f8f0', selection: '#44475a',
+    activeBg: '#44475a', cursor: '#f8f8f0', selection: '#565f89',
     accent: '#bd93f9',
   },
   nord: {
@@ -163,7 +163,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#2e3440', fg: '#d8dee9',
     gutterBg: '#2e3440', gutterFg: '#4c566a',
-    activeBg: '#3b4252', cursor: '#d8dee9', selection: '#434c5e',
+    activeBg: '#3b4252', cursor: '#d8dee9', selection: '#4c566a',
     accent: '#88c0d0',
   },
   tomorrow: {
@@ -171,7 +171,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#1d1f21', fg: '#c5c8c6',
     gutterBg: '#1d1f21', gutterFg: '#5c6370',
-    activeBg: '#282a2e', cursor: '#aeafad', selection: '#373b41',
+    activeBg: '#282a2e', cursor: '#aeafad', selection: '#454a52',
     accent: '#81a2be',
   },
   material: {
@@ -179,7 +179,7 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#212121', fg: '#eeffff',
     gutterBg: '#212121', gutterFg: '#545454',
-    activeBg: '#2c2c2c', cursor: '#ffcc00', selection: '#3a3a3a',
+    activeBg: '#2c2c2c', cursor: '#ffcc00', selection: '#4d4d4d',
     accent: '#82aaff',
   },
   gruvbox: {
@@ -187,10 +187,17 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
     dark: true,
     bg: '#282828', fg: '#ebdbb2',
     gutterBg: '#282828', gutterFg: '#7c6f64',
-    activeBg: '#3c3836', cursor: '#fe8019', selection: '#504945',
+    activeBg: '#3c3836', cursor: '#fe8019', selection: '#665c54',
     accent: '#fabd2f',
   },
 };
+
+/** `#rrggbb` → `rgba(r, g, b, a)`; anything else passes through unchanged. */
+function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  if (hex.length !== 7 || Number.isNaN(n)) return hex;
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
 
 function buildThemeExt(spec: ThemeSpec) {
   return EditorView.theme(
@@ -200,7 +207,16 @@ function buildThemeExt(spec: ThemeSpec) {
       '.cm-activeLine': { backgroundColor: spec.activeBg },
       '.cm-activeLineGutter': { backgroundColor: spec.activeBg, color: spec.fg },
       '.cm-cursor': { borderLeftColor: spec.cursor },
-      '.cm-selectionBackground, ::selection': { backgroundColor: spec.selection },
+      // A 1px accent outline around the selection makes the selected region
+      // read as a box even when the theme's fill colour is close to the
+      // background (the "selection is invisible" complaint). CodeMirror paints
+      // one rectangle per line, so the outline is per-line — fine in practice,
+      // and the fill was brightened in BUILTIN_THEMES to carry the weight.
+      '.cm-selectionBackground': {
+        backgroundColor: spec.selection,
+        outline: `1px solid ${withAlpha(spec.accent, 0.55)}`,
+      },
+      '::selection': { backgroundColor: spec.selection },
       '.cm-selectionMatch': { backgroundColor: spec.selection },
       '.cm-content': { caretColor: spec.cursor },
     },

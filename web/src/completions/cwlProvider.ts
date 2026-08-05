@@ -37,6 +37,14 @@ const inFlight = new Map<string, Promise<void>>();
 /** Names known to exist, so we never ask for files that cannot be there. */
 let availableNames: Set<string> | null = null;
 let availablePromise: Promise<void> | null = null;
+/**
+ * Cooldown after a failed `listCwlPackages` call. A failure used to pin
+ * `availableNames` to an empty set forever, which silently killed package /
+ * class completion for the whole session (every later query saw "no packages").
+ * Now a failure leaves the cache null and allows a retry after this window.
+ */
+let nextListAttemptAt = 0;
+const LIST_RETRY_MS = 10_000;
 
 /**
  * User-facing behaviour switches.
@@ -73,6 +81,7 @@ export function resetCwlCacheForTests(): void {
   inFlight.clear();
   availableNames = null;
   availablePromise = null;
+  nextListAttemptAt = 0;
 }
 
 function ensureAvailableNames(): void {
@@ -85,15 +94,21 @@ function ensureAvailableNames(): void {
     availableNames = new Set();
     return;
   }
+  // Failed recently (missing corpus, dev build before resources were copied,
+  // transient IPC error): back off instead of hammering Rust on every
+  // keystroke, but DO NOT give up permanently.
+  if (Date.now() < nextListAttemptAt) return;
   availablePromise = ipc
     .listCwlPackages()
     .then(names => {
       availableNames = new Set(names);
+      nextListAttemptAt = 0;
     })
     .catch(() => {
-      // Corpus missing (a checkout without `node tools/fetch-cwl.mjs`). Treat as
-      // empty rather than retrying on every keystroke.
-      availableNames = new Set();
+      // Leave availableNames null; ensureAvailableNames will retry after the
+      // cooldown. Package/class completion degrades to the next keystroke
+      // rather than dying for the session.
+      nextListAttemptAt = Date.now() + LIST_RETRY_MS;
     })
     .finally(() => {
       availablePromise = null;
@@ -232,6 +247,29 @@ function activePackages(text: string): CwlPackage[] {
 const BOOST_NORMAL = 0;
 const BOOST_UNUSUAL = -10;
 
+/**
+ * Commands whose mandatory argument is a name from a known set rather than
+ * free text. Inserting the corpus template would seed `[options]{package}`
+ * placeholder defaults the user has to clear; inserting just the command with
+ * an empty argument drops the cursor straight into the argument, where the
+ * argument-site providers (`package` / `class`) take over.
+ */
+const ARG_ONLY_COMMANDS = new Set(['usepackage', 'RequirePackage', 'documentclass']);
+
+/**
+ * Packages people actually load, boosted to the top of the (large) package
+ * list. The corpus knows 4000+ names; alphabetic order buries `amsmath` below
+ * `a4wide`. This is a short curated list, not an exhaustive ranking.
+ */
+const COMMON_PACKAGES = new Set([
+  'amsmath', 'amssymb', 'amsfonts', 'mathtools', 'geometry', 'graphicx', 'hyperref',
+  'xcolor', 'fontspec', 'siunitx', 'tikz', 'pgfplots', 'biblatex', 'natbib', 'booktabs',
+  'caption', 'subcaption', 'multirow', 'enumitem', 'titlesec', 'fancyhdr', 'listings',
+  'minted', 'inputenc', 'babel', 'setspace', 'parskip', 'url', 'ifthen', 'xifthen',
+  'microtype', 'soul', 'ulem', 'float', 'longtable', 'tabularx', 'array', 'algpseudocode',
+  'algorithm', 'algorithmicx', 'physics', 'bm', 'gensymb', 'textcomp', 'tcolorbox',
+]);
+
 /** Rank for a candidate, honouring the `showUnusual` preference. */
 function rankFor(unusual: boolean): number {
   if (!unusual || options.showUnusual) return BOOST_NORMAL;
@@ -239,13 +277,15 @@ function rankFor(unusual: boolean): number {
 }
 
 function commandCandidate(command: CwlCommand, pkg: string): CompletionCandidate {
+  const argOnly = ARG_ONLY_COMMANDS.has(command.name);
   return {
     label: command.label,
-    insertText: command.snippet,
+    insertText: argOnly ? `\\${command.name}{` + '${1}' + '}' : command.snippet,
     detail: pkg,
     kind: 'command',
-    snippet: command.hasFields,
+    snippet: argOnly ? true : command.hasFields,
     snippetSyntax: 'cm6',
+    reopenCompletion: argOnly ? true : undefined,
     boost: rankFor(command.unusual),
   };
 }
@@ -301,12 +341,118 @@ function isApplicable(command: CwlCommand, math: boolean, envs: readonly string[
   return true;
 }
 
+/**
+ * Package-name candidates for `\usepackage{` / `\RequirePackage{`.
+ *
+ * The corpus is the package list: every `.cwl` filename minus its extension.
+ * Document-class files are excluded (`class-*` belong to `\documentclass`),
+ * as is the always-on base file. The list is large, so candidates carry a
+ * boost: curated common packages first, then prefix matches, then the rest.
+ */
+function packageCandidates(query: string): CompletionCandidate[] {
+  ensureAvailableNames();
+  if (!availableNames) return [];
+  const q = query.trim();
+  const out: CompletionCandidate[] = [];
+  for (const name of availableNames) {
+    if (name === 'latex-document' || name.startsWith('class-')) continue;
+    if (q && !name.startsWith(q)) continue;
+    const prefix = !!q && name.startsWith(q);
+    out.push({
+      label: name,
+      insertText: name,
+      kind: 'package',
+      detail: COMMON_PACKAGES.has(name) ? 'common package' : 'package',
+      boost: COMMON_PACKAGES.has(name) ? 20 : prefix ? 10 : 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * TeX kernel classes that ship with every distribution but have no
+ * `class-*.cwl` in the TeXstudio corpus — article most notably, because its
+ * commands live entirely in latex-document.cwl so upstream never gave it a
+ * file (its `\documentclass[` options sit there too, line 677). book / report
+ * / letter / slides / proc already have files; the list still merges cleanly.
+ */
+const KERNEL_CLASSES = ['article', 'minimal'];
+
+/** Document-class candidates for `\documentclass{`. Derived from `class-*.cwl`. */
+function classCandidates(query: string): CompletionCandidate[] {
+  ensureAvailableNames();
+  const q = query.trim();
+  const names = new Set<string>();
+  if (availableNames) {
+    for (const name of availableNames) {
+      if (name.startsWith('class-')) names.add(name.slice('class-'.length));
+    }
+  }
+  for (const cls of KERNEL_CLASSES) names.add(cls);
+  const out: CompletionCandidate[] = [];
+  for (const cls of names) {
+    if (q && !cls.startsWith(q)) continue;
+    out.push({
+      label: cls,
+      insertText: cls,
+      kind: 'class',
+      detail: 'document class',
+      boost: KERNEL_CLASSES.includes(cls) ? 5 : !!q && cls.startsWith(q) ? 10 : 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * Option-key candidates for the `[` argument of a command or environment
+ * (`\includegraphics[`, `\usepackage[`, `\begin{Form}[`).
+ *
+ * Keys come from the `#keyvals:` blocks of packages the document loads, so
+ * `\usepackage[` after `\usepackage{graphics}` offers `draft`/`final`/… and
+ * nothing from packages that are not loaded.
+ */
+function keyvalCandidates(text: string, command: string, query: string): CompletionCandidate[] {
+  let packages: CwlPackage[];
+  try {
+    packages = activePackages(text);
+  } catch {
+    return [];
+  }
+  const q = query.trim();
+  const seen = new Set<string>();
+  const out: CompletionCandidate[] = [];
+  for (const pkg of packages) {
+    for (const kv of pkg.keyvals) {
+      if (kv.command !== command) continue;
+      for (const key of kv.keys) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (q && !key.startsWith(q)) continue;
+        out.push({
+          label: key,
+          insertText: key,
+          kind: 'keyval',
+          detail: kv.pkg ?? 'option',
+          boost: !!q && key.startsWith(q) ? 10 : 0,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 export const cwlProvider: CompletionProvider = {
   complete(request: CompletionRequest, site) {
     if (request.language !== 'latex' || !options.enabled) return [];
     // Citations, references and file paths are document-derived; the corpus has
     // nothing to add there and `latexSemanticProvider` owns them.
     if (site.kind === 'citation' || site.kind === 'reference' || site.kind === 'file') return [];
+
+    // Argument-site candidates come straight from the corpus index and need no
+    // per-package parsing.
+    if (site.kind === 'package') return packageCandidates(site.query);
+    if (site.kind === 'class') return classCandidates(site.query);
+    if (site.kind === 'keyval') return keyvalCandidates(request.text, site.command, site.query);
 
     // The engine already isolates provider failures, but returning [] beats
     // relying on that: a throw here would drop the built-in snippets from the
