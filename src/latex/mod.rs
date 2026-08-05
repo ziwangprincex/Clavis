@@ -36,6 +36,8 @@ pub(crate) const MAIN_PDF: &str = "main.pdf";
 // Parser lives in `crate::bib`; this thin command just forwards.
 
 #[tauri::command]
-pub fn parse_bib(bib_paths: Vec<String>) -> Vec<crate::bib::BibEntry> {
-    crate::bib::parse_bib_files(bib_paths)
+pub async fn parse_bib(bib_paths: Vec<String>) -> Result<Vec<crate::bib::BibEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::bib::parse_bib_files(bib_paths))
+        .await
+        .map_err(|error| format!("bibliography parser worker failed: {error}"))
 }

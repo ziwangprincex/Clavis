@@ -224,11 +224,23 @@ export interface BibEntry {
   entryType: string;
   title?: string;
   author?: string;
+  editor?: string;
   year?: string;
+  journal?: string;
+  booktitle?: string;
+  publisher?: string;
+  doi?: string;
+  url?: string;
+  abstractText?: string;
+  keywords: string[];
+  volume?: string;
+  number?: string;
+  pages?: string;
   /** Absolute path of the .bib file this entry was parsed from. */
   sourceFile: string;
   /** 1-based line of the entry's `@type{...` within its .bib file. */
   sourceLine: number;
+  sourceEndLine: number;
 }
 
 export interface TreeNode {

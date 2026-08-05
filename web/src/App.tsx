@@ -671,7 +671,7 @@ export function App() {
           ) : null}
           bibliography={workspaceFolder ? (
             <BibSection
-              onInsertCite={key => editorApiRef.current?.insertCite(key)}
+              onInsertCites={keys => editorApiRef.current?.insertCites(keys)}
               onJumpToSource={(absPath, line) =>
                 void openFileAndScrollToLine(absPath, line, l =>
                   editorApiRef.current?.scrollToLine(l),

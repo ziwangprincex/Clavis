@@ -91,6 +91,16 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Bibliography browser
+
+The Workspace Bibliography section parses local `.bib` files and supports
+multi-token ranked search across citekey, author/editor, year, title, venue, DOI,
+keywords, abstract, and entry type. Project citation frequency and recently
+inserted keys improve ranking without admitting non-matches. Entries expose
+journal/book/publisher, DOI, URL, abstract, keywords, volume/issue/pages, source
+location, multi-selection, and language-native insertion for LaTeX, Typst, and
+Markdown/Quarto.
+
 ## Quarto and Pandoc rendering
 
 `.qmd` files reuse the Markdown editor and Session model but are identified as

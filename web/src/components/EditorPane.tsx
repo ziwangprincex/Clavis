@@ -15,7 +15,7 @@ import { prefetchTypstSignatures } from '../completions/signatures';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath } from '../files/projectPaths';
 import styles from './EditorPane.module.css';
-import { citationText } from './citationText';
+import { citationText, citationsText } from './citationText';
 
 function languageForPath(path: string): Lang {
   const ext = path.toLowerCase().split('.').at(-1);
@@ -89,6 +89,7 @@ export interface EditorPaneRef {
   insertAtCursor: (text: string) => void;
   cursorLine: () => number;
   insertCite: (key: string) => void;
+  insertCites: (keys: string[]) => void;
 }
 
 export interface EditorPaneProps {
@@ -161,6 +162,12 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
       insertCite: (key: string) => {
         const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
         insertCiteAtCursor(ctrl, key, tab?.lang ?? 'markdown');
+      },
+      insertCites: (keys: string[]) => {
+        const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+        const language = tab?.lang ?? 'markdown';
+        if (keys.length === 1) insertCiteAtCursor(ctrl, keys[0], language);
+        else ctrl.insertAtCursor(citationsText(keys, language));
       },
     });
     return () => {

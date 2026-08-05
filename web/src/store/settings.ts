@@ -26,6 +26,8 @@ export interface Settings {
   recent_files: string[];
   /** Recently opened workspace folders (most-recent first). */
   recent_folders: string[];
+  /** Recently inserted bibliography keys, newest first. */
+  recent_citations: string[];
   pane_sidebar_width: number;
   /** Editor's share of the editor/preview row, 0..1. 0 = use the 50/50 default.
    *  Stored as a ratio (not px) so window resizes keep rebalancing the split. */
@@ -86,6 +88,7 @@ export const defaultSettings: Settings = {
   editor_indent_with_spaces: true,
   recent_files: [],
   recent_folders: [],
+  recent_citations: [],
   pane_sidebar_width: 0,
   pane_editor_ratio: 0,
   pane_log_height: 0,

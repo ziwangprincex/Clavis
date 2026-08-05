@@ -6,6 +6,61 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (rich local bibliography search and multi-citation insertion)
+
+A deliberately local-only bibliography slice: no Zotero database access, Better
+BibTeX watcher, DOI network lookup, or metadata mutation was added.
+
+### Parser and bounded execution
+
+- `src/bib.rs` was deepened into a degradation-friendly parser for braced and
+  parenthesized entries, nested braces, escaped quoted values, bare values, and
+  case-insensitive fields. One malformed entry recovers at the next indented
+  entry marker instead of consuming the rest of the library.
+- Rich metadata: author/editor, year/date, journal/journaltitle, booktitle,
+  publisher, normalized DOI, URL, abstract, keywords, volume, issue/number, pages,
+  and entry start/end lines. Comment/string/preamble records remain excluded.
+- Parsing is off the Tauri runtime via `spawn_blocking`, bounded to 200 files,
+  16 MiB per file, and 100,000 entries. Full BibTeX macro concatenation is not
+  evaluated; unsupported tails are consumed safely rather than guessed.
+
+### Search and insertion UX
+
+- New pure `bibliography/rank.ts` builds normalized search documents once, then
+  applies explainable all-token ranking: exact/prefix citekey, author/year,
+  title/venue, DOI/keywords/abstract. Recent keys and project citation count are
+  secondary boosts only. Empty search orders recent, project frequency, year, key.
+- Search is debounced 120 ms and display remains capped at 200 rows for large
+  libraries. Metadata details are expandable; long abstracts scroll within a
+  bounded region. Source jump remains available.
+- Checkbox multi-selection plus Insert Selected; double-click inserts one entry.
+  Recent citation history (50 keys) persists through frontend-owned Settings.
+- Native multi-key syntax: `\cite{a, b}`, `@a @b`, or `[@a; @b]` for LaTeX,
+  Typst, and Markdown/Quarto. Duplicate requested keys are removed.
+
+### Review findings fixed
+
+1. Parser rewrite tests initially used an invalid double-backslash quote fixture
+   and an incorrect end-line expectation; fixtures were corrected rather than
+   weakening parser semantics.
+2. Unclosed entries could consume a later valid indented entry; line-start
+   recovery now treats optional indentation correctly.
+3. A `rustfmt` invocation formatted the entire LaTeX module tree; unrelated diffs
+   were explicitly restored and are excluded from the commit.
+4. Python-generated template strings again dropped a LaTeX backslash; citation
+   formatting now uses explicit string concatenation and regression tests.
+5. Checkbox labels plus row double-click produced unstable double toggles; the
+   selection control and insertion button are separate interactive targets.
+6. Re-normalizing every field on every keystroke would jank large libraries;
+   normalized entry indexes are memoized and queries debounced.
+
+**Verified:** 69 Rust + 368 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Real-window checks
+remain for sidebar density, keyboard selection ergonomics, and a genuinely large
+Better BibTeX export. Zotero/Better BibTeX integration is a separate future slice.
+
+---
+
 ## 0. Update - 2026-08-05 (Quarto/Pandoc trusted render foundation)
 
 One deliberately bounded slice: saved `.qmd`/`.md` Documents can now render or
