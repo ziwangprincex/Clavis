@@ -5,6 +5,7 @@
 
 mod bib;
 mod cwl;
+mod document_tools;
 mod latex;
 mod project_config;
 mod references;
@@ -341,6 +342,10 @@ fn main() {
             references::index_references,
             references::preview_reference_rename,
             references::apply_reference_rename,
+            document_tools::inspect_document_tools,
+            document_tools::start_document_render,
+            document_tools::list_document_artifacts,
+            document_tools::open_document_artifact,
             tasks::start_project_task,
             tasks::cancel_project_task,
             workspace_search::search_workspace,

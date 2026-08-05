@@ -6,6 +6,60 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-05 (Quarto/Pandoc trusted render foundation)
+
+One deliberately bounded slice: saved `.qmd`/`.md` Documents can now render or
+export to HTML, PDF, or DOCX through Quarto/Pandoc. No YAML schema, preview
+server, notebook kernel, Zotero, or table tooling was mixed into this change.
+
+### Architecture and safety
+
+- New deep backend adapter `src/document_tools.rs` exposes only fixed enum-like
+  choices (`quarto|pandoc`, `html|pdf|docx`). The frontend cannot submit an
+  executable or argv. Documents are canonicalized and confined to the Workspace.
+- The existing Task Run implementation was deepened with an internal
+  `start_configured_run` seam; Quarto/Pandoc reuse its streaming output, one-run
+  reservation, timeout, process-group cancellation and TaskPanel rather than
+  creating a second process system.
+- First render explicitly requests Workspace Trust even when `clavis.toml` has no
+  task definitions. Backend trust/path/tool validation is repeated at execution.
+- Dirty Documents are rejected so external tools cannot silently render stale
+  disk content. Tool detection uses the same enriched PATH as Task Run and has a
+  three-second timeout.
+
+### Product behavior
+
+- `.qmd` remains the Markdown editor language and Session schema, but the status
+  bar labels it Quarto; file dialogs include `.qmd`.
+- Command palette entries: Quarto Render HTML/PDF/DOCX and Pandoc Export
+  HTML/PDF/DOCX. Successful runs locate the newest matching artifact and open it
+  with the OS default application. Nested Pandoc sources write beside themselves.
+- Artifact lookup checks common Quarto outputs plus a bounded 10,000-node
+  Workspace search for custom output directories; symlinks and dependency/VCS
+  trees are skipped. Only Workspace-contained HTML/PDF/DOCX can be opened.
+- Project Doctor now reports Quarto/Pandoc path/version, `_quarto.yml` or
+  `_quarto.yaml`, and standalone `.qmd` count.
+
+### Review findings fixed
+
+1. Quarto workspaces without configured tasks were `not-required` for trust but
+   rendering still executes external code; trust is now requested on first run.
+2. Pandoc nested-document output and artifact lookup initially disagreed.
+3. A fast process could emit start/output before the start IPC resolved; the Task
+   store now accepts the matching early run event, with a regression test.
+4. Failed/cancelled renders could leave stale artifact context and later open the
+   wrong output.
+5. Tool version probing could hang Project Doctor indefinitely.
+6. Fixed `_site/_book/docs` assumptions missed custom Quarto output directories.
+
+**Verified:** 69 Rust + 364 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Real-window checks
+remain for native Trust, cancellation of an actual Quarto child tree, and OS
+opening of HTML/PDF/DOCX. Artifacts currently open externally; an embedded HTML
+preview server or routing PDFs into Clavis' viewer is a separate future slice.
+
+---
+
 ## 0. Update - 2026-08-05 (cross-language reference index, diagnostics, navigation, and safe rename)
 
 A unified reference layer now treats **LaTeX and Typst as equal first-class

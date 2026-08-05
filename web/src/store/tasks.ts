@@ -18,6 +18,7 @@ interface TaskStore {
   lines: TaskLogLine[];
   result: TaskRunFinished | null;
   start: (task: string) => Promise<void>;
+  startRender: (options: { root: string; document: string; tool: 'quarto' | 'pandoc'; format: 'html' | 'pdf' | 'docx' }) => Promise<void>;
   cancel: () => Promise<void>;
   clear: () => void;
 }
@@ -35,17 +36,19 @@ async function ensureListeners(): Promise<void> {
   if (listenersReady) return listenersReady;
   listenersReady = (async () => {
     await events.onTaskRunStarted(event => {
-      useTaskStore.setState(state =>
-        state.runId && state.runId !== event.runId
-          ? state
-          : {
-              runId: event.runId,
-              requestedTask: event.requestedTask,
-              plan: event.plan,
-              status: 'running',
-              result: null,
-            },
-      );
+      useTaskStore.setState(state => {
+        if (state.runId && state.runId !== event.runId) return state;
+        // The backend can emit this before the start IPC resolves. Accept it
+        // only for the run currently being requested so early output is not lost.
+        if (!state.runId && state.requestedTask !== event.requestedTask) return state;
+        return {
+          runId: event.runId,
+          requestedTask: event.requestedTask,
+          plan: event.plan,
+          status: 'running',
+          result: null,
+        };
+      });
     });
     await events.onTaskStepStarted(event => {
       if (event.runId !== useTaskStore.getState().runId) return;
@@ -87,6 +90,17 @@ async function ensureListeners(): Promise<void> {
   return listenersReady;
 }
 
+async function prepareRun(set: (state: Partial<TaskStore>) => void, get: () => TaskStore, requestedTask: string): Promise<void> {
+  if (get().status === 'running') throw new Error('another project task is already running');
+  await ensureListeners();
+  set({ runId: null, requestedTask, plan: [], activeTask: null, status: 'running', lines: [], result: null });
+}
+
+function acceptStarted(set: (state: Partial<TaskStore>) => void, started: { runId: string; requestedTask: string; plan: string[] }) {
+  set({ runId: started.runId, requestedTask: started.requestedTask, plan: started.plan });
+  setStatus(`Running ${started.requestedTask}?`, 'info');
+}
+
 export const useTaskStore = create<TaskStore>((set, get) => ({
   runId: null,
   requestedTask: null,
@@ -97,32 +111,27 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   result: null,
 
   async start(task) {
-    if (get().status === 'running') throw new Error('another project task is already running');
     const workspace = useProjectStore.getState().workspace;
     if (!workspace) throw new Error('open a workspace with clavis.toml first');
     if (workspace.trust !== 'trusted') throw new Error('workspace is not trusted for task execution');
-    await ensureListeners();
-    set({
-      runId: null,
-      requestedTask: task,
-      plan: [],
-      activeTask: null,
-      status: 'running',
-      lines: [],
-      result: null,
-    });
+    await prepareRun(set, get, task);
     try {
-      const started = await ipc.startProjectTask(workspace.root, task);
-      set(state => ({
-        ...state,
-        runId: started.runId,
-        requestedTask: started.requestedTask,
-        plan: started.plan,
-      }));
-      setStatus(`Running task ${task}…`, 'info');
+      acceptStarted(set, await ipc.startProjectTask(workspace.root, task));
     } catch (error) {
       set({ status: 'error', activeTask: null });
       setStatus(`Task ${task} failed to start`, 'error');
+      throw error;
+    }
+  },
+
+  async startRender(options) {
+    const label = `render:${options.tool}:${options.format}`;
+    await prepareRun(set, get, label);
+    try {
+      acceptStarted(set, await ipc.startDocumentRender(options));
+    } catch (error) {
+      set({ status: 'error', activeTask: null });
+      setStatus(`Render failed to start`, 'error');
       throw error;
     }
   },

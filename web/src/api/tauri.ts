@@ -397,6 +397,27 @@ export interface ProjectDoctorReport {
   checks: ProjectDoctorCheck[];
 }
 
+export interface ToolInfo {
+  name: string;
+  path?: string | null;
+  version?: string | null;
+}
+
+export interface DocumentToolsInspection {
+  root: string;
+  quarto: ToolInfo;
+  pandoc: ToolInfo;
+  quartoProjectFile?: string | null;
+  qmdFiles: string[];
+}
+
+export interface DocumentArtifact {
+  path: string;
+  relativePath: string;
+  format: 'html' | 'pdf' | 'docx';
+  modifiedMillis?: number | null;
+}
+
 export interface TaskRunStarted {
   runId: string;
   requestedTask: string;
@@ -481,6 +502,14 @@ export const ipc = {
 
   startProjectTask: (root: string, task: string) =>
     invoke<TaskRunStarted>('start_project_task', { root, task }),
+  inspectDocumentTools: (root: string) =>
+    invoke<DocumentToolsInspection>('inspect_document_tools', { root }),
+  startDocumentRender: (options: { root: string; document: string; tool: 'quarto' | 'pandoc'; format: 'html' | 'pdf' | 'docx' }) =>
+    invoke<TaskRunStarted>('start_document_render', { options }),
+  listDocumentArtifacts: (options: { root: string; document: string; format: 'html' | 'pdf' | 'docx' }) =>
+    invoke<DocumentArtifact[]>('list_document_artifacts', { options }),
+  openDocumentArtifact: (root: string, path: string) =>
+    invoke<void>('open_document_artifact', { root, path }),
   cancelProjectTask: (runId: string) =>
     invoke<boolean>('cancel_project_task', { runId }),
   searchWorkspace: (options: { root: string; query: string; regex: boolean; caseSensitive: boolean }) =>

@@ -13,13 +13,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTabsStore, useCompileStore, useCursorStore, useStatusStore } from '../store';
 import { computeStats } from '../editor/stats';
+import { documentLanguageLabel } from '../files/documentIdentity';
 import styles from './StatusBar.module.css';
 
-const LANG_LABEL: Record<string, string> = {
-  markdown: 'Markdown',
-  latex: 'LaTeX',
-  typst: 'Typst',
-};
 
 const WORD_COUNT_DEBOUNCE_MS = 250;
 
@@ -76,7 +72,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
       <span className={styles.cell} title="Cursor position">
         Ln {line}, Col {column}
       </span>
-      <span className={styles.cell}>{activeTab ? LANG_LABEL[activeTab.lang] : ''}</span>
+      <span className={styles.cell}>{activeTab ? documentLanguageLabel(activeTab.filePath, activeTab.lang) : ''}</span>
       <span className={styles.cell} title="Words / characters">
         {stats.words.toLocaleString()} words · {stats.chars.toLocaleString()} chars
       </span>

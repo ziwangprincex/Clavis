@@ -36,6 +36,8 @@ import { RecentMenu } from './components/RecentMenu';
 import { Splitter } from './components/Splitter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { inspectAndMaybeTrustWorkspace } from './project/workspace';
+import { isQuartoDocument } from './files/documentIdentity';
+import { isRenderableDocument, newestArtifact, startRender, type DocumentFormat, type DocumentTool, type RenderContext } from './documentTools/render';
 import styles from './App.module.css';
 
 // Lazy-loaded — these pull in CodeMirror 6 (~590KB) and pdfjs-dist (~410KB)
@@ -79,6 +81,7 @@ export function App() {
   const editorApiRef = useRef<EditorPaneRef | null>(null);
   const autoCompileTimerRef = useRef<number | null>(null);
   const workspaceOpenSeqRef = useRef(0);
+  const pendingRenderRef = useRef<RenderContext | null>(null);
 
   const [workspaceFolder, setWorkspaceFolder] = useState<string | null>(null);
   const [folderRefreshKey, setFolderRefreshKey] = useState(0);
@@ -272,6 +275,13 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCompile, lang, activeTab?.content, activeTab?.id]);
 
+  useEffect(() => {
+    if (!pendingRenderRef.current) return;
+    if (taskStatus === 'ok') void openLatestRenderArtifact();
+    else if (taskStatus === 'error' || taskStatus === 'cancelled') pendingRenderRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskStatus]);
+
   async function exportLatexPdf() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
     if (!tab?.latexWorkdirToken) {
@@ -335,6 +345,41 @@ export function App() {
     } catch (e) {
       console.error('set main failed', e);
       setStatus('Set main failed', 'error');
+    }
+  }
+
+  async function renderCurrentDocument(tool: DocumentTool, format: DocumentFormat) {
+    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+    if (!workspaceFolder || !tab || !isRenderableDocument(tab) || !tab.filePath) {
+      setStatus('Open a saved .qmd or .md Document inside a Workspace first', 'error');
+      return;
+    }
+    const context: RenderContext = { root: workspaceFolder, document: tab.filePath, tool, format };
+    try {
+      pendingRenderRef.current = context;
+      await startRender(context, tab);
+    } catch (error) {
+      pendingRenderRef.current = null;
+      setStatus(String(error), 'error');
+    }
+  }
+
+  async function openLatestRenderArtifact() {
+    const context = pendingRenderRef.current;
+    if (!context) return;
+    try {
+      const artifact = await newestArtifact(context);
+      if (!artifact) {
+        setStatus(`Render finished, but no ${context.format.toUpperCase()} artifact was found`, 'error');
+        return;
+      }
+      await ipc.openDocumentArtifact(context.root, artifact.path);
+      setStatus(`Opened ${artifact.relativePath}`, 'ok');
+    } catch (error) {
+      setStatus(`Could not open rendered artifact: ${String(error)}`, 'error');
+    } finally {
+      pendingRenderRef.current = null;
+      setFolderRefreshKey(key => key + 1);
     }
   }
 
@@ -466,6 +511,24 @@ export function App() {
       reg({ id: 'lang.markdown', name: 'Switch to Markdown', run: () => setLang('markdown') }),
       reg({ id: 'lang.latex', name: 'Switch to LaTeX', run: () => setLang('latex') }),
       reg({ id: 'lang.typst', name: 'Switch to Typst', run: () => setLang('typst') }),
+      ...(['html', 'pdf', 'docx'] as const).map(format =>
+        reg({
+          id: `quarto.render.${format}`,
+          name: `Quarto: Render ${format.toUpperCase()}`,
+          when: () => isQuartoDocument(useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath)
+            && useTaskStore.getState().status !== 'running',
+          run: () => renderCurrentDocument('quarto', format),
+        }),
+      ),
+      ...(['html', 'pdf', 'docx'] as const).map(format =>
+        reg({
+          id: `pandoc.render.${format}`,
+          name: `Pandoc: Export ${format.toUpperCase()}`,
+          when: () => isRenderableDocument(useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId))
+            && useTaskStore.getState().status !== 'running',
+          run: () => renderCurrentDocument('pandoc', format),
+        }),
+      ),
       reg({
         id: 'latex.compile',
         name: 'Compile (LaTeX)',

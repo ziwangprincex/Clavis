@@ -52,6 +52,15 @@ describe('project task store', () => {
     expect(useTaskStore.getState().plan).toEqual(['tables', 'paper']);
   });
 
+  it('accepts run-started and output before the start IPC resolves', async () => {
+    const { useTaskStore } = await import('./tasks');
+    useTaskStore.setState({ runId: null, requestedTask: 'render:quarto:html', status: 'running', lines: [] });
+    listeners['task-run-started']?.({ runId: 'early', requestedTask: 'render:quarto:html', plan: ['render:quarto:html'] });
+    listeners['task-output']?.({ runId: 'early', task: 'render:quarto:html', stream: 'stdout', text: 'early output' });
+    expect(useTaskStore.getState().runId).toBe('early');
+    expect(useTaskStore.getState().lines.map(line => line.text)).toEqual(['early output']);
+  });
+
   it('ignores output from a different run and records the current run', async () => {
     const { useTaskStore } = await import('./tasks');
     useTaskStore.setState({ runId: null, status: 'idle', lines: [] });

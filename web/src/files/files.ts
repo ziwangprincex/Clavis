@@ -11,7 +11,7 @@ import {
 } from '../store';
 
 const FILE_FILTERS: { name: string; extensions: string[] }[] = [
-  { name: 'Documents', extensions: ['md', 'tex', 'typ', 'bib', 'txt'] },
+  { name: 'Documents', extensions: ['md', 'qmd', 'tex', 'typ', 'bib', 'txt'] },
   { name: 'All Files', extensions: ['*'] },
 ];
 

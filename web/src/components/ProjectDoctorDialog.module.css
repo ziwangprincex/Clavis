@@ -48,3 +48,5 @@
 .error .icon { color: var(--error); }
 .empty { color: var(--text-muted); }
 .footer { display: flex; justify-content: flex-end; padding: 12px 22px; border-top: 1px solid var(--border); }
+
+.subhead { margin: 18px 0 8px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }

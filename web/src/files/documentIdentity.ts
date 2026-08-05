@@ -13,3 +13,12 @@ export function documentTitle(path: string): string {
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || path;
 }
+
+/** Quarto is a Markdown document flavor, not a separate editor language. */
+export function isQuartoDocument(path: string | null | undefined): boolean {
+  return !!path && path.toLowerCase().endsWith('.qmd');
+}
+
+export function documentLanguageLabel(path: string | null | undefined, lang: Lang): string {
+  return isQuartoDocument(path) ? 'Quarto' : lang === 'latex' ? 'LaTeX' : lang === 'typst' ? 'Typst' : 'Markdown';
+}

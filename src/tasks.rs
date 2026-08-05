@@ -439,15 +439,14 @@ async fn execute_run(
     let _ = window.emit("task-run-finished", final_result);
 }
 
-#[tauri::command]
-pub async fn start_project_task(
-    root: String,
-    task: String,
+pub(crate) fn start_configured_run(
+    state: Arc<TaskState>,
     window: tauri::Window,
-    state: tauri::State<'_, Arc<TaskState>>,
+    root: PathBuf,
+    config: ProjectConfig,
+    requested_task: String,
+    plan: Vec<String>,
 ) -> Result<TaskRunStarted, String> {
-    let workspace = executable_workspace(&root)?;
-    let plan = task_plan(&workspace.config, &task)?;
     let run_id = uuid::Uuid::new_v4().to_string();
     let (cancel_tx, cancel_rx) = watch::channel(false);
     {
@@ -457,25 +456,42 @@ pub async fn start_project_task(
         }
         active.insert(run_id.clone(), cancel_tx);
     }
-
     let started = TaskRunStarted {
         run_id: run_id.clone(),
-        requested_task: task.clone(),
+        requested_task: requested_task.clone(),
         plan: plan.clone(),
     };
     let _ = window.emit("task-run-started", started.clone());
-    let owned_state = state.inner().clone();
     tauri::async_runtime::spawn(execute_run(
-        owned_state,
+        state,
         window,
         run_id,
-        task,
-        workspace.root,
-        workspace.config,
+        requested_task,
+        root,
+        config,
         plan,
         cancel_rx,
     ));
     Ok(started)
+}
+
+#[tauri::command]
+pub async fn start_project_task(
+    root: String,
+    task: String,
+    window: tauri::Window,
+    state: tauri::State<'_, Arc<TaskState>>,
+) -> Result<TaskRunStarted, String> {
+    let workspace = executable_workspace(&root)?;
+    let plan = task_plan(&workspace.config, &task)?;
+    start_configured_run(
+        state.inner().clone(),
+        window,
+        workspace.root,
+        workspace.config,
+        task,
+        plan,
+    )
 }
 
 #[tauri::command]

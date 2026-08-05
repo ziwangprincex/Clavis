@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { ipc, type ProjectDoctorReport, type WorkspaceInspection } from '../api/tauri';
+import { ipc, type DocumentToolsInspection, type ProjectDoctorReport, type WorkspaceInspection } from '../api/tauri';
 import styles from './ProjectDoctorDialog.module.css';
 
 export interface ProjectDoctorDialogProps {
@@ -11,6 +11,7 @@ export interface ProjectDoctorDialogProps {
 export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorDialogProps) {
   const [report, setReport] = useState<ProjectDoctorReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tools, setTools] = useState<DocumentToolsInspection | null>(null);
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
@@ -18,8 +19,8 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
     let cancelled = false;
     setReport(null);
     setError(null);
-    ipc.doctorWorkspace(workspace.root).then(
-      next => { if (!cancelled) setReport(next); },
+    Promise.all([ipc.doctorWorkspace(workspace.root), ipc.inspectDocumentTools(workspace.root)]).then(
+      ([nextReport, nextTools]) => { if (!cancelled) { setReport(nextReport); setTools(nextTools); } },
       reason => { if (!cancelled) setError(String(reason)); },
     );
     return () => { cancelled = true; };
@@ -58,6 +59,23 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
                   </li>
                 ))}
               </ul>
+              {tools && (
+                <>
+                  <h3 className={styles.subhead}>Document tools</h3>
+                  <ul className={styles.checks}>
+                    {[tools.quarto, tools.pandoc].map(tool => (
+                      <li key={tool.name} className={tool.path ? styles.ok : styles.warning}>
+                        <span className={styles.icon}>{tool.path ? '?' : '!'}</span>
+                        <span>{tool.path ? `${tool.name} found${tool.version ? ` ? ${tool.version}` : ''}` : `${tool.name} not found in PATH`}</span>
+                      </li>
+                    ))}
+                    <li className={tools.quartoProjectFile ? styles.ok : styles.warning}>
+                      <span className={styles.icon}>{tools.quartoProjectFile ? '?' : '!'}</span>
+                      <span>{tools.quartoProjectFile ? `Quarto project: ${tools.quartoProjectFile}` : `No _quarto.yml; ${tools.qmdFiles.length} standalone .qmd file(s) found`}</span>
+                    </li>
+                  </ul>
+                </>
+              )}
             </>
           )}
         </div>

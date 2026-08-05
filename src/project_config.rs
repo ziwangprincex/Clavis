@@ -283,6 +283,15 @@ pub(crate) struct ExecutableWorkspace {
 
 /// Re-read configuration and trust immediately before execution. This closes the
 /// time-of-check/time-of-use gap between opening a folder and starting a task.
+pub(crate) fn trusted_workspace_root(root: &str) -> Result<PathBuf, String> {
+    let root = canonical_workspace(root)?;
+    let key = portable_path(&root);
+    if !read_trusted_roots().contains(&key) {
+        return Err("workspace is not trusted for external tool execution".to_string());
+    }
+    Ok(root)
+}
+
 pub(crate) fn executable_workspace(root: &str) -> Result<ExecutableWorkspace, String> {
     let root = canonical_workspace(root)?;
     let inspection = inspect_with_trust(root.clone(), &read_trusted_roots());

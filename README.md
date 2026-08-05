@@ -91,6 +91,16 @@ main document, task working directories, trust, and whether task commands are
 available. Clavis re-reads both configuration and trust immediately before every
 run, so changing a project after it was opened cannot bypass validation.
 
+## Quarto and Pandoc rendering
+
+`.qmd` files reuse the Markdown editor and Session model but are identified as
+Quarto in the status bar. From the command palette, a saved `.qmd` or `.md`
+Document can be rendered/exported to HTML, PDF, or DOCX with Quarto or Pandoc.
+Rendering requests Workspace Trust on first use, streams through the existing
+Task panel, supports Stop/timeout, and opens the newest matching artifact after
+success. Project Doctor reports tool versions, `_quarto.yml`, and discovered
+`.qmd` files. Quarto/Pandoc must be installed separately.
+
 ## References and citations
 
 The Workspace References section builds one index across LaTeX, Typst, BibTeX,
