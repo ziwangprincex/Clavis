@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTabsStore, useCompileStore, useCursorStore, useStatusStore, useSettingsStore } from '../store';
-import { computeResearchStats, computeStats } from '../editor/stats';
+import { computeResearchDetailStats, computeResearchStats, computeStats } from '../editor/stats';
 import { documentLanguageLabel } from '../files/documentIdentity';
 import styles from './StatusBar.module.css';
 
@@ -47,6 +47,8 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const kind = useStatusStore(s => s.kind);
   const line = useCursorStore(s => s.line);
   const column = useCursorStore(s => s.column);
+  const selectionFrom = useCursorStore(s => s.selectionFrom);
+  const selectionTo = useCursorStore(s => s.selectionTo);
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const compileStatus = useCompileStore(s => s.status);
   const errors = useCompileStore(s => s.errors);
@@ -59,6 +61,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const contentForStats = useDebounced(activeTab?.content ?? '', WORD_COUNT_DEBOUNCE_MS);
   const stats = useMemo(() => computeStats(contentForStats), [contentForStats]);
   const research = useMemo(() => activeTab ? computeResearchStats(contentForStats, activeTab.lang) : null, [contentForStats, activeTab?.lang]);
+  const detail = useMemo(() => activeTab ? computeResearchDetailStats(contentForStats, activeTab.lang, Math.min(selectionFrom, contentForStats.length), { from: selectionFrom, to: selectionTo }) : null, [contentForStats, activeTab?.lang, selectionFrom, selectionTo]);
 
   const compiling = compileStatus === 'compiling';
 
@@ -88,6 +91,10 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
           Abstract ? {research.abstractWords.toLocaleString()}{writingLimits.abstract > 0 ? ` / ${writingLimits.abstract.toLocaleString()}` : ''}
         </span>
       )}
+
+      {detail?.selectionWords != null && <span className={styles.cell} title="Estimated prose words in the current selection">Selection ? {detail.selectionWords.toLocaleString()}</span>}
+      {detail?.sectionWords != null && <span className={styles.cell} title="Estimated prose words in the current section">Section ? {detail.sectionWords.toLocaleString()}</span>}
+      {detail && (detail.captionWords > 0 || detail.footnoteWords > 0) && <span className={styles.cell} title="Estimated caption and footnote prose words">Caps ? {detail.captionWords.toLocaleString()} ? Notes ? {detail.footnoteWords.toLocaleString()}</span>}
 
       {isLatex && (
         <button

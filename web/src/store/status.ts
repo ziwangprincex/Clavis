@@ -35,11 +35,15 @@ export function setStatus(text: string, kind: StatusKind = 'info'): void {
 interface CursorStore {
   line: number;
   column: number;
-  setPos: (line: number, column: number) => void;
+  selectionFrom: number;
+  selectionTo: number;
+  setPos: (line: number, column: number, selectionFrom?: number, selectionTo?: number) => void;
 }
 
 export const useCursorStore = create<CursorStore>(set => ({
   line: 1,
   column: 1,
-  setPos: (line, column) => set({ line, column }),
+  selectionFrom: 0,
+  selectionTo: 0,
+  setPos: (line, column, selectionFrom = 0, selectionTo = selectionFrom) => set({ line, column, selectionFrom, selectionTo }),
 }));

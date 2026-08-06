@@ -143,12 +143,11 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
         });
       },
       getCompletionWorkspace: completionWorkspace,
-      onCursor: () => {
-        // Publish live cursor line/column to the global cursor store so the
-        // status bar can display it. Column is computed against the doc, so
-        // we go through the controller helper.
+      onCursor: (_pos, selectionFrom, selectionTo) => {
+        // Publish live cursor/selection state to the status bar. Column is
+        // computed against the doc, so we go through the controller helper.
         const { line, column } = ctrl.cursorLineCol();
-        useCursorStore.getState().setPos(line, column);
+        useCursorStore.getState().setPos(line, column, selectionFrom, selectionTo);
       },
       onOpenInclude: (raw: string, isImport: boolean) =>
         onOpenIncludeRef.current?.(raw, isImport),

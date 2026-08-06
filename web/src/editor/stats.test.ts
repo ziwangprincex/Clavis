@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeResearchStats, computeStats, countChars, countLines, countWords } from './stats';
+import { computeResearchDetailStats, computeResearchStats, computeStats, countChars, countLines, countWords } from './stats';
 
 describe('countLines', () => {
   it('returns 1 for empty string (a blank doc still shows Ln 1)', () => {
@@ -78,5 +78,24 @@ Main text.`, 'typst').abstractWords).toBe(4);
     const stats = computeResearchStats('= Abstract\nShort abstract text.\n= Main\nVisible #image("x.png") prose $x^2$.', 'typst');
     expect(stats.abstractWords).toBe(3);
     expect(stats.mainWords).toBe(3);
+  });
+});
+
+
+describe('computeResearchDetailStats', () => {
+  it('estimates selected and current Markdown section prose separately from captions and notes', () => {
+    const text = '# Intro\nMain prose here.\n![Chart caption](chart.png)\n[^1]: Note prose.\n# Results\nResult words here.';
+    const stats = computeResearchDetailStats(text, 'markdown', text.indexOf('Main'), { from: text.indexOf('Main'), to: text.indexOf('here.') + 5 });
+    expect(stats.selectionWords).toBe(3);
+    expect(stats.sectionWords).toBeGreaterThanOrEqual(3);
+    expect(stats.captionWords).toBe(2);
+    expect(stats.footnoteWords).toBe(2);
+  });
+
+  it('recognizes common LaTeX and Typst caption/footnote forms without evaluating source', () => {
+    const latex = computeResearchDetailStats('\\section{A} prose \\caption{Table caption} \\footnote{Note text}', 'latex', 15);
+    expect(latex.captionWords).toBe(2); expect(latex.footnoteWords).toBe(2);
+    const typst = computeResearchDetailStats('= A\nprose #figure(image("x"), caption: [Figure caption]) #footnote[Note text]', 'typst', 5);
+    expect(typst.captionWords).toBe(2); expect(typst.footnoteWords).toBe(2);
   });
 });

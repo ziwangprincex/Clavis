@@ -117,3 +117,77 @@ export function computeResearchStats(text: string, language: 'markdown' | 'latex
     abstractWords: abstract == null ? null : proseWords(strip(abstract)),
   };
 }
+
+
+export interface ResearchDetailStats {
+  /** Estimated prose in the selected text range, or null without a selection. */
+  selectionWords: number | null;
+  /** Estimated prose in the current section at `cursorOffset`, excluding its heading. */
+  sectionWords: number | null;
+  /** Estimated figure/table caption prose in the document. */
+  captionWords: number;
+  /** Estimated footnote prose in the document. */
+  footnoteWords: number;
+}
+
+function estimate(text: string, language: 'markdown' | 'latex' | 'typst'): number {
+  return proseWords(language === 'latex' ? stripLatex(text) : language === 'typst' ? stripTypst(text) : stripMarkdown(text));
+}
+
+function sectionRange(text: string, language: 'markdown' | 'latex' | 'typst', cursorOffset: number): string | null {
+  const before = text.slice(0, Math.max(0, Math.min(cursorOffset, text.length)));
+  if (language === 'latex') {
+    const headings = /\\(?:section|subsection|subsubsection)\*?\s*\{[^{}]*\}/g;
+    let start: RegExpExecArray | null = null; let match: RegExpExecArray | null;
+    while ((match = headings.exec(before)) !== null) start = match;
+    if (!start) return null;
+    headings.lastIndex = start.index + start[0].length;
+    const next = headings.exec(text);
+    return text.slice(start.index + start[0].length, next?.index ?? text.length);
+  }
+  const headings = language === 'typst' ? /^=+\s+.+$/gm : /^#{1,6}\s+.+$/gm;
+  let start: RegExpExecArray | null = null; let match: RegExpExecArray | null;
+  while ((match = headings.exec(before)) !== null) start = match;
+  if (!start) return null;
+  headings.lastIndex = start.index + start[0].length;
+  const next = headings.exec(text);
+  return text.slice(start.index + start[0].length, next?.index ?? text.length);
+}
+
+function matchedProse(text: string, pattern: RegExp, language: 'markdown' | 'latex' | 'typst'): number {
+  let total = 0; let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) total += estimate(match[1] ?? '', language);
+  return total;
+}
+
+/**
+ * Research-oriented detail estimates. These are deliberately local textual
+ * estimates, not a TeX/Typst evaluator or publisher submission count.
+ */
+export function computeResearchDetailStats(
+  text: string,
+  language: 'markdown' | 'latex' | 'typst',
+  cursorOffset = 0,
+  selection?: { from: number; to: number },
+): ResearchDetailStats {
+  const captionWords = language === 'latex'
+    ? matchedProse(text, /\\caption(?:\[[^\]]*\])?\s*\{([^{}]*)\}/g, language)
+    : language === 'typst'
+      ? matchedProse(text, /#figure\([\s\S]*?caption:\s*\[([^\]]*)\][\s\S]*?\)/g, language)
+      : matchedProse(text, /!\[([^\]]*)\]\([^)]*\)/g, language);
+  const footnoteWords = language === 'latex'
+    ? matchedProse(text, /\\footnote(?:\[[^\]]*\])?\s*\{([^{}]*)\}/g, language)
+    : language === 'typst'
+      ? matchedProse(text, /#footnote\s*\[([^\]]*)\]/g, language)
+      : matchedProse(text, /\[\^\d+\]:\s*(.+)$/gm, language);
+  const selected = selection && selection.to > selection.from
+    ? text.slice(Math.max(0, selection.from), Math.min(text.length, selection.to))
+    : null;
+  const section = sectionRange(text, language, cursorOffset);
+  return {
+    selectionWords: selected == null ? null : estimate(selected, language),
+    sectionWords: section == null ? null : estimate(section, language),
+    captionWords,
+    footnoteWords,
+  };
+}

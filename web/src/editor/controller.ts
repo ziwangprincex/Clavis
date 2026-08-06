@@ -300,7 +300,7 @@ export interface EditorOptions {
   tabSize?: number;
   indentWithSpaces?: boolean;
   onChange?: (doc: string) => void;
-  onCursor?: (pos: number) => void;
+  onCursor?: (pos: number, selectionFrom: number, selectionTo: number) => void;
   /** Fresh Workspace snapshot used by semantic completion providers. */
   getCompletionWorkspace?: () => CompletionWorkspace | undefined;
   /** Ctrl/Cmd+click on an \input{...}/\include{...} target (LaTeX only).
@@ -329,7 +329,7 @@ export class EditorController {
   private font: FontSpec;
   private spellcheck: boolean;
   private onChangeCb?: (doc: string) => void;
-  private onCursorCb?: (pos: number) => void;
+  private onCursorCb?: (pos: number, selectionFrom: number, selectionTo: number) => void;
   private getCompletionWorkspaceCb?: () => CompletionWorkspace | undefined;
   private onOpenIncludeCb?: (raw: string, isImport: boolean) => void;
 
@@ -387,7 +387,7 @@ export class EditorController {
       EditorView.updateListener.of(update => {
         if (this.suppressEvents) return;
         if (update.docChanged) this.onChangeCb?.(this.value);
-        if (update.selectionSet) this.onCursorCb?.(this.cursor);
+        if (update.selectionSet) { const selection = update.state.selection.main; this.onCursorCb?.(selection.head, selection.from, selection.to); }
       }),
     ];
 

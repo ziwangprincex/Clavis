@@ -6,6 +6,49 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (fine-grained research prose estimates)
+
+The status bar now extends the existing document and Abstract prose estimates
+with local research-writing views: **Selection**, **Section**, **Caps**, and
+**Notes**. All display `?` explicitly because these are textual estimates, not
+publisher or compiler word counts.
+
+- The editor now publishes current selection offsets along with line/column.
+  A non-empty selection gets a language-aware estimated prose count.
+- Current Section is inferred from the closest preceding Markdown/Quarto
+  heading, Typst heading, or LaTeX section/subsection/subsubsection, stopping
+  at the next same recognized heading. Heading text itself is excluded.
+- Caption estimates recognize Markdown image alt text, common LaTeX
+  `\caption{...}`, and Typst `#figure(..., caption: [...])`; note estimates
+  recognize Markdown numeric footnote definitions, LaTeX `\footnote{...}`, and
+  Typst `#footnote[...]`.
+- Each region is passed through the same local markup/code/math-stripping model
+  already used for Main and Abstract. No file I/O, compilation, AST evaluation,
+  citation lookup, or external service is added.
+
+### Review findings fixed
+
+1. The first Typst figure matcher stopped at `image("...")`'s inner close
+   paren before reaching `caption:`. It now conservatively scans to the figure
+   call's later close and has a regression test.
+2. Selection offsets can outlive the debounced document snapshot briefly; all
+   slices are clamped to the current debounced text, preventing invalid ranges.
+3. The UI avoids presenting zero-valued caption/note cells unless at least one
+   recognized region exists, while selection/section retain distinct `null`
+   semantics when unavailable.
+4. Tests cover Markdown selection/section/caption/footnote estimates plus
+   LaTeX and Typst caption/note forms; results remain estimates rather than
+   claims of full macro-aware counting.
+
+**Verified:** 94 Rust + 409 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Windows Cargo
+may emit a non-fatal incremental-cache access-denied warning after passing
+checks; Vite retains its pre-existing `tauri.ts` dynamic/static chunking
+warning. Future work is now primarily optional polish / separately-reviewed
+Git write workflows rather than a known blocker in the core research workbench.
+
+---
+
 ## 0. Update - 2026-08-06 (asset previews and language-aware insertion)
 
 The Asset sidebar now supports an on-demand **Preview** and **Insert** action
