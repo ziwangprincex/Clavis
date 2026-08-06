@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { dialogOpen, ipc, type BibEntry, type BibliographyExportStatus, type ZoteroEntry } from '../api/tauri';
 import { useProjectStore, useReferencesStore, useSettingsStore } from '../store';
 import { indexBibliography, rankBibliography } from '../bibliography/rank';
+import { citationIntegrity } from '../bibliography/integrity';
 import styles from './BibSection.module.css';
 
 export interface BibSectionProps {
@@ -100,6 +101,7 @@ export function BibSection({ onInsertCites, onJumpToSource, onExportChanged }: B
   const ranked = useMemo(() => rankBibliography(indexedEntries, searchQuery, usageCounts, recentKeys), [indexedEntries, searchQuery, usageCounts, recentKeys]);
   const visible = ranked.slice(0, MAX_VISIBLE);
   const hidden = Math.max(0, ranked.length - MAX_VISIBLE);
+  const integrity = useMemo(() => citationIntegrity(entries, indexedOccurrences), [entries, indexedOccurrences]);
 
   async function insert(keys: string[]) {
     const unique = [...new Set(keys)].filter(Boolean);
@@ -128,6 +130,7 @@ export function BibSection({ onInsertCites, onJumpToSource, onExportChanged }: B
     {error && <div className={styles.error}>{error}</div>}
     {bibPaths.length === 0 ? <div className={styles.empty}>(no .bib files in workspace)</div> : !error && entries.length === 0 ? <div className={styles.empty}>(no bibliography entries)</div> : <>
       <div className={styles.summary}>{ranked.length} entries · {indexedOccurrences.filter(item => item.namespace === 'citation' && item.role === 'usage').length} project citations</div>
+      {(integrity.missingKeys.length > 0 || integrity.unusedKeys.length > 0) && <div className={styles.integrity}>{integrity.missingKeys.length > 0 && <span>Missing cited key{integrity.missingKeys.length === 1 ? '' : 's'}: {integrity.missingKeys.join(', ')}</span>}{integrity.unusedKeys.length > 0 && <span>Unused BibTeX: {integrity.unusedKeys.slice(0, 12).join(', ')}{integrity.unusedKeys.length > 12 ? '?' : ''}</span>}</div>}
       {exports.length > 0 && <div className={styles.exportStatus}>{exports.map(item => item.exists ? `${item.provider}: ${item.relativePath}` : `missing export: ${item.relativePath}`).join(' · ')}</div>}
       <ul className={styles.list}>{visible.map(({ entry, usageCount, recentRank }) => {
         const checked = selected.has(entry.key); const venue = entry.journal ?? entry.booktitle ?? entry.publisher;

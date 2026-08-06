@@ -6,6 +6,18 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (citation integrity summary)
+
+Bibliography now shows a local, read-only integrity summary: citation keys used
+by the project but absent from parsed BibTeX, and parsed BibTeX entries with no
+project citation usage. It is an observation only; Clavis does not delete
+entries, rewrite citations, or modify Zotero.
+
+**Verified:** 101 Rust + 415 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-06 (local reproducibility report)
 
 Project Doctor can now save a local Markdown reproducibility report. It combines
