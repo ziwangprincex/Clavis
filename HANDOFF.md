@@ -6,6 +6,49 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (bounded Typst workspace import intelligence)
+
+Typst completion now understands a deliberately limited static workspace scope.
+For a saved workspace file, Clavis follows quoted relative `.typ` imports already
+present in the editor/project snapshot and offers imported `#let` functions,
+values, selected aliases, and module aliases. Imported functions keep their
+actual required parameter names in the insertion snippet.
+
+- New frontend-only `typstWorkspaceScan` never reads the filesystem, evaluates
+  Typst, launches a language server, or executes imports. It follows at most 12
+  levels / 80 files, detects cycles, and accepts only quoted relative `.typ`
+  imports confined beneath the workspace root.
+- Supported static forms include `#import "lib.typ": *`, selected imports with
+  `as` aliases, and `#import "lib.typ" as module`. Local definitions shadow
+  imports. Dynamic expressions, package imports (`@preview/...`), absolute and
+  traversal paths, comments, and malformed selector fragments are ignored.
+- In `#set name` completion, only standard-library functions with settable
+  parameters appear; accepting one inserts just the selector, not a duplicate
+  hash/call. `#show name` similarly offers selector names only. This is syntax
+  assistance, **not** a claim that Clavis evaluates #set/#show transformations.
+- Existing Typst builtin and document-local completion behavior is preserved;
+  imported symbols rank below local ones but above the broad standard library.
+
+### Review findings fixed
+
+1. The initial static import matcher would treat any selector containing `*` as
+   a star import; it now recognizes only a standalone comma-delimited `*`.
+2. Leading `./` static paths are normalized and allowed; `.` / `..` path
+   segments after normalization remain rejected.
+3. Direct provider tests prove imported function parameter insertion and reject
+   dynamic imports; scanner tests cover aliases, nested imports, local shadowing,
+   comments, traversal/package exclusion, and cycles.
+4. `#set` / `#show` support is intentionally completion-only. No style-result,
+   selector resolution, or cross-file semantic inference is exposed as fact.
+
+**Verified:** 93 Rust + 400 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. The Vite build
+retains its pre-existing dynamic/static `tauri.ts` chunking warning. LaTeX macro
+analysis, asset thumbnails/drag insertion, and finer-grained research word
+statistics remain future slices.
+
+---
+
 ## 0. Update - 2026-08-06 (explicit local Zotero SQLite search)
 
 Bibliography now has **Search local Zotero...**. It asks the user to select a

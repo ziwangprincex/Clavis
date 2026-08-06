@@ -12,6 +12,7 @@
 
 import { builtinSignatures } from './signatures';
 import { letFunctionsFor } from './typstLetScan';
+import { typstWorkspaceSymbols } from './typstWorkspaceScan';
 import type { CompletionCandidate, CompletionProvider } from './types';
 import type { TypstFuncSig, TypstParamSig } from '../api/tauri';
 
@@ -62,6 +63,7 @@ const COMMON_MATH = new Set([
 const BOOST_COMMON = 2;
 const BOOST_BUILTIN = -4;
 const BOOST_LOCAL = 18;
+const BOOST_IMPORTED = 14;
 const BOOST_NESTED = -8;
 
 /**
@@ -186,6 +188,16 @@ function candidateFor(sig: TypstFuncSig, nested: boolean, math: boolean): Comple
   };
 }
 
+function workspaceCandidate(symbol: { name: string; kind: 'function' | 'value' | 'module'; params?: readonly { name: string; variadic: boolean; default: string | null }[]; imported: boolean }): CompletionCandidate {
+  if (symbol.kind === 'function') {
+    return { ...localCandidate(symbol.name, symbol.params ?? []), detail: symbol.imported ? 'imported function' : 'local function', boost: symbol.imported ? BOOST_IMPORTED : BOOST_LOCAL };
+  }
+  if (symbol.kind === 'module') {
+    return { label: symbol.name, insertText: `${symbol.name}.`, detail: 'imported module', kind: 'command', boost: BOOST_IMPORTED - 1 };
+  }
+  return { label: symbol.name, insertText: symbol.name, detail: symbol.imported ? 'imported value' : 'local value', kind: 'command', boost: symbol.imported ? BOOST_IMPORTED - 2 : BOOST_LOCAL - 2 };
+}
+
 function localCandidate(name: string, params: readonly { name: string; variadic: boolean; default: string | null }[]): CompletionCandidate {
   const required = params.filter(p => !p.variadic && p.default === null);
   const args = required.map((p, i) => `\${${i + 1}:${p.name}}`).join(', ');
@@ -217,8 +229,14 @@ export const typstProvider: CompletionProvider = {
 
     const raw = site.query;
     const hash = raw.startsWith('#');
-    const query = hash ? raw.slice(1) : raw;
     const math = inTypstMath(request.text, request.position);
+    // `#set text(` and `#show heading:` use unprefixed function names, unlike
+    // ordinary code calls. Treat only the immediately preceding, static rule
+    // prefix as code context; this does not attempt to evaluate selectors or
+    // transformations.
+    const rule = !math ? /#(set|show)\s+([A-Za-z_.-]*)$/.exec(request.text.slice(0, request.position)) : null;
+    const ruleMode = rule?.[1] as 'set' | 'show' | undefined;
+    const query = ruleMode ? rule![2] : hash ? raw.slice(1) : raw;
 
     // Outside math, typst function names are only meaningful in code mode, which
     // a `#` opens. Without that marker a word is ordinary prose — `page`, `link`
@@ -226,7 +244,7 @@ export const typstProvider: CompletionProvider = {
     // someone writes a sentence is worse than offering nothing. Inside `$...$`
     // there is no `#`: `frac(a, b)` is how it is written, so a bare word is a
     // real call site there. An explicit request (Ctrl-Space) overrides either way.
-    if (!hash && !math && !request.explicit) return [];
+    if (!hash && !math && !request.explicit && !ruleMode) return [];
 
     const out: CompletionCandidate[] = [];
     // The `#` sits inside the replaced range, so CodeMirror filters candidates
@@ -241,21 +259,35 @@ export const typstProvider: CompletionProvider = {
         : candidate);
     };
 
-    for (const fn of letFunctionsFor(request.text).values()) {
-      if (query && !fn.name.startsWith(query)) continue;
-      emit(localCandidate(fn.name, fn.params));
+    if (!ruleMode) {
+      const workspaceSymbols = typstWorkspaceSymbols(request.workspace);
+      // A supplied workspace provides cross-file static imports as well as the
+      // active file's local definitions. Fall back to the document-only scanner
+      // for scratch tabs and browser preview.
+      const symbols = workspaceSymbols.size > 0
+        ? workspaceSymbols.values()
+        : [...letFunctionsFor(request.text).values()].map(fn => ({ name: fn.name, kind: 'function' as const, params: fn.params, imported: false }));
+      for (const symbol of symbols) {
+        if (query && !symbol.name.startsWith(query)) continue;
+        emit(workspaceCandidate(symbol));
+      }
     }
 
     for (const sig of builtinSignatures()) {
       // `frac`, `vec` and ~38 others live only in the math scope, so offering
       // them in markup would propose code that does not compile.
       if (sig.mathOnly && !math) continue;
+      if (ruleMode === 'set' && !sig.params.some(param => param.settable)) continue;
       const nested = sig.name.includes('.');
       // Dotted names also match on the segment after the dot, so `pow` finds
       // `calc.pow` without the user having to remember the module.
       const tail = nested ? sig.name.slice(sig.name.indexOf('.') + 1) : sig.name;
       if (query && !sig.name.startsWith(query) && !tail.startsWith(query)) continue;
-      emit(candidateFor(sig, nested, math));
+      if (ruleMode) {
+        out.push({ label: sig.name, insertText: sig.name, detail: ruleMode === 'set' ? 'settable function' : 'show selector', kind: 'command', boost: nested ? BOOST_NESTED : BOOST_COMMON });
+      } else {
+        emit(candidateFor(sig, nested, math));
+      }
     }
 
     return out;

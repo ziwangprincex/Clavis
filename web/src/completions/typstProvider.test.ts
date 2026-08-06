@@ -320,6 +320,59 @@ describe('nested (dotted) names', () => {
   });
 });
 
+describe('Typst set/show rule context', () => {
+  it('offers only settable standard-library functions after #set', async () => {
+    listTypstSignatures.mockResolvedValue([
+      fn('text', [param('size', { settable: true })]),
+      fn('figure', [param('body', { positional: true, required: true, named: false })]),
+    ]);
+    const results = await offer('#set te');
+    expect(byName(results, 'text')).toMatchObject({ insertText: 'text', detail: 'settable function' });
+    expect(names(results)).not.toContain('figure');
+  });
+
+  it('offers a show selector without inserting another hash', async () => {
+    const results = await offer('#show fig');
+    expect(byName(results, 'figure')).toMatchObject({ insertText: 'figure', detail: 'show selector' });
+  });
+});
+
+describe('workspace static imports', () => {
+  it('offers a statically imported function with its exported parameter names', async () => {
+    const text = '#import "lib/helpers.typ": *\n#car';
+    const request = {
+      language: 'typst' as const, text, position: text.length, explicit: false,
+      workspace: {
+        rootPath: '/paper', activePath: '/paper/main.typ', documents: [
+          { path: '/paper/main.typ', language: 'typst' as const, text },
+          { path: '/paper/lib/helpers.typ', language: 'typst' as const, text: '#let card(title, width: 4cm) = []' },
+        ],
+      },
+    };
+    const site = detectCompletionSite(request)!;
+    typstProvider.complete(request, site);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const card = byName(typstProvider.complete(request, site) as Awaited<ReturnType<typeof offer>>, 'card');
+    expect(card).toMatchObject({ insertText: '#card(${1:title})', detail: 'imported function' });
+  });
+
+  it('does not offer a function from a dynamic import expression', async () => {
+    const text = '#import path\n#car';
+    const request = {
+      language: 'typst' as const, text, position: text.length, explicit: false,
+      workspace: {
+        rootPath: '/paper', activePath: '/paper/main.typ', documents: [
+          { path: '/paper/main.typ', language: 'typst' as const, text },
+          { path: '/paper/lib/helpers.typ', language: 'typst' as const, text: '#let card(title) = []' },
+        ],
+      },
+    };
+    const site = detectCompletionSite(request)!;
+    const labels = names(typstProvider.complete(request, site) as Awaited<ReturnType<typeof offer>>);
+    expect(labels).not.toContain('card');
+  });
+});
+
 describe('document-local #let functions', () => {
   it('offers functions defined in the document', async () => {
     const labels = names(await offer('#let greet(name) = []\n#gr'));
