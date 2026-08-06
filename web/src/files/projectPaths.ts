@@ -116,3 +116,18 @@ export function resolveIncludeTarget(
   }
   return null;
 }
+
+
+/** Resolve a static quoted Typst .typ import/include relative to its source file.
+ * Dynamic/package/absolute/traversal forms are rejected before matching project files. */
+export function resolveTypstTarget(raw: string, currentFileAbs: string | null, files: ProjectFile[]): string | null {
+  const target = normalizeRel(raw.trim());
+  if (!target.toLowerCase().endsWith('.typ') || /^(?:[A-Za-z]:|\/|@|https?:)/i.test(target)) return null;
+  const parts = target.split('/');
+  if (parts.some(part => !part || part === '.' || part === '..')) return null;
+  const currentRel = currentFileAbs ? files.find(file => pathsEqual(file.absPath, currentFileAbs))?.relPath : undefined;
+  if (!currentRel) return null;
+  const directory = normalizeRel(currentRel).replace(/[^/]*$/, '');
+  const wanted = normalizeRel(directory + target);
+  return files.find(file => normalizeRel(file.relPath) === wanted)?.absPath ?? null;
+}

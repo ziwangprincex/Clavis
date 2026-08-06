@@ -306,7 +306,7 @@ export interface EditorOptions {
   /** Ctrl/Cmd+click on an \input{...}/\include{...} target (LaTeX only).
    *  Receives the resolved raw path and whether the macro is import-family;
    *  caller resolves + opens it. */
-  onOpenInclude?: (raw: string, isImport: boolean) => void;
+  onOpenInclude?: (raw: string, kind: 'latex' | 'typst', isImport: boolean) => void;
 }
 
 /** Wrapper around CodeMirror EditorView with a textarea-shaped API. */
@@ -331,7 +331,7 @@ export class EditorController {
   private onChangeCb?: (doc: string) => void;
   private onCursorCb?: (pos: number, selectionFrom: number, selectionTo: number) => void;
   private getCompletionWorkspaceCb?: () => CompletionWorkspace | undefined;
-  private onOpenIncludeCb?: (raw: string, isImport: boolean) => void;
+  private onOpenIncludeCb?: (raw: string, kind: 'latex' | 'typst', isImport: boolean) => void;
 
   constructor(opts: EditorOptions) {
     this.currentLang = opts.lang;
@@ -432,10 +432,10 @@ export class EditorController {
     this.view.focus();
   }
 
-  /** Clickable \input/\include links — only meaningful for LaTeX. */
+  /** Clickable static local source-file references for LaTeX and Typst. */
   private includeLinkExt(lang: Lang) {
-    if (lang !== 'latex' || !this.onOpenIncludeCb) return [];
-    return inputLinkExtension((raw, isImport) => this.onOpenIncludeCb?.(raw, isImport));
+    if ((lang !== 'latex' && lang !== 'typst') || !this.onOpenIncludeCb) return [];
+    return inputLinkExtension(lang, (raw, kind, isImport) => this.onOpenIncludeCb?.(raw, kind, isImport));
   }
 
   setLanguage(lang: Lang) {

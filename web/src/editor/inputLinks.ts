@@ -1,109 +1,57 @@
-// Clickable \input{...}/\include{...} links for the LaTeX editor.
-//
-// A ViewPlugin scans the visible document for include-style macros and marks
-// their path argument with `.cm-input-link`. Ctrl/Cmd+click on a marked span
-// invokes the `onOpenInclude` callback with the raw argument (the resolution to
-// an absolute project path happens in the caller, via resolveIncludeTarget).
-//
-// Ctrl/Cmd is required so ordinary clicks still place the cursor normally.
+// Ctrl/Cmd-click navigation for static LaTeX and Typst source-file references.
+// Resolution happens above this view extension; it only marks source text.
 
 import { RangeSetBuilder } from '@codemirror/state';
-import {
-  Decoration,
-  type DecorationSet,
-  EditorView,
-  ViewPlugin,
-  type ViewUpdate,
-} from '@codemirror/view';
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import type { Lang } from '../store';
 
-// Matches \input{...}, \include{...}, \subfile{...}, and the import-family
-// \import{dir}{file} / \subimport{dir}{file}. Group 1 is the macro name, group 2
-// the optional first {dir} brace (import family only), group 3 the final {path}.
-// Mirrors the include set recognized by the backend's collect_project_files.
-const INCLUDE_RE =
-  /\\(input|include|subfile|subimport|import)\s*(?:\{([^}]*)\}\s*)?\{([^}]*)\}/g;
+const LATEX_INCLUDE_RE = /\\(input|include|subfile|subimport|import)\s*(?:\{([^}]*)\}\s*)?\{([^}]*)\}/g;
+const TYPST_FILE_RE = /#(?:import\s+|include\s*\()"([^"\r\n]+)"/g;
 
-// The link mark carries the resolved raw path (dir+file joined) and whether the
-// macro is import-family, so the click handler doesn't have to re-parse the DOM.
-function linkMark(path: string, isImport: boolean) {
-  return Decoration.mark({
-    class: 'cm-input-link',
-    attributes: { 'data-include': path, 'data-import': isImport ? '1' : '0' },
-  });
+function linkMark(path: string, kind: 'latex' | 'typst', isImport = false) {
+  return Decoration.mark({ class: 'cm-input-link', attributes: { 'data-include': path, 'data-kind': kind, 'data-import': isImport ? '1' : '0' } });
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function buildDecorations(view: EditorView, language: Lang): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
-    INCLUDE_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = INCLUDE_RE.exec(text)) !== null) {
-      const macro = m[1];
-      const dir = m[2];
-      const file = m[3];
-      if (!file) continue;
-      const isImport = macro === 'import' || macro === 'subimport';
-      // Join dir+file for import-family so the resolver gets the full path.
-      const fullPath = isImport && dir ? `${dir.replace(/\/?$/, '/')}${file}` : file;
-      // Decorate the final {file} span (the visible filename the user clicks).
-      const argOffsetInMatch = m[0].lastIndexOf(file);
-      const start = from + m.index + argOffsetInMatch;
-      const end = start + file.length;
-      builder.add(start, end, linkMark(fullPath, isImport));
+    if (language === 'latex') {
+      LATEX_INCLUDE_RE.lastIndex = 0; let match: RegExpExecArray | null;
+      while ((match = LATEX_INCLUDE_RE.exec(text)) !== null) {
+        const file = match[3]; if (!file) continue;
+        const isImport = match[1] === 'import' || match[1] === 'subimport';
+        const raw = isImport && match[2] ? `${match[2].replace(/\/?$/, '/')}${file}` : file;
+        const start = from + match.index + match[0].lastIndexOf(file);
+        builder.add(start, start + file.length, linkMark(raw, 'latex', isImport));
+      }
+    } else if (language === 'typst') {
+      // Static quoted local .typ targets only. Comments/dynamic/package imports
+      // are rejected by the resolver, and no link is generated for non-.typ text.
+      TYPST_FILE_RE.lastIndex = 0; let match: RegExpExecArray | null;
+      while ((match = TYPST_FILE_RE.exec(text)) !== null) {
+        const raw = match[1];
+        if (!raw.toLowerCase().endsWith('.typ')) continue;
+        const start = from + match.index + match[0].lastIndexOf(raw);
+        builder.add(start, start + raw.length, linkMark(raw, 'typst'));
+      }
     }
   }
   return builder.finish();
 }
 
-/**
- * Build the clickable-include extension. `onOpen` receives the resolved raw path
- * (dir+file joined for import-family) and whether the macro is import-family;
- * the caller resolves and opens it.
- */
-export function inputLinkExtension(onOpen: (raw: string, isImport: boolean) => void) {
-  const plugin = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(view: EditorView) {
-        this.decorations = buildDecorations(view);
-      }
-      update(u: ViewUpdate) {
-        if (u.docChanged || u.viewportChanged) {
-          this.decorations = buildDecorations(u.view);
-        }
-      }
-    },
-    {
-      decorations: v => v.decorations,
-      eventHandlers: {
-        mousedown(event) {
-          if (!(event.ctrlKey || event.metaKey)) return false;
-          // Syntax highlighting can nest a token span inside the link mark, so
-          // the click may land on a child — walk up to the marked element.
-          const el = (event.target as HTMLElement).closest<HTMLElement>('.cm-input-link');
-          if (!el) return false;
-          const raw = el.getAttribute('data-include') ?? '';
-          if (!raw) return false;
-          const isImport = el.getAttribute('data-import') === '1';
-          event.preventDefault();
-          onOpen(raw.trim(), isImport);
-          return true;
-        },
-      },
-    },
-  );
-
-  const theme = EditorView.baseTheme({
-    '.cm-input-link': {
-      textDecoration: 'underline',
-      textDecorationStyle: 'dotted',
-      cursor: 'pointer',
-    },
-    '.cm-input-link:hover': {
-      color: 'var(--accent)',
-    },
-  });
-
-  return [plugin, theme];
+export function inputLinkExtension(language: Lang, onOpen: (raw: string, kind: 'latex' | 'typst', isImport: boolean) => void) {
+  const plugin = ViewPlugin.fromClass(class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = buildDecorations(view, language); }
+    update(update: ViewUpdate) { if (update.docChanged || update.viewportChanged) this.decorations = buildDecorations(update.view, language); }
+  }, { decorations: value => value.decorations, eventHandlers: { mousedown(event) {
+    if (!(event.ctrlKey || event.metaKey)) return false;
+    const element = (event.target as HTMLElement).closest<HTMLElement>('.cm-input-link');
+    const raw = element?.getAttribute('data-include') ?? '';
+    const kind = element?.getAttribute('data-kind') as 'latex' | 'typst' | null;
+    if (!element || !raw || !kind) return false;
+    event.preventDefault(); onOpen(raw, kind, element.getAttribute('data-import') === '1'); return true;
+  } } });
+  return [plugin, EditorView.baseTheme({ '.cm-input-link': { textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }, '.cm-input-link:hover': { color: 'var(--accent)' } })];
 }

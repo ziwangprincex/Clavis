@@ -29,7 +29,7 @@ import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
-import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile } from './files/projectPaths';
+import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile, resolveTypstTarget } from './files/projectPaths';
 import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
@@ -812,12 +812,14 @@ export function App() {
                     onReady={api => {
                       editorApiRef.current = api;
                     }}
-                    onOpenInclude={(raw, isImport) => {
+                    onOpenInclude={(raw, kind, isImport) => {
                       const project = useProjectStore.getState();
                       const active = useTabsStore.getState();
                       const currentAbs =
                         active.tabs.find(t => t.id === active.activeTabId)?.filePath ?? null;
-                      const abs = resolveIncludeTarget(raw, currentAbs, project.files, isImport);
+                      const abs = kind === 'typst'
+                        ? resolveTypstTarget(raw, currentAbs, project.files)
+                        : resolveIncludeTarget(raw, currentAbs, project.files, isImport);
                       if (abs) void openFileByPath(abs);
                     }}
                   />

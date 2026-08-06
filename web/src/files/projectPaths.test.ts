@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSyncTexFile, resolveIncludeTarget, normalizePath, pathsEqual } from './projectPaths';
+import { resolveSyncTexFile, resolveIncludeTarget, resolveTypstTarget, normalizePath, pathsEqual } from './projectPaths';
 import type { ProjectFile } from '../store/project';
 
 function file(relPath: string, absPath: string): ProjectFile {
@@ -121,5 +121,23 @@ describe('normalizePath / pathsEqual', () => {
 
   it('distinguishes genuinely different paths', () => {
     expect(pathsEqual('/p/a.tex', '/p/b.tex')).toBe(false);
+  });
+});
+
+
+describe('resolveTypstTarget', () => {
+  const files = [
+    { relPath: 'main.typ', absPath: 'C:/paper/main.typ', content: '' },
+    { relPath: 'chapters/main.typ', absPath: 'C:/paper/chapters/main.typ', content: '' },
+    { relPath: 'chapters/intro.typ', absPath: 'C:/paper/chapters/intro.typ', content: '' },
+  ];
+  it('resolves a local quoted .typ target relative to its source', () => {
+    expect(resolveTypstTarget('../intro.typ', 'C:/paper/chapters/main.typ', files)).toBeNull();
+    expect(resolveTypstTarget('intro.typ', 'C:/paper/chapters/main.typ', files)).toBe('C:/paper/chapters/intro.typ');
+  });
+  it('rejects packages, dynamic-like absolute and traversal targets', () => {
+    expect(resolveTypstTarget('@preview/foo:1.0.0', 'C:/paper/main.typ', files)).toBeNull();
+    expect(resolveTypstTarget('../secret.typ', 'C:/paper/main.typ', files)).toBeNull();
+    expect(resolveTypstTarget('C:/secret.typ', 'C:/paper/main.typ', files)).toBeNull();
   });
 });

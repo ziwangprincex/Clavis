@@ -6,6 +6,36 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (Typst static source-file navigation)
+
+Ctrl/Cmd-click navigation now covers static local Typst source references in
+addition to LaTeX includes. It marks quoted `.typ` paths in `#include("...")`
+and `#import "..."` and resolves only a project-snapshot file relative to the
+current Typst document.
+
+- `resolveTypstTarget` requires `.typ`, rejects package (`@...`), absolute,
+  URL-like, current-directory/traversal, and non-static forms, then matches only
+  a known workspace ProjectFile.
+- Link marking is active only for LaTeX/Typst; Markdown gets no source-link
+  behavior. The same Ctrl/Cmd modifier preserves ordinary cursor clicks.
+- Dynamic imports and all package imports remain intentionally non-navigable;
+  no filesystem scan, Typst evaluation, or import execution was added.
+
+### Review findings fixed
+
+1. An initial target test referenced a source file absent from its project
+   fixture; adding the exact `chapters/main.typ` fixture ensured the resolver
+   proves actual relative behavior rather than a false positive.
+2. Tests cover `.typ` resolution plus traversal/package/absolute rejection and
+   instantiate the Typst link extension without enabling dynamic behavior.
+
+**Verified:** 101 Rust + 413 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Windows Cargo
+may emit a non-fatal incremental-cache access-denied warning after passing
+checks; Vite retains its existing `tauri.ts` dynamic/static chunking warning.
+
+---
+
 ## 0. Update - 2026-08-06 (isolated submission build verification)
 
 Submission Check now has **Verify build...** after a ready LaTeX bundle

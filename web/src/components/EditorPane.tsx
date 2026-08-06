@@ -97,7 +97,7 @@ export interface EditorPaneProps {
   onReady?: (api: EditorPaneRef) => void;
   /** Ctrl/Cmd+click on \input{...}/\include{...} (LaTeX). Receives the raw path
    *  and whether the macro is import-family. */
-  onOpenInclude?: (raw: string, isImport: boolean) => void;
+  onOpenInclude?: (raw: string, kind: 'latex' | 'typst', isImport: boolean) => void;
 }
 
 export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
@@ -149,8 +149,8 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
         const { line, column } = ctrl.cursorLineCol();
         useCursorStore.getState().setPos(line, column, selectionFrom, selectionTo);
       },
-      onOpenInclude: (raw: string, isImport: boolean) =>
-        onOpenIncludeRef.current?.(raw, isImport),
+      onOpenInclude: (raw: string, kind: 'latex' | 'typst', isImport: boolean) =>
+        onOpenIncludeRef.current?.(raw, kind, isImport),
     });
     controllerRef.current = ctrl;
     onReady?.({
