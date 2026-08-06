@@ -1,4 +1,19 @@
 # Clavis - Handoff (updated 2026-08-06)
+## 0. Release preparation - 2026-08-06 (v1.0.6)
+
+Prepared `v1.0.6` after the editor-selection and completion-menu fixes. The
+three release version locations (`Cargo.toml`, `Cargo.lock`, and
+`tauri.conf.json`) are aligned at `1.0.6`, and
+`python tools/check_release.py --tag v1.0.6` passes.
+
+**Verified by `tools/release.ps1 1.0.6`:** frontend typecheck, 436 frontend
+tests, frontend production build, and 104 Rust tests all pass. `cargo check
+--all-targets` was also green in the immediately preceding release review.
+
+Next: commit this version-only bump, create/push `v1.0.6`, wait for the shared
+draft GitHub Release, verify all platform assets plus `latest.json`, then
+publish the draft manually.
+
 ## 0. Update - 2026-08-06 (editor selection visibility and calm completion menu)
 
 Two editor-surface usability fixes were manually verified in a fresh Tauri dev
