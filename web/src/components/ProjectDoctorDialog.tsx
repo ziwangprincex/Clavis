@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
-import { ipc, type DocumentToolsInspection, type ProjectDoctorReport, type WorkspaceInspection } from '../api/tauri';
+import { dialogSave, fs, ipc, type ArtifactStatus, type BibliographyExportStatus, type DocumentToolsInspection, type ProjectDoctorReport, type WorkspaceInspection } from '../api/tauri';
+import { reproducibilityReport } from '../project/reproducibility';
 import styles from './ProjectDoctorDialog.module.css';
 
 export interface ProjectDoctorDialogProps {
@@ -13,18 +14,22 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
   const [error, setError] = useState<string | null>(null);
   const [tools, setTools] = useState<DocumentToolsInspection | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [artifacts, setArtifacts] = useState<ArtifactStatus[]>([]);
+  const [bibliography, setBibliography] = useState<BibliographyExportStatus[]>([]);
 
   useEffect(() => {
     if (!open || !workspace) return;
     let cancelled = false;
     setReport(null);
     setError(null);
-    Promise.all([ipc.doctorWorkspace(workspace.root), ipc.inspectDocumentTools(workspace.root)]).then(
-      ([nextReport, nextTools]) => { if (!cancelled) { setReport(nextReport); setTools(nextTools); } },
+    Promise.all([ipc.doctorWorkspace(workspace.root), ipc.inspectDocumentTools(workspace.root), ipc.inspectArtifacts(workspace.root), ipc.inspectBibliographyExports(workspace.root)]).then(
+      ([nextReport, nextTools, nextArtifacts, nextBibliography]) => { if (!cancelled) { setReport(nextReport); setTools(nextTools); setArtifacts(nextArtifacts); setBibliography(nextBibliography); } },
       reason => { if (!cancelled) setError(String(reason)); },
     );
     return () => { cancelled = true; };
   }, [open, workspace, refresh]);
+
+  async function saveReport() { if (!workspace || !report) return; const path = await dialogSave({ title: 'Save reproducibility report', defaultPath: 'clavis-reproducibility-report.md', filters: [{ name: 'Markdown', extensions: ['md'] }] }); if (path) await fs.writeTextFile(path, reproducibilityReport(workspace, report, tools, artifacts, bibliography)); }
 
   if (!open) return null;
   return (
@@ -81,7 +86,7 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
         </div>
         {workspace && (
           <footer className={styles.footer}>
-            <button type="button" onClick={() => setRefresh(value => value + 1)}>Run again</button>
+            <button type="button" disabled={!report} onClick={() => void saveReport()}>Save report...</button><button type="button" onClick={() => setRefresh(value => value + 1)}>Run again</button>
           </footer>
         )}
       </section>

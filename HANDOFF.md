@@ -6,6 +6,19 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (local reproducibility report)
+
+Project Doctor can now save a local Markdown reproducibility report. It combines
+existing Doctor checks, declared artifact status, bibliography-export presence,
+and Quarto/Pandoc inspection. It does not run tasks, read environment variables
+or credentials, or include document contents. The user selects the report path
+with the native save dialog.
+
+**Verified:** 101 Rust + 414 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-06 (Typst static source-file navigation)
 
 Ctrl/Cmd-click navigation now covers static local Typst source references in
