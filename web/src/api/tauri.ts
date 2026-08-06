@@ -527,6 +527,19 @@ export interface CreatedSubmissionBundle {
   bytes: number;
 }
 
+export interface ZoteroEntry {
+  itemKey: string;
+  citationKey?: string | null;
+  itemType: string;
+  title?: string | null;
+  creators?: string | null;
+  year?: string | null;
+  publication?: string | null;
+  doi?: string | null;
+  url?: string | null;
+  tags: string[];
+}
+
 export interface BibliographyExportStatus {
   provider: string;
   relativePath: string;
@@ -652,6 +665,8 @@ export const ipc = {
     invoke<BundleManifest>('inspect_submission_bundle', { root }),
   createSubmissionBundle: (root: string, destinationParent: string) =>
     invoke<CreatedSubmissionBundle>('create_submission_bundle', { root, destinationParent }),
+  searchZoteroDatabase: (database: string, query: string) =>
+    invoke<ZoteroEntry[]>('search_zotero_database', { database, query }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
   gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
   gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),

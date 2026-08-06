@@ -32,6 +32,7 @@ tokio = { version = "1", features = ["process", "io-util", "rt", "macros", "time
 regex = "1"
 uuid = { version = "1", features = ["v4"] }
 memmap2 = "0.9.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
 ttf-parser = "0.25.1"
 
 [target.'cfg(windows)'.dependencies]

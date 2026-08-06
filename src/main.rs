@@ -20,6 +20,7 @@ mod tasks;
 mod typst_sig;
 mod typst_world;
 mod workspace_search;
+mod zotero;
 
 use base64::Engine as _;
 use parking_lot::Mutex;
@@ -341,6 +342,7 @@ fn main() {
             latex::distro::install_package,
             latex::parse_bib,
             bibliography_export::inspect_bibliography_exports,
+            zotero::search_zotero_database,
             cwl::read_cwl,
             cwl::list_cwl_packages,
             project_config::inspect_workspace,

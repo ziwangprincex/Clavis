@@ -6,6 +6,52 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (explicit local Zotero SQLite search)
+
+Bibliography now has **Search local Zotero...**. It asks the user to select a
+specific `zotero.sqlite` file with the native picker, then offers bounded local
+search and citation-key insertion alongside the existing `.bib` / Better
+BibTeX workflow. It does not auto-discover profiles, launch Zotero, access the
+network, write the database, or turn Zotero into a project dependency.
+
+- New `src/zotero.rs` canonicalizes the selected path, accepts only a regular
+  file literally named `zotero.sqlite` (up to 2 GiB), opens it with SQLite
+  read-only flags, sets `query_only`, uses a one-second busy timeout, and runs
+  fixed SQL only. No user query is interpolated into SQL.
+- Search is capped at 160 characters, fetches at most 1,500 recent live items,
+  filters locally, and returns at most 200 results. It reads key, type, title,
+  creator names, date, venue, DOI, URL, tags, and a Better BibTeX-style
+  `Citation Key:` / `Citekey:` line from Zotero's Extra field.
+- Deleted items are excluded. Rows without a citation key remain visible but
+  cannot be inserted; this is honest about Zotero data rather than inventing a
+  citekey. Insertion continues to use Clavis's language-aware existing cite
+  insertion and recent-citation history.
+- Better BibTeX export polling remains the project-configured, reproducible
+  source used by reference diagnostics. Direct Zotero search is deliberately
+  explicit, session-only, and separate.
+
+### Review findings fixed
+
+1. The initial implementation used the SQLite no-mutex flag unnecessarily;
+   removed it so each worker keeps SQLite's normal connection mutex behavior.
+2. Fixture tests now compare database bytes before/after search and prove no
+   `-wal` or `-shm` files are created.
+3. The frontend first hid Zotero when no workspace `.bib` existed. It now keeps
+   local Zotero search available while clearly preserving the normal empty Bib
+   state below it.
+4. The SQL is fixed and bounded; query terms are post-filtered rather than
+   becoming dynamic SQL or FTS syntax.
+
+**Verified:** 93 Rust + 392 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Cargo may emit
+an intermittent Windows incremental-cache access-denied warning after tests;
+the test command still succeeds. The Vite build retains its pre-existing
+`tauri.ts` dynamic/static chunking warning. Typst import/set/show intelligence,
+LaTeX macro analysis, asset thumbnails/drag insertion, and finer-grained word
+statistics remain future slices.
+
+---
+
 ## 0. Update - 2026-08-06 (confined LaTeX submission source snapshot)
 
 The former read-only Bundle manifest now has a deliberately narrow **Create

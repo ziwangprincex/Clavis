@@ -3,7 +3,7 @@
 // optional local Better BibTeX export refresh loop.
 
 import { useEffect, useMemo, useState } from 'react';
-import { ipc, type BibEntry, type BibliographyExportStatus } from '../api/tauri';
+import { dialogOpen, ipc, type BibEntry, type BibliographyExportStatus, type ZoteroEntry } from '../api/tauri';
 import { useProjectStore, useReferencesStore, useSettingsStore } from '../store';
 import { indexBibliography, rankBibliography } from '../bibliography/rank';
 import styles from './BibSection.module.css';
@@ -31,6 +31,10 @@ export function BibSection({ onInsertCites, onJumpToSource, onExportChanged }: B
   const [error, setError] = useState<string | null>(null);
   const [exports, setExports] = useState<BibliographyExportStatus[]>([]);
   const [exportRevision, setExportRevision] = useState(0);
+  const [zoteroDatabase, setZoteroDatabase] = useState<string | null>(null);
+  const [zoteroEntries, setZoteroEntries] = useState<ZoteroEntry[]>([]);
+  const [zoteroError, setZoteroError] = useState<string | null>(null);
+  const [zoteroQuery, setZoteroQuery] = useState('');
 
   const bibPaths = useMemo(() => [...new Set([
     ...files.filter(file => file.isBib).map(file => file.absPath),
@@ -75,6 +79,18 @@ export function BibSection({ onInsertCites, onJumpToSource, onExportChanged }: B
 
   useEffect(() => { const timer = window.setTimeout(() => setSearchQuery(filter), 120); return () => window.clearTimeout(timer); }, [filter]);
 
+  useEffect(() => {
+    if (!zoteroDatabase) { setZoteroEntries([]); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      ipc.searchZoteroDatabase(zoteroDatabase, zoteroQuery).then(
+        list => { if (!cancelled) { setZoteroEntries(list); setZoteroError(null); } },
+        reason => { if (!cancelled) { setZoteroEntries([]); setZoteroError(String(reason)); } },
+      );
+    }, 180);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [zoteroDatabase, zoteroQuery]);
+
   const indexedEntries = useMemo(() => indexBibliography(entries), [entries]);
   const usageCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -94,11 +110,23 @@ export function BibSection({ onInsertCites, onJumpToSource, onExportChanged }: B
   }
   function toggle(key: string) { setSelected(current => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; }); }
 
-  if (bibPaths.length === 0) return <div className={styles.empty}>(no .bib files in workspace)</div>;
+  async function chooseZoteroDatabase() {
+    const selectedPath = await dialogOpen({ multiple: false, title: 'Select Zotero zotero.sqlite', filters: [{ name: 'Zotero SQLite database', extensions: ['sqlite'] }] });
+    if (!selectedPath || Array.isArray(selectedPath)) return;
+    setZoteroDatabase(selectedPath); setZoteroQuery(''); setZoteroEntries([]); setZoteroError(null);
+  }
+
   return <div className={styles.root}>
-    <div className={styles.searchRow}><input className={styles.filter} type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="author title year key DOI…" /><button type="button" className={styles.insertBtn} disabled={selected.size === 0} onClick={() => void insert([...selected])}>Insert {selected.size || ''}</button></div>
+    <div className={styles.searchRow}><input className={styles.filter} type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="author title year key DOI..." /><button type="button" className={styles.insertBtn} disabled={selected.size === 0} onClick={() => void insert([...selected])}>Insert {selected.size || ''}</button></div>
+    <div className={styles.zoteroTools}><button type="button" onClick={() => void chooseZoteroDatabase()}>{zoteroDatabase ? 'Change Zotero database...' : 'Search local Zotero...'}</button>{zoteroDatabase && <span title={zoteroDatabase}>Read-only: {zoteroDatabase.split(/[\\/]/).slice(-2).join('/')}</span>}</div>
+    {zoteroDatabase && <div className={styles.zotero}>
+      <input className={styles.filter} type="search" value={zoteroQuery} onChange={event => setZoteroQuery(event.target.value)} placeholder="search selected Zotero library..." />
+      {zoteroError && <div className={styles.error}>{zoteroError}</div>}
+      <div className={styles.summary}>{zoteroEntries.length} local Zotero result{zoteroEntries.length === 1 ? '' : 's'} - no database writes</div>
+      <ul className={styles.list}>{zoteroEntries.map(entry => <li key={entry.itemKey} className={styles.item}><div className={styles.main}><button type="button" className={styles.content} disabled={!entry.citationKey} title={entry.citationKey ? 'Insert configured Citation Key' : 'No Citation Key in Zotero Extra field'} onDoubleClick={() => entry.citationKey && void insert([entry.citationKey])}><span className={styles.topline}><span className={styles.key}>{entry.citationKey ?? entry.itemKey}</span>{!entry.citationKey && <span className={styles.badge}>no citekey</span>}</span><span className={styles.title}>{entry.title ?? entry.itemType}</span><span className={styles.meta}>{[entry.creators, entry.year, entry.publication].filter(Boolean).join(' - ')}</span></button></div><div className={styles.actions}>{entry.citationKey && <button type="button" onClick={() => void insert([entry.citationKey!])}>Insert</button>}</div></li>)}</ul>
+    </div>}
     {error && <div className={styles.error}>{error}</div>}
-    {!error && entries.length === 0 ? <div className={styles.empty}>(no bibliography entries)</div> : <>
+    {bibPaths.length === 0 ? <div className={styles.empty}>(no .bib files in workspace)</div> : !error && entries.length === 0 ? <div className={styles.empty}>(no bibliography entries)</div> : <>
       <div className={styles.summary}>{ranked.length} entries · {indexedOccurrences.filter(item => item.namespace === 'citation' && item.role === 'usage').length} project citations</div>
       {exports.length > 0 && <div className={styles.exportStatus}>{exports.map(item => item.exists ? `${item.provider}: ${item.relativePath}` : `missing export: ${item.relativePath}`).join(' · ')}</div>}
       <ul className={styles.list}>{visible.map(({ entry, usageCount, recentRank }) => {
