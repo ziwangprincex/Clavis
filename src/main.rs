@@ -358,6 +358,7 @@ fn main() {
             artifacts::inspect_artifacts,
             artifacts::open_artifact_path,
             assets::index_assets,
+            assets::asset_preview,
             git_inspect::inspect_git_workspace,
             git_inspect::git_history,
             git_inspect::git_file_diff,

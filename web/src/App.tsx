@@ -769,6 +769,8 @@ export function App() {
           assets={workspaceFolder ? (
             <AssetsSection
               root={workspaceFolder}
+              language={lang}
+              onInsert={text => editorApiRef.current?.insertAtCursor(text)}
               onRefresh={() => refreshAssets()}
               onActivate={(path, line) =>
                 void openFileAndScrollToLine(path, line, target => editorApiRef.current?.scrollToLine(target))

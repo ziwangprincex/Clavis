@@ -657,6 +657,8 @@ export const ipc = {
     invoke<void>('open_artifact_path', { root, path }),
   indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<AssetIndexResult>('index_assets', { options }),
+  assetPreview: (root: string, path: string) =>
+    invoke<string | null>('asset_preview', { root, path }),
   checkSubmission: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<SubmissionReport>('check_submission', { options }),
   inspectBibliographyExports: (root: string) =>

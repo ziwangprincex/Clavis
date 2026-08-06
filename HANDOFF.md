@@ -6,6 +6,47 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (asset previews and language-aware insertion)
+
+The Asset sidebar now supports an on-demand **Preview** and **Insert** action
+for each indexed workspace asset. Preview is an optional visual aid; insertion
+adds only an appropriate reference at the current editor cursor.
+
+- New `asset_preview` IPC canonicalizes both root and asset, requires the asset
+to stay inside the workspace, accepts only indexed image extensions, and reads
+at most 2 MiB. It returns a local data URL only for PNG/JPEG/GIF/WebP/SVG;
+PDF/EPS/TIFF remain honestly unsupported rather than attempting an unsafe or
+heavy conversion.
+- No preview is read until the user requests it; it opens no external program,
+writes nothing, creates no cache, and does not copy/move assets.
+- Insert text is language-aware: LaTeX `\includegraphics{...}`, Typst
+`#image("...")`, Markdown/Quarto `![](...)`. Escaping is narrowly tailored to
+each syntax, and all insertion is through the existing editor text operation.
+- The panel continues to open an asset through the existing explicit Open action
+and retains usage diagnostics / jump-to-use behavior.
+
+### Review findings fixed
+
+1. The first UI treated every null preview as perpetually loading. It now tracks
+   request completion and reports that the format or file size is unsupported.
+2. Preview reads are root-confined and size-limited independently of the asset
+   index. Tests cover valid PNG data URLs, unsupported PDF, and outside-root
+   rejection.
+3. Insert tests cover all three languages plus syntax-significant characters;
+   the implementation does not use a generic escaping routine that would make
+   any language's output misleading.
+4. The browser receives a data URL only after a backend-validated local read;
+   it is not given arbitrary filesystem/image URL access.
+
+**Verified:** 94 Rust + 407 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. The recurring
+Windows Cargo incremental-cache access-denied warning may appear after passing
+tests; the test run succeeds. Vite retains its pre-existing `tauri.ts`
+dynamic/static chunking warning. Finer-grained research word statistics remain
+a recommended next slice.
+
+---
+
 ## 0. Update - 2026-08-06 (bounded LaTeX custom macro intelligence)
 
 LaTeX completion and signature help now recognize common user command

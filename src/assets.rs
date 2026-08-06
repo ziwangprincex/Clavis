@@ -4,6 +4,7 @@
 //! not guess dynamic Typst paths, execute code, or treat arbitrary local links
 //! as assets.
 
+use base64::Engine as _;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -14,6 +15,7 @@ use typst_syntax::{LinkedNode, SyntaxKind};
 const MAX_FILES: usize = 10_000;
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_ASSETS: usize = 10_000;
+const MAX_PREVIEW_BYTES: u64 = 2 * 1024 * 1024;
 const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "svg", "pdf", "eps", "gif", "webp", "tif", "tiff",
 ];
@@ -410,6 +412,36 @@ fn resolve_usage(root: &Path, document: &Path, raw: &str, latex: bool) -> Option
     })
 }
 
+fn preview_mime(extension: &str) -> Option<&'static str> {
+    match extension {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "svg" => Some("image/svg+xml"),
+        _ => None,
+    }
+}
+
+fn preview_sync(root: String, path: String) -> Result<Option<String>, String> {
+    let root = canonical_root(&root)?;
+    let asset = std::fs::canonicalize(&path).map_err(|error| format!("asset not found: {error}"))?;
+    if !asset.starts_with(&root) || !asset.is_file() {
+        return Err("asset preview path must be a file inside the workspace".to_string());
+    }
+    let extension = asset_extension(&asset).ok_or_else(|| "unsupported asset preview type".to_string())?;
+    let Some(mime) = preview_mime(&extension) else { return Ok(None) };
+    let metadata = std::fs::metadata(&asset).map_err(|error| format!("cannot inspect asset preview: {error}"))?;
+    if metadata.len() > MAX_PREVIEW_BYTES {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&asset).map_err(|error| format!("cannot read asset preview: {error}"))?;
+    Ok(Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    )))
+}
+
 fn index_sync(options: AssetIndexOptions) -> Result<AssetIndexResult, String> {
     let root = canonical_root(&options.root)?;
     let (documents, asset_files, truncated) = collect(&root, options.documents)?;
@@ -509,6 +541,13 @@ pub async fn index_assets(options: AssetIndexOptions) -> Result<AssetIndexResult
         .map_err(|error| format!("asset index worker failed: {error}"))?
 }
 
+#[tauri::command]
+pub async fn asset_preview(root: String, path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || preview_sync(root, path))
+        .await
+        .map_err(|error| format!("asset preview worker failed: {error}"))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -587,6 +626,23 @@ mod tests {
         ] }).unwrap();
         assert_eq!(result.assets[0].usages.len(), 2);
         assert!(result.missing_usages.is_empty());
+    }
+
+    #[test]
+    fn preview_is_confined_bounded_and_raster_only() {
+        let dir = tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let image = root.join("chart.png");
+        std::fs::write(&image, b"png").unwrap();
+        let preview = preview_sync(portable(&root), portable(&image)).unwrap().unwrap();
+        assert!(preview.starts_with("data:image/png;base64,"));
+        let pdf = root.join("figure.pdf");
+        std::fs::write(&pdf, b"pdf").unwrap();
+        assert!(preview_sync(portable(&root), portable(&pdf)).unwrap().is_none());
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.png");
+        std::fs::write(&outside_file, b"png").unwrap();
+        assert!(preview_sync(portable(&root), portable(&outside_file)).is_err());
     }
 
     #[test]
