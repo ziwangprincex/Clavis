@@ -1,4 +1,5 @@
 import { normalizePath } from '../files/projectPaths';
+import { latexWorkspaceMacros } from './latexMacroScan';
 import type {
   CompletionCandidate,
   CompletionDocument,
@@ -118,6 +119,21 @@ function openEnvironments(text: string, position: number): string[] {
   return stack.reverse();
 }
 
+function macroCandidates(request: CompletionRequest): CompletionCandidate[] {
+  return [...latexWorkspaceMacros(request.workspace, request.text).values()].map(macro => {
+    const required = Array.from({ length: macro.required }, (_, index) => `\{\${${index + 1}:arg${index + 1}}\}`).join('');
+    return {
+      label: `\\${macro.name}`,
+      insertText: `\\${macro.name}${required}`,
+      detail: macro.imported ? 'workspace macro' : 'local macro',
+      kind: 'command' as const,
+      snippet: macro.required > 0,
+      snippetSyntax: 'cm6' as const,
+      boost: macro.imported ? 16 : 22,
+    };
+  });
+}
+
 function environmentCandidates(request: CompletionRequest, action: 'begin' | 'end'): CompletionCandidate[] {
   const docs = documents(request);
   // Rich built-in begin snippets come from snippetProvider. This provider adds
@@ -207,6 +223,8 @@ export const latexSemanticProvider: CompletionProvider = {
         }));
       case 'environment':
         return environmentCandidates(request, site.action);
+      case 'command':
+        return macroCandidates(request);
       case 'file':
         return fileCandidates(request, site.command);
       default:

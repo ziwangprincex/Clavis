@@ -1,0 +1,27 @@
+import { describe, expect, it } from 'vitest';
+import { latexWorkspaceMacros, scanLatexMacros } from './latexMacroScan';
+
+describe('LaTeX macro declaration scanner', () => {
+  it('reads classic and xparse command declarations', () => {
+    const macros = scanLatexMacros('\\newcommand{\\term}[2][default]{#2}\n\\NewDocumentCommand\\card{m O{wide} +m}{}');
+    expect(macros).toContainEqual(expect.objectContaining({ name: 'term', required: 1, optional: true }));
+    expect(macros).toContainEqual(expect.objectContaining({ name: 'card', required: 2, optional: true, slots: [false, true, false] }));
+  });
+
+  it('ignores comments and verbatim declarations', () => {
+    const macros = scanLatexMacros('% \\newcommand{\\ghost}{}\n\\begin{verbatim}\n\\newcommand{\\raw}{}\n\\end{verbatim}\n\\providecommand\\real[1]{}');
+    expect(macros.map(item => item.name)).toEqual(['real']);
+  });
+
+  it('keeps active document macros ahead of workspace declarations', () => {
+    const macros = latexWorkspaceMacros({ rootPath: '/paper', activePath: '/paper/main.tex', documents: [
+      { path: '/paper/main.tex', language: 'latex', text: '\\newcommand{\\same}[1]{}' },
+      { path: '/paper/style.tex', language: 'latex', text: '\\newcommand{\\same}[2]{}\\newcommand{\\other}{}' },
+      { path: '/outside.tex', language: 'latex', text: '\\newcommand{\\leak}{}' },
+    ] }, '\\newcommand{\\same}[3]{}');
+    expect(macros.get('same')).toMatchObject({ required: 3, imported: false });
+    expect(macros.get('other')).toMatchObject({ imported: true });
+    expect(macros.has('leak')).toBe(false);
+  });
+});
+

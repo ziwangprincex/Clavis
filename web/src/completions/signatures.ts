@@ -20,6 +20,7 @@ import { hasTauri, ipc, type TypstFuncSig } from '../api/tauri';
 import type { CallSite } from './callSite';
 import { findCwlCommand } from './cwlProvider';
 import { letFunctionsFor } from './typstLetScan';
+import { scanLatexMacros } from './latexMacroScan';
 
 /** One parameter, as the tooltip renders it. */
 export interface SignatureParam {
@@ -218,6 +219,16 @@ function paramsFromSnippet(snippet: string): SignatureParam[] {
 }
 
 function latexSignature(text: string, site: CallSite): Signature | null {
+  const macro = scanLatexMacros(text).find(item => item.name === site.callee);
+  if (macro) {
+    let requiredIndex = 0;
+    const params: SignatureParam[] = macro.slots.map(optional => {
+      if (optional) return { name: 'optional', type: 'optional', docs: 'Declared optional argument.', required: false, variadic: false };
+      requiredIndex++;
+      return { name: `arg${requiredIndex}`, type: '', docs: 'Declared mandatory argument.', required: true, variadic: false };
+    });
+    return { name: macro.name, params, activeIndex: placeActive(params, site.active), returns: '', userDefined: true };
+  }
   const command = findCwlCommand(text, site.callee);
   if (!command) return null;
   const params = paramsFromSnippet(command.snippet);

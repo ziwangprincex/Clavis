@@ -6,6 +6,51 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (bounded LaTeX custom macro intelligence)
+
+LaTeX completion and signature help now recognize common user command
+declarations from the active document and in-workspace LaTeX snapshot:
+`\newcommand`, `\renewcommand`, `\providecommand`, and xparse-style
+`\NewDocumentCommand` / `\RenewDocumentCommand` /
+`\ProvideDocumentCommand`.
+
+- New frontend-only `latexMacroScan` strips comments and common verbatim-like
+environments, caps declarations at 500 and xparse specs at 600 characters, and
+recovers only the declaration shape: ordered required/optional argument slots.
+It never expands TeX, evaluates definitions, runs a compiler, or chases inputs.
+- Custom commands appear above the generic CWL corpus in completion. Required
+arguments get named placeholders (`arg1`, `arg2`); workspace declarations rank
+below declarations in the active file, whose current text always wins.
+- Signature help displays declaration-order slots, including classic optional
+arguments and a bounded subset of xparse spec letters. It deliberately labels
+only `optional` and `argN`, rather than pretending TeX macro bodies supply type
+or semantic information.
+- Existing project-defined environments were already supplied by the LaTeX
+semantic provider; this slice preserves that behavior and concentrates on
+command declarations.
+
+### Review findings fixed
+
+1. The first classic parser misclassified its optional default bracket; it now
+   records an ordered slot list and subtracts it from the mandatory count.
+2. A first regex-only xparse matcher failed on common nested defaults such as
+   `O{wide}`. It now uses a bounded brace scan after detecting the declaration
+   command.
+3. Active-document precedence initially lost to later workspace files. The
+   workspace scanner now processes the active document last so unsaved edits
+   shadow project snapshots.
+4. Tests explicitly exclude commented/verbatim declarations and out-of-root
+   workspace files; they also cover classic/xparse signature ordering and the
+   existing CWL fallback boundary.
+
+**Verified:** 93 Rust + 405 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. The Vite build
+retains its pre-existing dynamic/static `tauri.ts` chunking warning. Asset
+thumbnails/drag insertion and finer-grained research word statistics remain
+future slices.
+
+---
+
 ## 0. Update - 2026-08-06 (bounded Typst workspace import intelligence)
 
 Typst completion now understands a deliberately limited static workspace scope.

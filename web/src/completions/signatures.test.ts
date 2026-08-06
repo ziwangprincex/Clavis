@@ -179,6 +179,21 @@ describe('typst #let signatures', () => {
   });
 });
 
+describe('LaTeX user macro signatures', () => {
+  it('uses a classic declaration before falling back to the cwl corpus', async () => {
+    const sig = await sigAt('\\newcommand{\\term}[2][default]{}\n\\term[opt]{', 'latex');
+    expect(sig).toMatchObject({ name: 'term', userDefined: true });
+    expect(sig?.params.map(param => param.name)).toEqual(['optional', 'arg1']);
+    expect(sig?.activeIndex).toBe(1);
+  });
+
+  it('uses xparse required and optional slots without evaluating the definition', async () => {
+    const sig = await sigAt('\\NewDocumentCommand\\card{m O{wide} +m}{}\n\\card{title}[', 'latex');
+    expect(sig?.params.map(param => param.name)).toEqual(['arg1', 'optional', 'arg2']);
+    expect(sig?.activeIndex).toBe(1);
+  });
+});
+
 describe('latex signatures from the cwl corpus', () => {
   it('recovers argument names from a snippet template', async () => {
     findCwlCommand.mockReturnValue({
