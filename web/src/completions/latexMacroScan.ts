@@ -116,3 +116,19 @@ export function latexWorkspaceMacros(workspace: CompletionWorkspace | undefined,
   }
   return result;
 }
+
+
+/** 1-based declaration line for an already-recognized macro name, or null. */
+export function latexMacroDeclarationLine(text: string, name: string): number | null {
+  const source = withoutCommentsAndVerbatim(text);
+  const patterns = [
+    new RegExp(String.raw`\\(?:newcommand|renewcommand|providecommand)\*?\s*(?:\{\\${name}\}|\\${name})(?:\s*\[[0-9]\])?(?:\s*\[[^\]\r\n]*\])?`, 'g'),
+    new RegExp(String.raw`\\(?:NewDocumentCommand|RenewDocumentCommand|ProvideDocumentCommand)\s*\\${name}\s*\{`, 'g'),
+  ];
+  let offset: number | null = null;
+  for (const pattern of patterns) {
+    const hit = pattern.exec(source);
+    if (hit && (offset === null || hit.index < offset)) offset = hit.index;
+  }
+  return offset === null ? null : source.slice(0, offset).split('\n').length;
+}

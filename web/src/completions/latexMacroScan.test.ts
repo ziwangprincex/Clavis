@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latexWorkspaceMacros, scanLatexMacros } from './latexMacroScan';
+import { latexMacroDeclarationLine, latexWorkspaceMacros, scanLatexMacros } from './latexMacroScan';
 
 describe('LaTeX macro declaration scanner', () => {
   it('reads classic and xparse command declarations', () => {
@@ -23,5 +23,9 @@ describe('LaTeX macro declaration scanner', () => {
     expect(macros.get('other')).toMatchObject({ imported: true });
     expect(macros.has('leak')).toBe(false);
   });
-});
 
+  it('finds a declaration line while ignoring comments', () => {
+    expect(latexMacroDeclarationLine('% \\newcommand{\\hidden}{}\n\\newcommand{\\shown}[1]{}', 'shown')).toBe(2);
+    expect(latexMacroDeclarationLine('\\newcommand{\\shown}{}', 'missing')).toBeNull();
+  });
+});
