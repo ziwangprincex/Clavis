@@ -6,6 +6,47 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (manifest-confined submission ZIP export)
+
+Submission Check now has **Create ZIP...** after a ready LaTeX bundle manifest.
+It writes a source-only archive outside the workspace, using exactly the same
+confined collector manifest as the source snapshot. It does not build,
+anonymize, execute a process, alter source files, overwrite an existing archive,
+or access a remote.
+
+- Archive creation revalidates the workspace, manifest readiness, relative
+  collector paths, destination containment, and the existing 64 MiB aggregate
+  source limit.
+- A UUID-named `.zip.tmp` is built beside the destination and renamed only after
+  `ZipWriter::finish` succeeds. Any error removes that temporary archive
+  best-effort. The final random archive name cannot overwrite a prior export.
+- Zip entries preserve only safe project-relative paths and bytes returned by
+the collector; binary base64 is decoded locally. No uncollected workspace file
+or config metadata is silently swept in.
+- UI describes both source snapshots and ZIP exports as ready-manifest copies
+outside the workspace. It reports final archive path, file count, and byte
+count. Snapshot build verification remains deliberately separate because it
+introduces an external process boundary.
+
+### Review findings fixed
+
+1. ZIP export is not implemented as ?zip the selected folder?; it reuses the
+   collector manifest, so ignored/editor/build debris cannot leak into a
+   submission archive.
+2. Tests open the resulting ZIP and verify both the LaTeX source and binary
+   resource entries, while proving the original workspace source remains intact.
+3. Archive creation shares the same unresolved-dependency and destination-inside-
+   workspace rejection behavior as source snapshot creation.
+4. The UI only enables ZIP after a fresh ready manifest, preventing a stale or
+   incomplete collector result from becoming an archive.
+
+**Verified:** 99 Rust + 409 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Windows Cargo
+may emit a non-fatal incremental-cache access-denied warning after passing
+checks; Vite retains its existing `tauri.ts` dynamic/static chunking warning.
+
+---
+
 ## 0. Update - 2026-08-06 (bounded local Git stage and commit)
 
 The Git sidebar now supports a deliberately narrow local write workflow:

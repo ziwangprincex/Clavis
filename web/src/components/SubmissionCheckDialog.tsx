@@ -19,6 +19,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [bundleResult, setBundleResult] = useState<string | null>(null);
   const [creatingBundle, setCreatingBundle] = useState(false);
+  const [creatingArchive, setCreatingArchive] = useState(false);
 
   useEffect(() => {
     if (!open || !root) return;
@@ -50,10 +51,22 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
     finally { setCreatingBundle(false); }
   }
 
+  async function createArchive() {
+    if (!root || creatingArchive) return;
+    const selected = await dialogOpen({ directory: true, multiple: false, title: 'Choose a folder outside the source workspace' });
+    if (!selected || Array.isArray(selected)) return;
+    setCreatingArchive(true); setManifestError(null); setBundleResult(null);
+    try {
+      const created = await ipc.createSubmissionArchive(root, selected);
+      setBundleResult(`Created ZIP with ${created.files} files (${(created.bytes / 1024).toFixed(1)} KB) at ${created.path}`);
+    } catch (reason) { setManifestError(String(reason)); }
+    finally { setCreatingArchive(false); }
+  }
+
   if (!open) return null;
   return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Submission Check">
-      <header><div><h2>Submission Check</h2><p>Local preflight and source snapshot. Bundle creation copies only the ready manifest to a new folder outside your workspace; it does not build, anonymize, or zip your project.</p></div><button type="button" onClick={onClose}>Close</button></header>
+      <header><div><h2>Submission Check</h2><p>Local preflight, source snapshot, and ZIP export. Both copy only the ready manifest outside your workspace; they do not build or anonymize your project.</p></div><button type="button" onClick={onClose}>Close</button></header>
       <div className={styles.body}>
         {!root ? <p>No workspace open.</p> : error ? <p className={styles.error}>{error}</p> : !report ? <p>Checking submission readiness…</p> : <>
           <div className={`${styles.summary} ${report.ready ? styles.ready : styles.needs}`}>{report.ready ? 'No blocking errors found' : 'Submission needs attention'} · {report.scannedFiles} files checked{report.truncated ? ' · scan truncated' : ''}</div>
@@ -74,6 +87,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
         <button type="button" onClick={() => setRun(value => value + 1)}>Run again</button>
         <button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button>
         <button type="button" disabled={!manifest?.ready || creatingBundle} onClick={() => void createBundle()} title={manifest?.ready ? 'Create a source-only snapshot outside this workspace' : 'Inspect a ready manifest before creating a bundle'}>{creatingBundle ? 'Creating...' : 'Create bundle...'}</button>
+        <button type="button" disabled={!manifest?.ready || creatingArchive} onClick={() => void createArchive()} title={manifest?.ready ? 'Create a source-only ZIP outside this workspace' : 'Inspect a ready manifest before creating an archive'}>{creatingArchive ? 'Archiving...' : 'Create ZIP...'}</button>
       </footer>
     </section>
   </div>;

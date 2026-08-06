@@ -527,6 +527,12 @@ export interface CreatedSubmissionBundle {
   bytes: number;
 }
 
+export interface CreatedSubmissionArchive {
+  path: string;
+  files: number;
+  bytes: number;
+}
+
 export interface ZoteroEntry {
   itemKey: string;
   citationKey?: string | null;
@@ -667,6 +673,8 @@ export const ipc = {
     invoke<BundleManifest>('inspect_submission_bundle', { root }),
   createSubmissionBundle: (root: string, destinationParent: string) =>
     invoke<CreatedSubmissionBundle>('create_submission_bundle', { root, destinationParent }),
+  createSubmissionArchive: (root: string, destinationParent: string) =>
+    invoke<CreatedSubmissionArchive>('create_submission_archive', { root, destinationParent }),
   searchZoteroDatabase: (database: string, query: string) =>
     invoke<ZoteroEntry[]>('search_zotero_database', { database, query }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
