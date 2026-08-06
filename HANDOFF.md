@@ -1,4 +1,21 @@
 # Clavis - Handoff (updated 2026-08-06)
+## 0. Update - 2026-08-06 (cross-platform Git path validation)
+
+The `v1.0.6` Release workflow failed in the Linux Rust-test job before any
+release assets were made because `git_inspect::tests::rejects_escaping_file_paths`
+expected `C:/secret` to be absolute. On Linux, `std::path::Path` treats that as
+a relative path, exposing a real cross-platform validation gap rather than only
+a platform-specific test expectation.
+
+`relative_path` now rejects path text independently of the host OS: Unix roots,
+Windows drive prefixes, Windows/UNC roots, and `.` / `..` components expressed
+with either slash separator. The regression matrix includes `C:/...`,
+`C:\\...`, UNC-like roots, Unix roots, and forward/backslash traversal.
+
+**Verified:** targeted regression test, 104 Rust tests, 436 frontend tests,
+frontend build, and `cargo check --all-targets` pass. Do not reuse `v1.0.6`;
+prepare `v1.0.7` after this fix.
+
 ## 0. Release preparation - 2026-08-06 (v1.0.6)
 
 Prepared `v1.0.6` after the editor-selection and completion-menu fixes. The

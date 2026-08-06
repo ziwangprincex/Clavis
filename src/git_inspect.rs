@@ -48,10 +48,25 @@ fn workspace_root(path: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Validate a Git status path independently of the operating system hosting
+/// Clavis. Git paths normally use `/`, but this boundary must also reject
+/// Windows-shaped paths when the app is running on Linux/macOS (and vice versa).
 fn relative_path(path: &str) -> Result<&str, String> {
     let p = Path::new(path);
+    let bytes = path.as_bytes();
+    let has_drive_prefix = bytes.len() >= 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':';
+    let has_windows_root = path.starts_with('\\') || path.starts_with("//");
+    let has_unsafe_text_component = path
+        .split(['/', '\\'])
+        .any(|component| matches!(component, "." | ".."));
+
     if path.is_empty()
         || p.is_absolute()
+        || has_drive_prefix
+        || has_windows_root
+        || has_unsafe_text_component
         || p.components()
             .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_) | Component::RootDir | Component::CurDir))
     {
@@ -313,8 +328,22 @@ mod tests {
     use super::*;
     #[test]
     fn rejects_escaping_file_paths() {
-        assert!(relative_path("../secret").is_err());
-        assert!(relative_path("C:/secret").is_err());
+        // These must be rejected on every host OS: Linux's Path parser does not
+        // otherwise recognize Windows drive/UNC paths as absolute.
+        for path in [
+            "../secret",
+            "paper/../secret",
+            "C:/secret",
+            r"C:\secret",
+            r"\secret",
+            r"\server\share\secret",
+            "//server/share/secret",
+            "/etc/secret",
+            r"paper\..\secret",
+            "./paper.tex",
+        ] {
+            assert!(relative_path(path).is_err(), "should reject {path:?}");
+        }
         assert_eq!(relative_path("paper/main.tex").unwrap(), "paper/main.tex");
     }
     #[test]
