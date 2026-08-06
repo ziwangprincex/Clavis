@@ -132,3 +132,36 @@ export function latexMacroDeclarationLine(text: string, name: string): number | 
   }
   return offset === null ? null : source.slice(0, offset).split('\n').length;
 }
+
+
+export interface LatexEnvironmentDeclaration {
+  name: string;
+  sourcePath: string | null;
+  imported: boolean;
+}
+
+export function scanLatexEnvironmentDeclarations(text: string, sourcePath: string | null = null): LatexEnvironmentDeclaration[] {
+  const source = withoutCommentsAndVerbatim(text);
+  const found = new Map<string, LatexEnvironmentDeclaration>();
+  const re = /\\(?:newenvironment|renewenvironment|newtheorem\*?)\s*\{([A-Za-z][\w*@.-]*)\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(source)) !== null && found.size < MAX_DECLARATIONS) found.set(match[1], { name: match[1], sourcePath, imported: false });
+  return [...found.values()];
+}
+
+export function latexEnvironmentDeclarationLine(text: string, name: string): number | null {
+  const source = withoutCommentsAndVerbatim(text);
+  const re = new RegExp(String.raw`\\(?:newenvironment|renewenvironment|newtheorem\*?)\s*\{${name}\}`, 'g');
+  const match = re.exec(source);
+  return match ? source.slice(0, match.index).split('\n').length : null;
+}
+
+export function latexWorkspaceEnvironments(workspace: CompletionWorkspace | undefined, activeText: string): Map<string, LatexEnvironmentDeclaration> {
+  const active = workspace?.activePath ? normalizePath(workspace.activePath) : null;
+  const output = new Map<string, LatexEnvironmentDeclaration>();
+  for (const document of workspaceDocuments(workspace, activeText)) {
+    const imported = !!document.path && normalizePath(document.path) !== active;
+    for (const environment of scanLatexEnvironmentDeclarations(document.text, document.path)) output.set(environment.name, { ...environment, imported });
+  }
+  return output;
+}

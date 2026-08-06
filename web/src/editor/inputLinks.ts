@@ -4,13 +4,13 @@
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { Lang } from '../store';
-import { latexWorkspaceMacros } from '../completions/latexMacroScan';
+import { latexWorkspaceEnvironments, latexWorkspaceMacros } from '../completions/latexMacroScan';
 import type { CompletionWorkspace } from '../completions/types';
 
 const LATEX_INCLUDE_RE = /\\(input|include|subfile|subimport|import)\s*(?:\{([^}]*)\}\s*)?\{([^}]*)\}/g;
 const TYPST_FILE_RE = /#(?:import\s+|include\s*\()"([^"\r\n]+)"/g;
 
-function linkMark(path: string, kind: 'latex' | 'typst' | 'latex-macro', isImport = false) {
+function linkMark(path: string, kind: 'latex' | 'typst' | 'latex-macro' | 'latex-environment', isImport = false) {
   return Decoration.mark({ class: 'cm-input-link', attributes: { 'data-include': path, 'data-kind': kind, 'data-import': isImport ? '1' : '0' } });
 }
 
@@ -35,6 +35,13 @@ function buildDecorations(view: EditorView, language: Lang, workspace?: Completi
         const start = from + match.index;
         builder.add(start, start + match[0].length, linkMark(name, 'latex-macro'));
       }
+      const environments = latexWorkspaceEnvironments(workspace, view.state.doc.toString());
+      const environment = /\\(?:begin|end)\s*\{([A-Za-z][\w*@.-]*)\}/g;
+      while ((match = environment.exec(text)) !== null) {
+        const name = match[1]; if (!environments.has(name)) continue;
+        const start = from + match.index + match[0].lastIndexOf(name);
+        builder.add(start, start + name.length, linkMark(name, 'latex-environment'));
+      }
     } else if (language === 'typst') {
       // Static quoted local .typ targets only. Comments/dynamic/package imports
       // are rejected by the resolver, and no link is generated for non-.typ text.
@@ -50,7 +57,7 @@ function buildDecorations(view: EditorView, language: Lang, workspace?: Completi
   return builder.finish();
 }
 
-export function inputLinkExtension(language: Lang, workspace: (() => CompletionWorkspace | undefined) | undefined, onOpen: (raw: string, kind: 'latex' | 'typst' | 'latex-macro', isImport: boolean) => void) {
+export function inputLinkExtension(language: Lang, workspace: (() => CompletionWorkspace | undefined) | undefined, onOpen: (raw: string, kind: 'latex' | 'typst' | 'latex-macro' | 'latex-environment', isImport: boolean) => void) {
   const plugin = ViewPlugin.fromClass(class {
     decorations: DecorationSet;
     constructor(view: EditorView) { this.decorations = buildDecorations(view, language, workspace?.()); }
@@ -59,7 +66,7 @@ export function inputLinkExtension(language: Lang, workspace: (() => CompletionW
     if (!(event.ctrlKey || event.metaKey)) return false;
     const element = (event.target as HTMLElement).closest<HTMLElement>('.cm-input-link');
     const raw = element?.getAttribute('data-include') ?? '';
-    const kind = element?.getAttribute('data-kind') as 'latex' | 'typst' | 'latex-macro' | null;
+    const kind = element?.getAttribute('data-kind') as 'latex' | 'typst' | 'latex-macro' | 'latex-environment' | null;
     if (!element || !raw || !kind) return false;
     event.preventDefault(); onOpen(raw, kind, element.getAttribute('data-import') === '1'); return true;
   } } });

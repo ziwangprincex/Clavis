@@ -44,7 +44,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { inspectAndMaybeTrustWorkspace } from './project/workspace';
 import { isQuartoDocument } from './files/documentIdentity';
 import { writingPolicyFromConfig } from './writing/options';
-import { latexWorkspaceMacros, latexMacroDeclarationLine } from './completions/latexMacroScan';
+import { latexEnvironmentDeclarationLine, latexMacroDeclarationLine, latexWorkspaceEnvironments, latexWorkspaceMacros } from './completions/latexMacroScan';
 import { isRenderableDocument, newestArtifact, startRender, type DocumentFormat, type DocumentTool, type RenderContext } from './documentTools/render';
 import styles from './App.module.css';
 
@@ -818,16 +818,19 @@ export function App() {
                       const active = useTabsStore.getState();
                       const currentAbs =
                         active.tabs.find(t => t.id === active.activeTabId)?.filePath ?? null;
-                      if (kind === 'latex-macro') {
+                      if (kind === 'latex-macro' || kind === 'latex-environment') {
                         const workspace = { rootPath: project.rootAbs, activePath: currentAbs, documents: [
                           ...project.files.filter(file => !file.binaryBase64 && !file.isBib).map(file => ({ path: file.absPath, language: 'latex' as const, text: file.content })),
                           ...active.tabs.filter(tab => tab.filePath).map(tab => ({ path: tab.filePath, language: tab.lang, text: tab.content })),
                         ] };
-                        const declaration = latexWorkspaceMacros(workspace, active.tabs.find(tab => tab.id === active.activeTabId)?.content ?? '').get(raw);
+                        const activeText = active.tabs.find(tab => tab.id === active.activeTabId)?.content ?? '';
+                        const declaration = kind === 'latex-macro'
+                          ? latexWorkspaceMacros(workspace, activeText).get(raw)
+                          : latexWorkspaceEnvironments(workspace, activeText).get(raw);
                         if (declaration?.sourcePath) {
                           const source = active.tabs.find(tab => pathsEqual(tab.filePath, declaration.sourcePath))?.content
                             ?? project.files.find(file => pathsEqual(file.absPath, declaration.sourcePath))?.content ?? '';
-                          const line = latexMacroDeclarationLine(source, raw) ?? 1;
+                          const line = (kind === 'latex-macro' ? latexMacroDeclarationLine(source, raw) : latexEnvironmentDeclarationLine(source, raw)) ?? 1;
                           void openFileAndScrollToLine(declaration.sourcePath, line, target => editorApiRef.current?.scrollToLine(target));
                         }
                         return;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latexMacroDeclarationLine, latexWorkspaceMacros, scanLatexMacros } from './latexMacroScan';
+import { latexEnvironmentDeclarationLine, latexMacroDeclarationLine, latexWorkspaceEnvironments, latexWorkspaceMacros, scanLatexEnvironmentDeclarations, scanLatexMacros } from './latexMacroScan';
 
 describe('LaTeX macro declaration scanner', () => {
   it('reads classic and xparse command declarations', () => {
@@ -22,6 +22,24 @@ describe('LaTeX macro declaration scanner', () => {
     expect(macros.get('same')).toMatchObject({ required: 3, imported: false });
     expect(macros.get('other')).toMatchObject({ imported: true });
     expect(macros.has('leak')).toBe(false);
+  });
+
+  it('scans theorem and environment declarations without comments', () => {
+    const environments = scanLatexEnvironmentDeclarations(String.raw`% \newtheorem{hidden}{Hidden}
+\newtheorem{assumption}{Assumption}
+\newenvironment{remark}{}{}`);
+    expect(environments.map(item => item.name)).toEqual(['assumption', 'remark']);
+    expect(latexEnvironmentDeclarationLine(String.raw`\newtheorem{assumption}{Assumption}`, 'assumption')).toBe(1);
+  });
+
+  it('keeps active environment declarations ahead of workspace snapshots', () => {
+    const environments = latexWorkspaceEnvironments({ rootPath: '/paper', activePath: '/paper/main.tex', documents: [
+      { path: '/paper/main.tex', language: 'latex', text: String.raw`\newtheorem{claim}{Claim}` },
+      { path: '/paper/style.tex', language: 'latex', text: String.raw`\newtheorem{claim}{Old}
+\newenvironment{remark}{}{}` },
+    ] }, String.raw`\newtheorem{claim}{Current}`);
+    expect(environments.get('claim')).toMatchObject({ imported: false });
+    expect(environments.get('remark')).toMatchObject({ imported: true });
   });
 
   it('finds a declaration line while ignoring comments', () => {

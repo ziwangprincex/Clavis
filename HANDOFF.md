@@ -6,6 +6,18 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (LaTeX theorem/environment declaration navigation)
+
+Ctrl/Cmd-click now also jumps from recognized `\begin{...}` / `\end{...}`
+custom environments and theorem-like declarations to `\newenvironment`,
+`\renewenvironment`, or `\newtheorem`. The scanner ignores comments/verbatim
+blocks and does not evaluate TeX.
+
+**Verified:** 101 Rust + 419 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-06 (manuscript figure insertion templates)
 
 Asset sidebar now offers **Figure** alongside simple Insert. It creates a
