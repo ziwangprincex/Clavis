@@ -1,4 +1,36 @@
 # Clavis - Handoff (updated 2026-08-06)
+## 0. Update - 2026-08-06 (future improvements roadmap)
+
+Added `docs/ROADMAP.md`: the prioritized backlog from a project review.
+Nothing there is implemented yet — it is a backlog, not a plan of record.
+
+Highlights, in priority order:
+
+- **P0 — macOS signing/notarization.** `tauri.conf.json` still ships
+  `signingIdentity: "-"` (ad-hoc, un-notarized). Motivated by a real user
+  incident today: the ad-hoc-signed app was deleted as "damaged", which then
+  broke `brew upgrade` ("App source '/Applications/Clavis.app' is not there" —
+  upgrades move the old app back to staging first and hard-fail when it is
+  missing; workaround is `brew uninstall --cask clavis` + reinstall).
+  Notarization removes the root cause and the cask's `xattr -cr` caveat.
+- **P0 — README drift.** The Git section still claims the sidebar never
+  stages/commits, but `git_stage_file` / `git_unstage_file` /
+  `git_create_commit` are registered in `src/main.rs` (bounded Git surface,
+  added earlier today). Also fix the broken `Settings ? Editor` arrow glyph.
+- **P1 — CI hardening**: `cargo clippy -- -D warnings`, ESLint, and
+  `codesign --verify --deep --strict` + `spctl -a -vv` assertions on macOS
+  release artifacts.
+- **P1 — Universal/x86_64 macOS builds** (cask is aarch64-only today) and
+  **release `opt-level`** benchmarking (`"s"` may cost preview latency).
+- **P2 — Tauri v2 migration, Typst 0.11 upgrade, CSP tightening after the
+  legacy UI migration, researcher feature backlog (spellcheck, latexmk mode,
+  PDF annotations, templates), repo hygiene (HANDOFF archival, release
+  notes).**
+
+Also: the Homebrew cask deprecation (`depends_on macos: ">= :big_sur"`) was
+fixed locally in the tap on 2026-08-06 (`depends_on macos: :big_sur`) — the
+`ziwangprincex/homebrew-clavis` repo still needs that pushed.
+
 ## 0. Release preparation - 2026-08-06 (v1.0.7)
 
 Prepared `v1.0.7` after `v1.0.6` failed its Linux Rust-test job before asset
