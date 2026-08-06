@@ -1,4 +1,26 @@
 # Clavis - Handoff (updated 2026-08-06)
+## 0. Update - 2026-08-06 (editor selection visibility and calm completion menu)
+
+Two editor-surface usability fixes were manually verified in a fresh Tauri dev
+window:
+
+- **Mouse text selection is visible again.** CodeMirror's `drawSelection()`
+  creates `.cm-selectionLayer` below the content by default. In this editor the
+  content surface covered that layer, so the state/status bar reflected a drag
+  selection while the selected text had no visible background. The layer now
+  sits above content with `pointer-events: none`; selected ranges use an opaque
+  enough blue fill and the cursor layer remains above it.
+- **LaTeX completion is deliberately quiet and readable.** The candidate menu
+  is white with black Helvetica/Arial text. Every command character, including
+  the typed match, uses the same 13px normal weight and color; no bold,
+  underline, or match-color treatment remains. The keyboard-selected row uses a
+  light gray background.
+
+**Verified:** manual mouse-drag selection and completion inspection in the
+Tauri preview; `npm --prefix web test` (436), production build, `cargo test`
+(104), and `cargo check --all-targets` all pass. Vite retains its pre-existing
+static/dynamic `tauri.ts` chunking warning.
+
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and

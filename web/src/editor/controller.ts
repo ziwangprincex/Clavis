@@ -208,18 +208,57 @@ function buildThemeExt(spec: ThemeSpec) {
       '.cm-activeLine': { backgroundColor: spec.activeBg },
       '.cm-activeLineGutter': { backgroundColor: spec.activeBg, color: spec.fg },
       '.cm-cursor': { borderLeftColor: spec.cursor },
-      // A 1px accent outline around the selection makes the selected region
-      // read as a box even when the theme's fill colour is close to the
-      // background (the "selection is invisible" complaint). CodeMirror paints
-      // one rectangle per line, so the outline is per-line — fine in practice,
-      // and the fill was brightened in BUILTIN_THEMES to carry the weight.
-      '.cm-selectionBackground': {
-        backgroundColor: spec.selection,
-        outline: `1px solid ${withAlpha(spec.accent, 0.55)}`,
+      // Keep mouse selections visible: CodeMirror puts its selection layer
+      // below content by default, but this editor surface covers it.
+      '.cm-selectionLayer': {
+        zIndex: '2 !important',
+        pointerEvents: 'none',
       },
-      '::selection': { backgroundColor: spec.selection },
-      '.cm-selectionMatch': { backgroundColor: spec.selection },
+      '.cm-selectionLayer .cm-selectionBackground': {
+        background: 'rgba(47, 128, 237, 0.46) !important',
+      },
+      '&.cm-focused .cm-selectionLayer .cm-selectionBackground': {
+        background: 'rgba(47, 128, 237, 0.62) !important',
+      },
+      '.cm-cursorLayer': { zIndex: '3 !important', pointerEvents: 'none' },
+      '.cm-selectionMatch': { backgroundColor: withAlpha(spec.accent, 0.24) },
       '.cm-content': { caretColor: spec.cursor },
+      // Completion uses a neutral document-like surface. Candidate characters
+      // retain identical size, weight, and color, including typed matches.
+      '.cm-tooltip.cm-tooltip-autocomplete': {
+        backgroundColor: '#ffffff',
+        color: '#111111',
+        border: '1px solid #d6d6d6',
+        borderRadius: '4px',
+        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.16)',
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+        fontFamily: 'Helvetica, Arial, sans-serif',
+        fontSize: '13px',
+        fontWeight: '400',
+        lineHeight: '1.4',
+        padding: '4px',
+        maxHeight: '320px',
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+        padding: '5px 8px',
+        borderRadius: '2px',
+        color: '#111111',
+      },
+      '.cm-completionLabel, .cm-completionMatchedText': {
+        color: '#111111',
+        fontSize: '13px',
+        fontWeight: '400',
+        textDecoration: 'none',
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+        backgroundColor: '#eeeeee',
+        color: '#111111',
+      },
+      '.cm-completionDetail, .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail': {
+        color: '#666666',
+        fontWeight: '400',
+      },
     },
     { dark: spec.dark },
   );
