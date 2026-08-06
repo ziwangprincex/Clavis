@@ -6,6 +6,17 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (bounded PDF asset preview)
+
+Asset Preview now supports small workspace PDF assets as an embedded PDF data URL.
+The same canonical-root and 2 MiB read bound applies; EPS/TIFF remain unsupported
+without adding Ghostscript/ImageMagick or any external conversion process.
+
+**Verified:** 101 Rust + 419 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-06 (LaTeX theorem/environment declaration navigation)
 
 Ctrl/Cmd-click now also jumps from recognized `\begin{...}` / `\end{...}`

@@ -419,6 +419,7 @@ fn preview_mime(extension: &str) -> Option<&'static str> {
         "gif" => Some("image/gif"),
         "webp" => Some("image/webp"),
         "svg" => Some("image/svg+xml"),
+        "pdf" => Some("application/pdf"),
         _ => None,
     }
 }
@@ -638,7 +639,7 @@ mod tests {
         assert!(preview.starts_with("data:image/png;base64,"));
         let pdf = root.join("figure.pdf");
         std::fs::write(&pdf, b"pdf").unwrap();
-        assert!(preview_sync(portable(&root), portable(&pdf)).unwrap().is_none());
+        assert!(preview_sync(portable(&root), portable(&pdf)).unwrap().unwrap().starts_with("data:application/pdf;base64,"));
         let outside = tempdir().unwrap();
         let outside_file = outside.path().join("outside.png");
         std::fs::write(&outside_file, b"png").unwrap();
