@@ -1,4 +1,19 @@
 # Clavis - Handoff (updated 2026-08-06)
+## 0. Release preparation - 2026-08-06 (v1.0.7)
+
+Prepared `v1.0.7` after `v1.0.6` failed its Linux Rust-test job before asset
+creation. The three release version locations are aligned at `1.0.7`, and
+`python tools/check_release.py --tag v1.0.7` passes.
+
+**Verified by `tools/release.ps1 1.0.7`:** frontend typecheck, 436 frontend
+tests, frontend production build, and 104 Rust tests all pass. The Git path
+regression that failed on Linux is included in the Rust count.
+
+Next: commit this version-only bump, create/push `v1.0.7`, wait for the shared
+draft GitHub Release, verify all platform assets plus `latest.json`, then
+publish the draft manually. `v1.0.6` must remain unpublished/ignored because
+its workflow did not produce a valid release.
+
 ## 0. Update - 2026-08-06 (cross-platform Git path validation)
 
 The `v1.0.6` Release workflow failed in the Linux Rust-test job before any
