@@ -6,6 +6,56 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (confined LaTeX submission source snapshot)
+
+The former read-only Bundle manifest now has a deliberately narrow **Create
+bundle...** follow-up. After inspecting a ready manifest, the user chooses an
+existing destination folder with the native directory picker; Clavis copies the
+collected LaTeX source snapshot into a newly generated child directory there.
+It does **not** build, run an external command, anonymize, zip, overwrite an
+existing directory, or alter the source workspace.
+
+- Creation re-reads/canonicalizes source and destination immediately before
+  copying. The destination must be an existing directory outside the source
+  workspace.
+- Only files returned by the confined LaTeX collector are written. Every
+  collected relative path is re-validated, text and binary representations are
+  mutually exclusive, binary base64 is decoded locally, and the aggregate
+  snapshot has a 64 MiB cap.
+- Files first go to a UUID-named sibling staging directory; a successful rename
+  publishes the complete snapshot atomically. Failed copies remove that staging
+  directory best-effort.
+- Standard TeX-distribution `\documentclass`/`\usepackage` dependencies no
+  longer make a source snapshot unready: they are not portable project files.
+  Missing in-workspace source/includes/bibliographies still block creation.
+- Submission Check explains the exact scope and reports the created path, file
+  count, and byte total. The button remains disabled until a fresh ready
+  manifest exists.
+
+### Review findings fixed
+
+1. The initial collector treated installed `article`/`amsmath` as unresolved
+   project files, making ordinary papers impossible to snapshot. It now ignores
+   unresolved class/package references while preserving warnings for source and
+   bibliography dependencies.
+2. The first snapshot test bypassed the public creation path. It now exercises
+   `create_bundle_sync` directly, including final-directory generation.
+3. Failure testing originally only tested the low-level writer. It now injects
+   an invalid collector path into the full staged creation path and proves the
+   output folder is empty afterward.
+4. A selected destination inside the source workspace is rejected, preventing
+   generated output from being swept into future manifests. A successful bundle
+   has a random new name and cannot overwrite a prior snapshot.
+
+**Verified:** 90 Rust + 392 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. The Vite build
+retains its pre-existing dynamic/static `tauri.ts` chunking warning. Archive
+creation, compilation-from-snapshot, anonymous variants, direct Zotero
+read-only search, Typst import/set/show intelligence, and LaTeX macro analysis
+remain future slices.
+
+---
+
 ## 0. Update - 2026-08-05 (project writing preferences)
 
 `clavis.toml` can now carry a bounded local Writing policy:

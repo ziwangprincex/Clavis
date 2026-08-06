@@ -1,4 +1,4 @@
-﻿// Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
+// Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
 //
 // Why not @tauri-apps/api? The legacy ui/ ships with `withGlobalTauri: true`
 // (see tauri.conf.json) and uses `window.__TAURI__` directly. Sticking with
@@ -521,6 +521,12 @@ export interface BundleManifest {
   ready: boolean;
 }
 
+export interface CreatedSubmissionBundle {
+  path: string;
+  files: number;
+  bytes: number;
+}
+
 export interface BibliographyExportStatus {
   provider: string;
   relativePath: string;
@@ -644,6 +650,8 @@ export const ipc = {
     invoke<BibliographyExportStatus[]>('inspect_bibliography_exports', { root }),
   inspectSubmissionBundle: (root: string) =>
     invoke<BundleManifest>('inspect_submission_bundle', { root }),
+  createSubmissionBundle: (root: string, destinationParent: string) =>
+    invoke<CreatedSubmissionBundle>('create_submission_bundle', { root, destinationParent }),
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
   gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
   gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),

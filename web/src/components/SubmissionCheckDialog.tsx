@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from 'react';
-import { ipc, type BundleManifest, type SubmissionReport } from '../api/tauri';
+import { useEffect, useState } from 'react';
+import { dialogOpen, ipc, type BundleManifest, type SubmissionReport } from '../api/tauri';
 import type { Tab } from '../store';
 import styles from './SubmissionCheckDialog.module.css';
 
@@ -17,6 +17,8 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   const [run, setRun] = useState(0);
   const [manifest, setManifest] = useState<BundleManifest | null>(null);
   const [manifestError, setManifestError] = useState<string | null>(null);
+  const [bundleResult, setBundleResult] = useState<string | null>(null);
+  const [creatingBundle, setCreatingBundle] = useState(false);
 
   useEffect(() => {
     if (!open || !root) return;
@@ -31,15 +33,27 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
 
   async function inspectManifest() {
     if (!root) return;
-    setManifest(null); setManifestError(null);
+    setManifest(null); setManifestError(null); setBundleResult(null);
     try { setManifest(await ipc.inspectSubmissionBundle(root)); }
     catch (reason) { setManifestError(String(reason)); }
+  }
+
+  async function createBundle() {
+    if (!root || creatingBundle) return;
+    const selected = await dialogOpen({ directory: true, multiple: false, title: 'Choose a folder outside the source workspace' });
+    if (!selected || Array.isArray(selected)) return;
+    setCreatingBundle(true); setManifestError(null); setBundleResult(null);
+    try {
+      const created = await ipc.createSubmissionBundle(root, selected);
+      setBundleResult(`Created ${created.files} files (${(created.bytes / 1024).toFixed(1)} KB) at ${created.path}`);
+    } catch (reason) { setManifestError(String(reason)); }
+    finally { setCreatingBundle(false); }
   }
 
   if (!open) return null;
   return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Submission Check">
-      <header><div><h2>Submission Check</h2><p>Read-only preflight for visible local issues. It does not build, anonymize, or package your project.</p></div><button type="button" onClick={onClose}>Close</button></header>
+      <header><div><h2>Submission Check</h2><p>Local preflight and source snapshot. Bundle creation copies only the ready manifest to a new folder outside your workspace; it does not build, anonymize, or zip your project.</p></div><button type="button" onClick={onClose}>Close</button></header>
       <div className={styles.body}>
         {!root ? <p>No workspace open.</p> : error ? <p className={styles.error}>{error}</p> : !report ? <p>Checking submission readiness…</p> : <>
           <div className={`${styles.summary} ${report.ready ? styles.ready : styles.needs}`}>{report.ready ? 'No blocking errors found' : 'Submission needs attention'} · {report.scannedFiles} files checked{report.truncated ? ' · scan truncated' : ''}</div>
@@ -48,6 +62,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
           </li>)}</ul>}
         </>}
         {manifestError && <p className={styles.error}>{manifestError}</p>}
+        {bundleResult && <p className={styles.created}>{bundleResult}</p>}
         {manifest && <div className={styles.manifest}>
           <strong>{manifest.ready ? 'Bundle manifest ready' : 'Bundle manifest has warnings'}</strong>
           <span>{manifest.files.length} files ? {manifest.mainDocument.split(/[\/]/).pop()}</span>
@@ -55,7 +70,11 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
           <details><summary>Files that would be bundled</summary><ul>{manifest.files.map(file => <li key={file.relativePath}><code>{file.relativePath}</code> <small>{file.kind} ? {(file.sizeBytes / 1024).toFixed(1)} KB</small></li>)}</ul></details>
         </div>}
       </div>
-      <footer><button type="button" onClick={() => setRun(value => value + 1)}>Run again</button><button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button></footer>
+      <footer>
+        <button type="button" onClick={() => setRun(value => value + 1)}>Run again</button>
+        <button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button>
+        <button type="button" disabled={!manifest?.ready || creatingBundle} onClick={() => void createBundle()} title={manifest?.ready ? 'Create a source-only snapshot outside this workspace' : 'Inspect a ready manifest before creating a bundle'}>{creatingBundle ? 'Creating...' : 'Create bundle...'}</button>
+      </footer>
     </section>
   </div>;
 }

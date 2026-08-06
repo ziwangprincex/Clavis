@@ -365,6 +365,7 @@ fn main() {
             workspace_search::replace_workspace,
             submission_check::check_submission,
             submission_bundle::inspect_submission_bundle,
+            submission_bundle::create_submission_bundle,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

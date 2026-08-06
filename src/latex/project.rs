@@ -259,7 +259,13 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
                 }
                 return;
             }
-            warnings.push(format!("could not resolve: {raw}"));
+            // Classes and packages commonly come from the active TeX
+            // installation and are deliberately not copied into a portable
+            // source snapshot. Missing source/includes/bibliographies remain
+            // warnings because they would make that snapshot incomplete.
+            if matches!(hint, ResolveHint::Generic | ResolveHint::Bib) {
+                warnings.push(format!("could not resolve: {raw}"));
+            }
         };
 
         for cap in re_input.captures_iter(&text) {
@@ -337,6 +343,22 @@ mod tests {
         assert!(is_safe_relpath("main.tex"));
         assert!(is_safe_relpath("chapters/intro.tex"));
         assert!(is_safe_relpath("a/b/c/fig.png"));
+    }
+
+    #[test]
+    fn ignores_unbundled_tex_distribution_packages_but_warns_on_missing_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let main = root.join("main.tex");
+        std::fs::write(
+            &main,
+            "\\documentclass{article}\n\\usepackage{amsmath}\n\\input{missing-section}",
+        )
+        .unwrap();
+        let collected = collect_project_files(main.to_string_lossy().to_string()).unwrap();
+        assert!(collected.warnings.iter().any(|warning| warning.contains("missing-section")));
+        assert!(!collected.warnings.iter().any(|warning| warning.contains("article")));
+        assert!(!collected.warnings.iter().any(|warning| warning.contains("amsmath")));
     }
 
     #[test]
