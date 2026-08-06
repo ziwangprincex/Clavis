@@ -6,6 +6,19 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (manuscript figure insertion templates)
+
+Asset sidebar now offers **Figure** alongside simple Insert. It creates a
+language-native figure skeleton with explicit Caption and label placeholders:
+LaTeX figure/centering/includegraphics/caption/label, Typst `#figure`, or a
+Markdown/Quarto image with an identifier. It inserts text only; assets are not
+copied, renamed, or modified.
+
+**Verified:** 101 Rust + 417 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean.
+
+---
+
 ## 0. Update - 2026-08-06 (citation integrity summary)
 
 Bibliography now shows a local, read-only integrity summary: citation keys used

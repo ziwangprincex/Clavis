@@ -22,3 +22,18 @@ export function assetInsertText(relativePath: string, language: Lang): string {
   if (language === 'typst') return `#image("${typstPath(relativePath)}")`;
   return `![](${markdownPath(relativePath)})`;
 }
+
+/** A manuscript-ready figure skeleton with visible caption/label placeholders. */
+export function assetFigureTemplate(relativePath: string, language: Lang): string {
+  if (language === 'latex') return `\\begin{figure}[htbp]
+  \\centering
+  \\includegraphics[width=\\linewidth]{${latexPath(relativePath)}}
+  \\caption{Caption}
+  \\label{fig:label}
+\\end{figure}`;
+  if (language === 'typst') return `#figure(
+  image("${typstPath(relativePath)}", width: 100%),
+  caption: [Caption],
+) <fig:label>`;
+  return `![Caption](${markdownPath(relativePath)}){#fig:label}`;
+}
