@@ -182,6 +182,13 @@
   color: var(--text-muted);
 }
 
+/* A resolved engine path is long and often the widest thing in the pane; keep
+   it from stretching the dialog while staying selectable/copyable. */
+.enginePath {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
+}
+
 .colorGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -1,9 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettingsStore, defaultSettings } from '../store';
 import type { Settings } from '../store/settings';
 import { BUILTIN_THEMES } from '../editor/controller';
-import { getAppVersion, hasTauri } from '../api/tauri';
+import { getAppVersion, hasTauri, ipc } from '../api/tauri';
 import { checkForUpdates } from '../update/updater';
+import {
+  BIB_ENGINES,
+  LATEX_ENGINES,
+  type ProbeResult,
+  describeEngineStatus,
+  engineLabel,
+  isUnknownEngine,
+} from './engineStatus';
 import styles from './SettingsDialog.module.css';
 
 export interface SettingsDialogProps {
@@ -14,12 +22,22 @@ export interface SettingsDialogProps {
 const CATEGORIES = ['Appearance', 'Editor', 'LaTeX & PDF', 'Preview', 'Updates'] as const;
 type Category = (typeof CATEGORIES)[number];
 
+/// Every value the bibliography dropdown offers, including the two that name no
+/// binary. Used only to decide whether a stored value is off-list.
+const BIB_ENGINE_CHOICES = ['auto', 'none', ...BIB_ENGINES] as const;
+
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const stored = useSettingsStore(s => s.settings);
   const patchAndSave = useSettingsStore(s => s.patchAndSave);
   const [draft, setDraft] = useState<Settings>(stored);
   const [active, setActive] = useState<Category>('Appearance');
   const [version, setVersion] = useState<string>('');
+  const [latexEngines, setLatexEngines] = useState<ProbeResult>(null);
+  const [bibEngines, setBibEngines] = useState<ProbeResult>(null);
+  const [probing, setProbing] = useState(false);
+  // Generation gate: a slow probe resolving after the dialog reopened (or after
+  // a newer Detect again) must not overwrite fresher state.
+  const probeGeneration = useRef(0);
 
   useEffect(() => {
     if (open) setDraft(stored);
@@ -33,6 +51,37 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     if (!open || !hasTauri()) return;
     getAppVersion().then(setVersion).catch(() => setVersion(''));
   }, [open]);
+
+  // Probe installed engines. Each backend probe is bounded (3s per engine, then
+  // killed), so this cannot hang the dialog. Guarded on hasTauri() for the same
+  // reason as the version fetch above.
+  //
+  // A rejected IPC becomes 'failed', NOT an empty list: an empty list would
+  // render as "not found" for every engine and blame the user's TeX install for
+  // what is actually our own failed call.
+  const detectEngines = useCallback(async () => {
+    if (!hasTauri()) return;
+    const generation = ++probeGeneration.current;
+    setProbing(true);
+    try {
+      const [latex, bib] = await Promise.all([
+        ipc.detectLatexEngines().then<ProbeResult>(r => r).catch<ProbeResult>(() => 'failed'),
+        ipc.detectBibEngines().then<ProbeResult>(r => r).catch<ProbeResult>(() => 'failed'),
+      ]);
+      if (generation !== probeGeneration.current) return;
+      setLatexEngines(latex);
+      setBibEngines(bib);
+    } finally {
+      if (generation === probeGeneration.current) setProbing(false);
+    }
+  }, []);
+
+  // Probe when the LaTeX pane is actually opened, not on every dialog open:
+  // spawning up to five processes for someone visiting Appearance is waste.
+  useEffect(() => {
+    if (!open || active !== 'LaTeX & PDF') return;
+    void detectEngines();
+  }, [open, active, detectEngines]);
 
   if (!open) return null;
 
@@ -186,23 +235,68 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       value={draft.latex_engine}
                       onChange={e => update('latex_engine', e.target.value)}
                     >
-                      <option value="pdflatex">pdflatex</option>
-                      <option value="xelatex">xelatex</option>
-                      <option value="lualatex">lualatex</option>
+                      {/* A hand-edited settings.json can hold an engine we do
+                          not offer. Without this option React would show the
+                          first entry as selected and Save would silently
+                          rewrite the user's choice. */}
+                      {isUnknownEngine(draft.latex_engine, LATEX_ENGINES) && (
+                        <option value={draft.latex_engine}>
+                          {draft.latex_engine} (from settings.json)
+                        </option>
+                      )}
+                      {LATEX_ENGINES.map(name => (
+                        <option key={name} value={name}>
+                          {engineLabel(name, latexEngines)}
+                        </option>
+                      ))}
                     </select>
                   </label>
+                  <EngineStatus
+                    result={latexEngines}
+                    name={draft.latex_engine}
+                    probing={probing}
+                    known={!isUnknownEngine(draft.latex_engine, LATEX_ENGINES)}
+                  />
                   <label>
                     Bibliography engine
                     <select
                       value={draft.bib_engine}
                       onChange={e => update('bib_engine', e.target.value as Settings['bib_engine'])}
                     >
+                      {/* Same hand-edit guard as the LaTeX engine above; 'auto'
+                          and 'none' are valid non-executable choices. */}
+                      {isUnknownEngine(draft.bib_engine, BIB_ENGINE_CHOICES) && (
+                        <option value={draft.bib_engine}>
+                          {draft.bib_engine} (from settings.json)
+                        </option>
+                      )}
                       <option value="auto">auto</option>
-                      <option value="bibtex">bibtex</option>
-                      <option value="biber">biber</option>
+                      {BIB_ENGINES.map(name => (
+                        <option key={name} value={name}>
+                          {engineLabel(name, bibEngines)}
+                        </option>
+                      ))}
                       <option value="none">none</option>
                     </select>
                   </label>
+                  {/* 'auto' resolves at compile time and 'none' skips the step,
+                      so neither names a binary whose presence we could report. */}
+                  {(BIB_ENGINES as readonly string[]).includes(draft.bib_engine) && (
+                    <EngineStatus
+                      result={bibEngines}
+                      name={draft.bib_engine}
+                      probing={probing}
+                      known
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    onClick={() => void detectEngines()}
+                    disabled={probing || !hasTauri()}
+                  >
+                    {probing ? 'Detecting…' : 'Detect again'}
+                  </button>
                   <label className={styles.inline}>
                     <input
                       type="checkbox"
@@ -417,4 +511,58 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       </div>
     </div>
   );
+}
+
+/// Resolved path and `--version` banner for the selected engine.
+/// State logic lives in `describeEngineStatus` so it can be tested directly.
+function EngineStatus({
+  result,
+  name,
+  probing,
+  known,
+}: {
+  result: ProbeResult;
+  name: string;
+  probing: boolean;
+  known: boolean;
+}) {
+  if (!hasTauri()) return null;
+  // An off-list engine is never probed, so any verdict about it would be
+  // fabricated. Say where it came from instead.
+  if (!known) {
+    return (
+      <p className={styles.hint}>
+        Set in <code>settings.json</code>; not probed. Clavis will pass it to the
+        compiler as-is.
+      </p>
+    );
+  }
+  const status = describeEngineStatus(result, name, probing);
+  switch (status.kind) {
+    case 'hidden':
+      return null;
+    case 'pending':
+      return <p className={styles.hint}>Detecting…</p>;
+    case 'failed':
+      return (
+        <p className={styles.hint}>
+          Detection failed, so installed engines are unknown. This says nothing
+          about whether {name} is present.
+        </p>
+      );
+    case 'missing':
+      return (
+        <p className={styles.hint}>
+          Not found on PATH. Compilation will fail until it is installed, or set
+          a custom path in <code>settings.json</code>.
+        </p>
+      );
+    case 'found':
+      return (
+        <p className={styles.hint}>
+          <span className={styles.enginePath}>{status.path}</span>
+          {status.version ? <>{' — '}{status.version}</> : ' — version not reported'}
+        </p>
+      );
+  }
 }

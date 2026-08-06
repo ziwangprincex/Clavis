@@ -250,6 +250,17 @@ export interface TreeNode {
   children: TreeNode[];
 }
 
+/// One probed LaTeX/bibliography engine. Mirrors the Rust `settings::EngineInfo`
+/// exactly: it is a plain struct (not `#[serde(rename_all)]`), so the field
+/// names are already snake-free and cross the IPC boundary verbatim.
+/// `path`/`version` are null when the engine is not installed, or when its
+/// `--version` probe timed out and was killed.
+export interface EngineInfo {
+  name: string;
+  path: string | null;
+  version: string | null;
+}
+
 // --- Multi-file project + SyncTeX + distro shapes (mirror the Rust structs;
 //     serde serializes them camelCase). Kept precise so the IPC boundary is
 //     type-checked 鈥?a loose `unknown` here is exactly what let the SyncTeX
@@ -654,8 +665,8 @@ export const ipc = {
   setSettings: (settings: AppSettings) => invoke<void>('set_settings', { settings }),
   loadSession: () => invoke<string>('load_session'),
   saveSession: (data: string) => invoke<void>('save_session', { data }),
-  detectLatexEngines: () => invoke<Record<string, string>>('detect_latex_engines'),
-  detectBibEngines: () => invoke<Record<string, string>>('detect_bib_engines'),
+  detectLatexEngines: () => invoke<EngineInfo[]>('detect_latex_engines'),
+  detectBibEngines: () => invoke<EngineInfo[]>('detect_bib_engines'),
 
   // --- Workspace project configuration and trust ---
   inspectWorkspace: (root: string) =>

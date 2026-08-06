@@ -1,8 +1,118 @@
-# Clavis - Handoff (updated 2026-08-05)
+# Clavis - Handoff (updated 2026-08-06)
 
 A working-state handoff so the next session (or a future you) can pick up cold.
 **Current state is in §0 below — it supersedes the now-historical §2 (git) and
 §4 (auto-update) notes, which are kept only as a record of how we got here.**
+
+---
+
+## 0. Update - 2026-08-06 (engine detection wired to Settings; unbounded probe fixed)
+
+An audit of whether the shipped features are actually reachable found one
+**unwired capability**: `detect_latex_engines` / `detect_bib_engines` were
+registered, implemented, and probing correctly, but no UI called them and their
+frontend wrappers declared the wrong type. Settings showed a hardcoded engine
+dropdown that never reflected what is installed.
+
+- `web/src/api/tauri.ts` declared both commands as
+  `invoke<Record<string, string>>` while Rust returns `Vec<EngineInfo>`
+  (`{name, path, version}`). `invoke<T>` is an unchecked assertion, so tsc could
+  not catch it, and nothing called the wrappers, so no test did either. Now typed
+  `EngineInfo[]` with an exported `EngineInfo` interface mirroring the Rust struct.
+- Settings → LaTeX & PDF now annotates each engine option with
+  `— not found` when the probe resolved no path, shows the resolved path plus
+  `--version` banner for the selected engine, and has **Detect again**. Probing
+  starts when that pane opens (not on every dialog open — five processes for
+  someone visiting Appearance is waste) and is generation-gated so a slow probe
+  cannot overwrite fresher state.
+- Detection **annotates, never filters**: an engine the user is about to install
+  stays selectable.
+
+### The real bug found underneath
+
+`settings::probe_engine` ran `Command::new(path).arg("--version").output()`
+with **no timeout**, on the Tauri event loop, with un-enriched PATH — while
+`document_tools::probe_tool` doing the identical job already had a 3-second kill
+deadline. Wiring the UI to it as-is would have let one wedged engine freeze the
+app; this is the same defect §0 records as fixed for Project Doctor
+("Tool version probing could hang Project Doctor indefinitely"), which was never
+applied here.
+
+1. New `probe_version` bounds the wait at `PROBE_TIMEOUT` (3 s) and kills the
+   child on expiry, so a hung engine yields `None` rather than blocking. Stdin is
+   null; the banner is read from stderr when stdout is empty.
+2. PATH now uses the shared `latex::enriched_path()`, so a GUI-launched app with
+   a minimal launchd PATH resolves engines the same way compilation does.
+   `enriched_path` was widened from `pub(crate)` to `pub` for the re-export (the
+   module stays private, so crate-external visibility is unchanged).
+3. Both commands became `async` and run on `spawn_blocking`; a panicked worker
+   degrades to "all engines undetected" instead of rejecting the call.
+4. `version_probe_kills_a_hanging_program` proves the bound by probing a
+   `sleep 30` — **without the deadline this test hangs forever instead of
+   failing**. It ran in 3.21 s, and `which sleep` confirms the kill path was
+   exercised rather than the skip branch.
+
+### Notes for the next session
+
+- State logic sits in `web/src/components/engineStatus.ts` (pure, tested)
+  rather than inside the component, following the `citationText.ts` pattern.
+  `describeEngineStatus` keeps `pending` / `failed` / `missing` / `found`
+  **distinct** — rendering "not installed" without evidence is a false claim,
+  and that conflation is the asset-preview bug this repo already fixed once.
+  A re-probe keeps showing the previous result so the pane does not flicker.
+- `scan_folder` is now the only backend command with no frontend caller (the
+  tree uses `scan_folder_shallow`). Pre-existing; left alone.
+- The audit method worth repeating: diff `#[tauri::command]` definitions against
+  `invoke_handler` **and** against frontend `invoke('…')` names. All 59 commands
+  are registered; the gap was on the *caller* side, which registration checks
+  miss entirely.
+
+### Three bugs found by self-review, after the above already looked done
+
+All static checks were green and 11 tests passed before these were found. Worth
+remembering that "green" was not evidence of correctness here.
+
+1. **The staging area was internally inconsistent.** `git add --renormalize`
+   (run only to fix line endings) silently staged 4 files while the 3 files they
+   depend on stayed unstaged. A plain `git commit` would have recorded a tree
+   where `settings.rs` calls `crate::latex::enriched_path()` but `mod.rs` does
+   not export it yet — **CI red on a commit whose working tree built fine**.
+   Check `git diff --cached --name-only` against `git diff --name-only` before
+   committing, not just `git status`.
+2. **A failed probe was reported as "engine not installed."** The first version
+   mapped a rejected IPC to `[]`, which every label then rendered as
+   `— not found`, blaming the user's TeX install for our own failed call. Fixed
+   with an explicit `'failed'` state in `ProbeResult`; `null` (not yet probed),
+   `'failed'`, and a resolved list are now three different things. The first
+   test suite *asserted the buggy behaviour*, so it had to be rewritten too.
+3. **A hand-edited engine silently vanished.** `latex_engine` is typed
+   `string`, so `settings.json` can hold `pdflatex-dev`. It matched no
+   `<option>`, so React showed the first entry as selected and Save would have
+   rewritten the user's choice without a word. Off-list values now get a
+   synthetic `(from settings.json)` option and a status line saying they were
+   not probed and are passed through as-is. Same guard on `bib_engine`.
+
+4. **A failed backend worker was falsely rendered as “not found.”** The initial
+   `spawn_blocking` join-error fallback returned an ordinary list with no paths,
+   which the frontend correctly interpreted as a *successful* probe where every
+   engine was absent. `probe_all` now returns `Result`; a worker panic/cancellation
+   rejects the IPC, so the existing frontend `'failed'` state says detection is
+   unknown rather than blaming the TeX installation.
+Fix 2 was verified by reintroducing the bug (`probeList` returning `[]` for
+`'failed'`) and confirming the suite goes red — the repo's rule that a
+regression test must be seen failing, not just passing.
+
+**Verified:** 104 Rust (101 + 3 new) + 436 frontend (419 + 17 new) tests pass;
+frontend typecheck/build and `cargo check --all-targets` are clean.
+`git diff --cached --check` is clean and all staged blobs are LF — note
+`src/settings.rs` and `web/src/api/tauri.ts` were whole-file CRLF and needed
+`git add --renormalize`, or every added line reads as a whitespace error.
+
+**Not yet verified in a real window** (sandbox is headless): the dropdown
+annotations, path/version line, and Detect again button have unit coverage for
+their logic but nobody has looked at them. `tauri dev` → Settings →
+LaTeX & PDF should confirm the pane does not flicker on Detect again and that a
+missing engine reads sensibly. **Staged, not committed.**
 
 ---
 

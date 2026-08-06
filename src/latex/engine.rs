@@ -44,7 +44,7 @@ pub fn find_in_fallback_dirs(name: &str) -> Option<PathBuf> {
 /// Build a PATH value enriched with our fallback dirs so that child processes
 /// (LaTeX engines invoke kpsewhich/bibtex/makeindex internally) can find their
 /// helpers even when the parent .app bundle inherited a minimal launchd PATH.
-pub(crate) fn enriched_path() -> std::ffi::OsString {
+pub fn enriched_path() -> std::ffi::OsString {
     use std::ffi::OsString;
     let sep = if cfg!(windows) { ";" } else { ":" };
     let mut parts: Vec<String> = Vec::new();

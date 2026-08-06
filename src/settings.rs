@@ -172,6 +172,11 @@ pub struct EngineInfo {
     pub version: Option<String>,
 }
 
+/// How long a `--version` probe may run before it is killed. A wedged or
+/// interactive engine must not be able to hang the caller: this mirrors the
+/// bound `document_tools::probe_tool` already applies for Quarto/Pandoc.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
 fn probe_engine(name: &str, custom: Option<&str>, version_arg: &str) -> EngineInfo {
     // 1) custom path first if provided & non-empty
     let resolved: Option<PathBuf> = custom
@@ -184,14 +189,7 @@ fn probe_engine(name: &str, custom: Option<&str>, version_arg: &str) -> EngineIn
     let Some(path) = resolved else {
         return EngineInfo { name: name.to_string(), path: None, version: None };
     };
-    let version = Command::new(&path)
-        .arg(version_arg)
-        .output()
-        .ok()
-        .and_then(|out| {
-            let s = String::from_utf8_lossy(&out.stdout).to_string();
-            s.lines().next().map(|l| l.trim().to_string())
-        });
+    let version = probe_version(&path, version_arg);
     EngineInfo {
         name: name.to_string(),
         path: Some(path.to_string_lossy().to_string()),
@@ -199,28 +197,122 @@ fn probe_engine(name: &str, custom: Option<&str>, version_arg: &str) -> EngineIn
     }
 }
 
-#[tauri::command]
-pub fn detect_latex_engines(app: AppHandle) -> Vec<EngineInfo> {
-    let s = load_from_disk(&app);
-    let names = ["pdflatex", "xelatex", "lualatex"];
-    names
-        .iter()
-        .map(|n| {
-            let custom = s.latex_custom_paths.get(*n).map(String::as_str);
-            probe_engine(n, custom, "--version")
-        })
-        .collect()
+/// Run `<program> <version_arg>` and return its first output line.
+///
+/// Bounded by `PROBE_TIMEOUT` and killed on expiry, so a hung engine yields
+/// `None` instead of blocking forever. PATH is enriched the same way engine
+/// execution enriches it, so a GUI-launched app (minimal launchd PATH) can
+/// still resolve the helpers an engine shells out to.
+fn probe_version(program: &PathBuf, version_arg: &str) -> Option<String> {
+    let mut child = Command::new(program)
+        .arg(version_arg)
+        .env("PATH", crate::latex::enriched_path())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .ok()?;
+
+    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                let out = child.wait_with_output().ok()?;
+                // Some engines print their banner on stderr.
+                let text = if out.stdout.is_empty() { &out.stderr } else { &out.stdout };
+                return String::from_utf8_lossy(text)
+                    .lines()
+                    .next()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty());
+            }
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(25))
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
 }
 
+/// Probe the LaTeX engines. Runs on a blocking worker: each probe may take up
+/// to `PROBE_TIMEOUT`, which must not stall the Tauri event loop.
 #[tauri::command]
-pub fn detect_bib_engines(app: AppHandle) -> Vec<EngineInfo> {
-    let s = load_from_disk(&app);
-    let names = ["bibtex", "biber"];
-    names
-        .iter()
-        .map(|n| {
-            let custom = s.latex_custom_paths.get(*n).map(String::as_str);
-            probe_engine(n, custom, "--version")
-        })
-        .collect()
+pub async fn detect_latex_engines(app: AppHandle) -> Result<Vec<EngineInfo>, String> {
+    probe_all(app, &["pdflatex", "xelatex", "lualatex"]).await
+}
+
+/// Probe the bibliography engines. Same bounded, off-event-loop contract as
+/// `detect_latex_engines`.
+#[tauri::command]
+pub async fn detect_bib_engines(app: AppHandle) -> Result<Vec<EngineInfo>, String> {
+    probe_all(app, &["bibtex", "biber"]).await
+}
+
+async fn probe_all(app: AppHandle, names: &'static [&'static str]) -> Result<Vec<EngineInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = load_from_disk(&app);
+        names
+            .iter()
+            .map(|name| {
+                let custom = settings.latex_custom_paths.get(*name).map(String::as_str);
+                probe_engine(name, custom, "--version")
+            })
+            .collect()
+    })
+    .await
+    // Do not turn a panicked or cancelled worker into a successful list of
+    // missing engines. The frontend maps an IPC rejection to its explicit
+    // 'failed' state, which correctly says detection is unknown rather than
+    // falsely blaming the user's TeX installation.
+    .map_err(|error| format!("engine detection worker failed: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A program that never exits must not hang the probe. Without the deadline
+    /// this test blocks forever rather than failing.
+    #[test]
+    fn version_probe_kills_a_hanging_program() {
+        // `sleep 30` ignores --version and just sleeps; on Windows the busybox-style
+        // sleep ships with Git, which is present wherever this repo is developed.
+        let program = match which::which("sleep") {
+            Ok(path) => path,
+            Err(_) => return, // no sleep available: nothing to prove here
+        };
+
+        let started = std::time::Instant::now();
+        let version = probe_version(&program, "30");
+        let elapsed = started.elapsed();
+
+        assert!(version.is_none(), "a killed probe must not report a version");
+        assert!(
+            elapsed < PROBE_TIMEOUT + std::time::Duration::from_secs(2),
+            "probe took {elapsed:?}, expected to be killed near {PROBE_TIMEOUT:?}"
+        );
+    }
+
+    #[test]
+    fn missing_engine_reports_no_path_or_version() {
+        let info = probe_engine("clavis-definitely-not-a-real-engine", None, "--version");
+        assert!(info.path.is_none());
+        assert!(info.version.is_none());
+    }
+
+    /// A custom path is only honoured when it points at an existing file, so a
+    /// stale settings entry falls back to PATH lookup instead of being trusted.
+    #[test]
+    fn custom_path_must_exist_to_be_used() {
+        let info = probe_engine(
+            "clavis-definitely-not-a-real-engine",
+            Some("/nonexistent/clavis/pdflatex"),
+            "--version",
+        );
+        assert!(info.path.is_none());
+    }
 }

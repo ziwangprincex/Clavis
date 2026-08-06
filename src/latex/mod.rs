@@ -23,8 +23,9 @@ pub(crate) mod types;
 pub(crate) mod workdir;
 
 // Used outside this module: `main.rs` manages the workdir state and handles the
-// destroy event; `settings.rs` probes engine fallback dirs.
-pub use engine::find_in_fallback_dirs;
+// destroy event; `settings.rs` probes engine fallback dirs and reuses the same
+// enriched PATH for its bounded `--version` probes.
+pub use engine::{enriched_path, find_in_fallback_dirs};
 pub use workdir::LatexState;
 
 /// Names of the main source / output files inside every compile workdir.
