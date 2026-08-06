@@ -373,6 +373,7 @@ fn main() {
             submission_bundle::inspect_submission_bundle,
             submission_bundle::create_submission_bundle,
             submission_bundle::create_submission_archive,
+            submission_bundle::verify_submission_bundle,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,

@@ -11,6 +11,8 @@ use base64::Engine as _;
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
@@ -46,6 +48,15 @@ pub struct CreatedSubmissionArchive {
     pub path: String,
     pub files: usize,
     pub bytes: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmissionBuildVerification {
+    pub ok: bool,
+    pub engine: String,
+    pub log_tail: String,
+    pub output_present: bool,
 }
 
 struct PreparedBundle {
@@ -266,6 +277,73 @@ fn create_archive_sync(workspace: String, selected_destination: String) -> Resul
     archive_prepared_bundle(prepare_bundle(workspace)?, selected_destination)
 }
 
+const BUILD_TIMEOUT: Duration = Duration::from_secs(60);
+const MAX_BUILD_LOG_BYTES: usize = 256 * 1024;
+
+fn configured_engine(root: &Path) -> Result<String, String> {
+    let text = std::fs::read_to_string(root.join("clavis.toml")).map_err(|e| format!("cannot read clavis.toml: {e}"))?;
+    let config: ProjectConfig = toml::from_str(&text).map_err(|e| format!("invalid clavis.toml: {e}"))?;
+    let engine = config.latex.engine.unwrap_or_else(|| "pdflatex".to_string());
+    if !matches!(engine.as_str(), "pdflatex" | "xelatex" | "lualatex") {
+        return Err("submission verification engine must be pdflatex, xelatex, or lualatex".to_string());
+    }
+    Ok(engine)
+}
+
+fn tail_log(bytes: &[u8]) -> String {
+    let start = bytes.len().saturating_sub(12 * 1024);
+    String::from_utf8_lossy(&bytes[start..]).to_string()
+}
+
+fn verification_args(main: &str) -> [&str; 5] {
+    ["-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", "-file-line-error", main]
+}
+
+fn verify_bundle_sync(workspace: String) -> Result<SubmissionBuildVerification, String> {
+    let prepared = prepare_bundle(workspace)?;
+    if !prepared.manifest.ready {
+        return Err(format!("submission verification has unresolved files: {}", prepared.manifest.warnings.join("; ")));
+    }
+    let engine_name = configured_engine(&prepared.root)?;
+    let engine = crate::latex::engine::resolve_engine(&engine_name, None)?;
+    let snapshot = tempfile::tempdir().map_err(|e| format!("cannot create isolated verification directory: {e}"))?;
+    let mut written = 0usize;
+    for file in &prepared.files {
+        written = written.checked_add(write_bundle_file(snapshot.path(), file)?).ok_or_else(|| "bundle size overflow".to_string())?;
+    }
+    if written > 64 * 1024 * 1024 { return Err("submission verification exceeds the 64 MiB source snapshot limit".to_string()); }
+    let main = Path::new(&prepared.manifest.main_document).file_name().and_then(|name| name.to_str()).ok_or_else(|| "bundle main document has no file name".to_string())?;
+    // Do not pipe engine output: a verbose TeX run could fill an OS pipe before
+    // `try_wait` observes exit. Temporary log files cap memory while remaining
+    // entirely inside the isolated snapshot that is deleted on return.
+    let stdout_path = snapshot.path().join("clavis-verification.stdout.log");
+    let stderr_path = snapshot.path().join("clavis-verification.stderr.log");
+    let stdout = std::fs::File::create(&stdout_path).map_err(|e| format!("cannot create verification stdout log: {e}"))?;
+    let stderr = std::fs::File::create(&stderr_path).map_err(|e| format!("cannot create verification stderr log: {e}"))?;
+    let mut child = Command::new(&engine)
+        .args(verification_args(main))
+        .current_dir(snapshot.path())
+        .env("PATH", crate::latex::engine::enriched_path())
+        .stdin(Stdio::null()).stdout(Stdio::from(stdout)).stderr(Stdio::from(stderr))
+        .spawn().map_err(|e| format!("cannot start isolated LaTeX verification: {e}"))?;
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed() < BUILD_TIMEOUT => std::thread::sleep(Duration::from_millis(20)),
+            Ok(None) | Err(_) => {
+                let _ = child.kill(); let _ = child.wait();
+                return Err(format!("isolated LaTeX verification timed out after {}s", BUILD_TIMEOUT.as_secs()));
+            }
+        }
+    };
+    let mut log = std::fs::read(&stdout_path).unwrap_or_default();
+    log.extend_from_slice(&std::fs::read(&stderr_path).unwrap_or_default());
+    if log.len() > MAX_BUILD_LOG_BYTES { log = log[log.len() - MAX_BUILD_LOG_BYTES..].to_vec(); }
+    let output_present = snapshot.path().join("main.pdf").is_file();
+    Ok(SubmissionBuildVerification { ok: status.success() && output_present, engine: engine_name, log_tail: tail_log(&log), output_present })
+}
+
 fn create_bundle_sync(workspace: String, selected_destination: String) -> Result<CreatedSubmissionBundle, String> {
     // The destination comes from a native user folder picker. Re-read and
     // canonicalize both source and destination immediately before copying;
@@ -298,6 +376,13 @@ pub async fn create_submission_archive(
     tauri::async_runtime::spawn_blocking(move || create_archive_sync(root, destination_parent))
         .await
         .map_err(|e| format!("submission archive worker failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn verify_submission_bundle(root: String) -> Result<SubmissionBuildVerification, String> {
+    tauri::async_runtime::spawn_blocking(move || verify_bundle_sync(root))
+        .await
+        .map_err(|e| format!("submission verification worker failed: {e}"))?
 }
 
 #[cfg(test)]
@@ -360,6 +445,18 @@ mod tests {
         archive.by_name("main.tex").unwrap().read_to_string(&mut main).unwrap();
         assert!(main.contains("includegraphics"));
         assert!(std::fs::read(root.join("main.tex")).unwrap().starts_with(b"\\documentclass"));
+    }
+
+    #[test]
+    fn verification_uses_fixed_shell_escape_safe_args() {
+        assert_eq!(verification_args("main.tex"), ["-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", "-file-line-error", "main.tex"]);
+    }
+
+    #[test]
+    fn rejects_non_allowlisted_verification_engine() {
+        let (_dir, root) = fixture();
+        std::fs::write(root.join("clavis.toml"), "[project]\nmain = \"main.tex\"\n[latex]\nengine = \"latexmk\"\n").unwrap();
+        assert!(configured_engine(&root).unwrap_err().contains("must be"));
     }
 
     #[test]

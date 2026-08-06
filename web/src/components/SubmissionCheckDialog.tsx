@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { dialogOpen, ipc, type BundleManifest, type SubmissionReport } from '../api/tauri';
+import { dialogConfirm, dialogOpen, ipc, type BundleManifest, type SubmissionBuildVerification, type SubmissionReport } from '../api/tauri';
 import type { Tab } from '../store';
 import styles from './SubmissionCheckDialog.module.css';
 
@@ -20,6 +20,8 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   const [bundleResult, setBundleResult] = useState<string | null>(null);
   const [creatingBundle, setCreatingBundle] = useState(false);
   const [creatingArchive, setCreatingArchive] = useState(false);
+  const [verifyingBundle, setVerifyingBundle] = useState(false);
+  const [verification, setVerification] = useState<SubmissionBuildVerification | null>(null);
 
   useEffect(() => {
     if (!open || !root) return;
@@ -34,7 +36,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
 
   async function inspectManifest() {
     if (!root) return;
-    setManifest(null); setManifestError(null); setBundleResult(null);
+    setManifest(null); setManifestError(null); setBundleResult(null); setVerification(null);
     try { setManifest(await ipc.inspectSubmissionBundle(root)); }
     catch (reason) { setManifestError(String(reason)); }
   }
@@ -63,10 +65,20 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
     finally { setCreatingArchive(false); }
   }
 
+  async function verifyBundle() {
+    if (!root || verifyingBundle) return;
+    const confirmed = await dialogConfirm('Run the configured LaTeX engine in an isolated temporary copy of the ready manifest? Shell escape is disabled. This does not modify the workspace, source bundle, or ZIP.', { title: 'Verify isolated submission build?' });
+    if (!confirmed) return;
+    setVerifyingBundle(true); setManifestError(null); setVerification(null);
+    try { setVerification(await ipc.verifySubmissionBundle(root)); }
+    catch (reason) { setManifestError(String(reason)); }
+    finally { setVerifyingBundle(false); }
+  }
+
   if (!open) return null;
   return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Submission Check">
-      <header><div><h2>Submission Check</h2><p>Local preflight, source snapshot, and ZIP export. Both copy only the ready manifest outside your workspace; they do not build or anonymize your project.</p></div><button type="button" onClick={onClose}>Close</button></header>
+      <header><div><h2>Submission Check</h2><p>Local preflight, source snapshot, ZIP export, and optional isolated build verification. Exports copy only the ready manifest outside your workspace; verification builds a temporary copy with shell escape disabled.</p></div><button type="button" onClick={onClose}>Close</button></header>
       <div className={styles.body}>
         {!root ? <p>No workspace open.</p> : error ? <p className={styles.error}>{error}</p> : !report ? <p>Checking submission readiness…</p> : <>
           <div className={`${styles.summary} ${report.ready ? styles.ready : styles.needs}`}>{report.ready ? 'No blocking errors found' : 'Submission needs attention'} · {report.scannedFiles} files checked{report.truncated ? ' · scan truncated' : ''}</div>
@@ -76,6 +88,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
         </>}
         {manifestError && <p className={styles.error}>{manifestError}</p>}
         {bundleResult && <p className={styles.created}>{bundleResult}</p>}
+        {verification && <div className={verification.ok ? styles.created : styles.error}><strong>{verification.ok ? 'Isolated build verified' : 'Isolated build did not produce a PDF'}</strong> - {verification.engine}{verification.logTail && <details><summary>Build log tail</summary><pre>{verification.logTail}</pre></details>}</div>}
         {manifest && <div className={styles.manifest}>
           <strong>{manifest.ready ? 'Bundle manifest ready' : 'Bundle manifest has warnings'}</strong>
           <span>{manifest.files.length} files ? {manifest.mainDocument.split(/[\/]/).pop()}</span>
@@ -88,6 +101,7 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
         <button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button>
         <button type="button" disabled={!manifest?.ready || creatingBundle} onClick={() => void createBundle()} title={manifest?.ready ? 'Create a source-only snapshot outside this workspace' : 'Inspect a ready manifest before creating a bundle'}>{creatingBundle ? 'Creating...' : 'Create bundle...'}</button>
         <button type="button" disabled={!manifest?.ready || creatingArchive} onClick={() => void createArchive()} title={manifest?.ready ? 'Create a source-only ZIP outside this workspace' : 'Inspect a ready manifest before creating an archive'}>{creatingArchive ? 'Archiving...' : 'Create ZIP...'}</button>
+        <button type="button" disabled={!manifest?.ready || verifyingBundle} onClick={() => void verifyBundle()} title={manifest?.ready ? 'Build a temporary manifest copy with shell escape disabled' : 'Inspect a ready manifest before verifying'}>{verifyingBundle ? 'Verifying...' : 'Verify build...'}</button>
       </footer>
     </section>
   </div>;

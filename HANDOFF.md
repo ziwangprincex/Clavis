@@ -6,6 +6,49 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (isolated submission build verification)
+
+Submission Check now has **Verify build...** after a ready LaTeX bundle
+manifest. With an explicit confirmation, Clavis materializes the collector
+manifest into a fresh temporary directory and invokes a narrowly allowlisted
+LaTeX engine there. It never runs in the source workspace, modifies a source
+snapshot/ZIP, retains the generated PDF, or enables shell escape.
+
+- Only `pdflatex`, `xelatex`, and `lualatex` are accepted from `[latex].engine`;
+  missing engine configuration defaults to `pdflatex`. Arbitrary executable
+  paths and wrappers such as `latexmk` are refused.
+- Invocation uses fixed direct argv: `-interaction=nonstopmode`,
+  `-halt-on-error`, `-no-shell-escape`, and `-file-line-error`, followed only by
+the collector-derived main basename. Standard input is null and PATH uses the
+existing bounded engine helper.
+- Build runs in a `tempdir`, has a 60-second timeout, a 64 MiB snapshot cap,
+  and captures stdout/stderr into temp files rather than pipes, avoiding a
+  verbose engine deadlock. Returned log output is capped to 256 KiB / a 12 KiB
+tail. Temp source, logs, auxiliary files, and PDF disappear on return.
+- UI requires native confirmation, shows success/failure and engine, and offers
+  a collapsed log tail. It makes no claim that a successful one-pass build
+  verifies bibliography reruns, all publication requirements, or anonymity.
+
+### Review findings fixed
+
+1. The first process design piped output while polling `try_wait`, which could
+   deadlock if TeX filled its pipe. Verification now writes bounded-review logs
+   inside the temporary snapshot.
+2. Engine input is allowlisted rather than accepting generic config text or a
+   custom executable path.
+3. Tests prove the fixed argument vector includes `-no-shell-escape` and reject
+   `latexmk`; verification also refuses unresolved collector manifests before
+   spawning anything.
+4. Build verification remains separate from source snapshot and ZIP creation,
+   so an engine failure cannot leave or mutate an export artifact.
+
+**Verified:** 101 Rust + 409 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Windows Cargo
+may emit a non-fatal incremental-cache access-denied warning after passing
+checks; Vite retains its existing `tauri.ts` dynamic/static chunking warning.
+
+---
+
 ## 0. Update - 2026-08-06 (manifest-confined submission ZIP export)
 
 Submission Check now has **Create ZIP...** after a ready LaTeX bundle manifest.
