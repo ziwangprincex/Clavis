@@ -672,6 +672,9 @@ export const ipc = {
   inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
   gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
   gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),
+  gitStageFile: (root: string, path: string) => invoke<GitWorkspaceStatus>('git_stage_file', { root, path }),
+  gitUnstageFile: (root: string, path: string) => invoke<GitWorkspaceStatus>('git_unstage_file', { root, path }),
+  gitCreateCommit: (root: string, message: string) => invoke<GitCommit>('git_create_commit', { root, message }),
 
   startProjectTask: (root: string, task: string) =>
     invoke<TaskRunStarted>('start_project_task', { root, task }),

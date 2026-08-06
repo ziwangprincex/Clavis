@@ -6,6 +6,51 @@ A working-state handoff so the next session (or a future you) can pick up cold.
 
 ---
 
+## 0. Update - 2026-08-06 (bounded local Git stage and commit)
+
+The Git sidebar now supports a deliberately narrow local write workflow:
+**Stage** / **Unstage** an already-listed changed file, then create a confirmed
+local commit. It remains impossible in Clavis to push, fetch, pull, checkout,
+reset, restore the worktree, rebase, merge, change branches, or contact a
+remote.
+
+- Backend accepts only a canonical directory and a freshly revalidated changed
+relative path. Absolute, empty, `.` / `..`, prefix, and stale paths are refused.
+Stage executes fixed `git add -- path`; unstage executes only `git restore
+--staged -- path`, which changes the index but not the worktree.
+- To prevent staging from becoming a repository-controlled process-execution
+surface, Clavis queries the file's `filter` attribute and refuses any configured
+Git clean filter. Every Git invocation is direct argv, 5-second bounded, and
+has null stdin.
+- Local commit accepts a non-empty single-line message of at most 200
+characters, needs at least one tracked staged change, uses `--no-gpg-sign`, and
+sets `core.hooksPath` to a fresh empty temporary directory. `--no-verify` alone
+is not treated as sufficient: post-commit hooks are disabled too.
+- UI requires an explicit native confirmation showing the exact commit message
+and says plainly that it does not push or contact remotes. The commit widget is
+labelled ?Local only - no push - hooks skipped.?
+
+### Review findings fixed
+
+1. Initial staging would have allowed a repository-defined clean filter such as
+   Git LFS; those files are now rejected before `git add`.
+2. Initial commit safety relied on `--no-verify`, which does not suppress every
+   hook type. A fresh empty `core.hooksPath` now prevents repository hooks from
+   running; the integration test installs a post-commit hook and proves it does
+   not fire.
+3. Path validation was tightened to reject current-directory segments as well as
+   absolute/traversal paths.
+4. The only Git write argv forms are `add`, `restore --staged`, and `commit`;
+   tests exercise local stage/unstage/commit behavior, message validation,
+   filter detection, and hook suppression. No remote argv is accepted anywhere.
+
+**Verified:** 98 Rust + 409 frontend tests pass; frontend typecheck/build,
+`cargo check --all-targets`, and `git diff --check` are clean. Windows Cargo
+may emit a non-fatal incremental-cache access-denied warning after passing
+checks; Vite retains its existing `tauri.ts` dynamic/static chunking warning.
+
+---
+
 ## 0. Update - 2026-08-06 (fine-grained research prose estimates)
 
 The status bar now extends the existing document and Abstract prose estimates
