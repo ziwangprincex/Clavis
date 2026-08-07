@@ -431,7 +431,7 @@ fn scan_bib(text: &str) -> Vec<RawOccurrence> {
 fn static_typst_key(node: &LinkedNode<'_>) -> Option<(String, usize, usize, bool)> {
     match node.kind() {
         SyntaxKind::Str => {
-            let raw = node.get().text();
+            let raw = node.get().full_text();
             if raw.len() < 2 {
                 return None;
             }
@@ -448,7 +448,7 @@ fn static_typst_key(node: &LinkedNode<'_>) -> Option<(String, usize, usize, bool
             ))
         }
         SyntaxKind::Label => {
-            let raw = node.get().text();
+            let raw = node.get().full_text();
             (raw.len() >= 2).then(|| {
                 (
                     raw[1..raw.len() - 1].to_string(),
@@ -462,7 +462,7 @@ fn static_typst_key(node: &LinkedNode<'_>) -> Option<(String, usize, usize, bool
             let callee = node
                 .children()
                 .find(|child| child.kind() == SyntaxKind::Ident)?;
-            if callee.get().text().as_str() != "label" {
+            if callee.get().full_text().as_str() != "label" {
                 return None;
             }
             let args = node
@@ -486,7 +486,7 @@ fn typst_call_occurrences(node: &LinkedNode<'_>) -> Option<Vec<RawOccurrence>> {
     let callee = node
         .children()
         .find(|child| child.kind() == SyntaxKind::Ident)?;
-    let (namespace, variadic) = match callee.get().text().as_str() {
+    let (namespace, variadic) = match callee.get().full_text().as_str() {
         "ref" => ("label", false),
         "cite" => ("citation", true),
         // `label("x")` constructs a label value. It does not attach that label
@@ -521,7 +521,7 @@ fn typst_call_occurrences(node: &LinkedNode<'_>) -> Option<Vec<RawOccurrence>> {
 fn walk_typst(node: LinkedNode<'_>, out: &mut Vec<RawOccurrence>) {
     match node.kind() {
         SyntaxKind::Label => {
-            let raw = node.get().text();
+            let raw = node.get().full_text();
             if raw.len() >= 2 {
                 out.push(RawOccurrence {
                     key: raw[1..raw.len() - 1].to_string(),
@@ -538,7 +538,7 @@ fn walk_typst(node: LinkedNode<'_>, out: &mut Vec<RawOccurrence>) {
                 .children()
                 .find(|child| child.kind() == SyntaxKind::RefMarker)
             {
-                let raw = marker.get().text();
+                let raw = marker.get().full_text();
                 if raw.len() >= 2 {
                     out.push(RawOccurrence {
                         key: raw[1..].to_string(),

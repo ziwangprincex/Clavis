@@ -302,7 +302,7 @@ fn static_typst_string(node: &LinkedNode<'_>) -> Option<(String, usize)> {
     if node.kind() != SyntaxKind::Str {
         return None;
     }
-    let raw = node.get().text();
+    let raw = node.get().full_text();
     if raw.len() < 2 || raw[1..raw.len() - 1].contains('\\') {
         return None;
     }
@@ -316,14 +316,14 @@ fn typst_image_call(node: &LinkedNode<'_>) -> Option<RawUsage> {
     let callee = node
         .children()
         .find(|child| child.kind() == SyntaxKind::Ident)?;
-    if callee.get().text().as_str() != "image" {
+    if callee.get().full_text().as_str() != "image" {
         return None;
     }
     let args = node
         .children()
         .find(|child| child.kind() == SyntaxKind::Args)?;
     for child in args.children() {
-        // Typst 0.11 keeps a direct `Str` child for simple call arguments,
+        // Typst keeps a direct `Str` child for simple call arguments,
         // while other expression shapes arrive through an Arg wrapper.
         if let Some((raw_path, start)) = static_typst_string(&child) {
             return Some(RawUsage { raw_path, start });

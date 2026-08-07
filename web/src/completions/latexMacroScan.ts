@@ -94,9 +94,9 @@ export function scanLatexMacros(text: string, sourcePath: string | null = null):
 
 function workspaceDocuments(workspace: CompletionWorkspace | undefined, activeText: string): CompletionDocument[] {
   if (!workspace) return [{ path: null, language: 'latex', text: activeText }];
-  const root = workspace.rootPath ? normalizePath(workspace.rootPath).replace(/\/$/, '') : null;
+  const root = workspace.rootPath ? normalizePath(workspace.rootPath).replace(/[^/]*$/, '') : null;
   const active = workspace.activePath ? normalizePath(workspace.activePath) : null;
-  const docs = workspace.documents.filter(document => document.language === 'latex' && (!root || !!document.path && normalizePath(document.path).startsWith(`${root}/`)));
+  const docs = workspace.documents.filter(document => document.language === 'latex' && (!root || !!document.path && normalizePath(document.path).startsWith(root)));
   // Process the active document last so its declarations have normal TeX-like
   // precedence over project snapshot declarations with the same name.
   const withoutActive = docs.filter(document => !document.path || !active || normalizePath(document.path) !== active);

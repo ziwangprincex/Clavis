@@ -23,6 +23,12 @@ export interface SnippetEntry {
    * the markup completion would offer `#alpha`, which does not compile.
    */
   math?: true;
+  /** LaTeX only: package that must be explicitly loaded for this skeleton. */
+  latexPackage?: string;
+  /** LaTeX only: the environment is a child of an existing math context. */
+  latexInsideMath?: true;
+  /** LaTeX only: command is valid only inside one of these environments. */
+  latexEnvs?: readonly string[];
 }
 
 /**
@@ -49,15 +55,15 @@ export const LATEX_COMPLETIONS: SnippetEntry[] = [
   { l: '\\begin{enumerate}', t: '\\begin{enumerate}\n  \\item $1\n\\end{enumerate}', d: 'numbered list' },
   { l: '\\begin{description}', t: '\\begin{description}\n  \\item[$1term] $2\n\\end{description}', d: 'description list' },
   { l: '\\begin{equation}', t: '\\begin{equation}\n  $1\n\\end{equation}', d: 'numbered equation' },
-  { l: '\\begin{equation*}', t: '\\begin{equation*}\n  $1\n\\end{equation*}', d: 'unnumbered equation' },
-  { l: '\\begin{align}', t: '\\begin{align}\n  $1\n\\end{align}', d: 'align' },
-  { l: '\\begin{align*}', t: '\\begin{align*}\n  $1\n\\end{align*}', d: 'align (no nums)' },
-  { l: '\\begin{gather}', t: '\\begin{gather}\n  $1\n\\end{gather}', d: 'gather' },
-  { l: '\\begin{cases}', t: '\\begin{cases}\n  $1 & \\text{if } $2\\\\\n  $3 & \\text{otherwise}\n\\end{cases}', d: 'cases' },
-  { l: '\\begin{matrix}', t: '\\begin{matrix}\n  $1\n\\end{matrix}', d: 'matrix' },
-  { l: '\\begin{pmatrix}', t: '\\begin{pmatrix}\n  $1\n\\end{pmatrix}', d: 'paren matrix' },
-  { l: '\\begin{bmatrix}', t: '\\begin{bmatrix}\n  $1\n\\end{bmatrix}', d: 'bracket matrix' },
-  { l: '\\begin{vmatrix}', t: '\\begin{vmatrix}\n  $1\n\\end{vmatrix}', d: 'determinant' },
+  { l: '\\begin{equation*}', latexPackage: 'amsmath', t: '\\begin{equation*}\n  $1\n\\end{equation*}', d: 'unnumbered equation' },
+  { l: '\\begin{align}', latexPackage: 'amsmath', t: '\\begin{align}\n  $1\n\\end{align}', d: 'align' },
+  { l: '\\begin{align*}', latexPackage: 'amsmath', t: '\\begin{align*}\n  $1\n\\end{align*}', d: 'align (no nums)' },
+  { l: '\\begin{gather}', latexPackage: 'amsmath', t: '\\begin{gather}\n  $1\n\\end{gather}', d: 'gather' },
+  { l: '\\begin{cases}', latexPackage: 'amsmath', latexInsideMath: true, t: '\\begin{cases}\n  $1 & \\text{if } $2\\\\\n  $3 & \\text{otherwise}\n\\end{cases}', d: 'cases' },
+  { l: '\\begin{matrix}', latexPackage: 'amsmath', latexInsideMath: true, t: '\\begin{matrix}\n  $1\n\\end{matrix}', d: 'matrix' },
+  { l: '\\begin{pmatrix}', latexPackage: 'amsmath', latexInsideMath: true, t: '\\begin{pmatrix}\n  $1\n\\end{pmatrix}', d: 'paren matrix' },
+  { l: '\\begin{bmatrix}', latexPackage: 'amsmath', latexInsideMath: true, t: '\\begin{bmatrix}\n  $1\n\\end{bmatrix}', d: 'bracket matrix' },
+  { l: '\\begin{vmatrix}', latexPackage: 'amsmath', latexInsideMath: true, t: '\\begin{vmatrix}\n  $1\n\\end{vmatrix}', d: 'determinant' },
   { l: '\\begin{figure}', t: '\\begin{figure}[ht]\n  \\centering\n  $1\n  \\caption{$2caption}\n\\end{figure}', d: 'figure' },
   { l: '\\begin{table}', t: '\\begin{table}[ht]\n  \\centering\n  $1\n  \\caption{$2caption}\n\\end{table}', d: 'table' },
   { l: '\\begin{tabular}', t: '\\begin{tabular}{$1lll}\n  $2\n\\end{tabular}', d: 'tabular' },
@@ -65,10 +71,8 @@ export const LATEX_COMPLETIONS: SnippetEntry[] = [
   { l: '\\begin{center}', t: '\\begin{center}\n  $1\n\\end{center}', d: 'center' },
   { l: '\\begin{verbatim}', t: '\\begin{verbatim}\n$1\n\\end{verbatim}', d: 'verbatim' },
   { l: '\\begin{abstract}', t: '\\begin{abstract}\n  $1\n\\end{abstract}', d: 'abstract' },
-  { l: '\\begin{theorem}', t: '\\begin{theorem}\n  $1\n\\end{theorem}', d: 'theorem' },
-  { l: '\\begin{lemma}', t: '\\begin{lemma}\n  $1\n\\end{lemma}', d: 'lemma' },
-  { l: '\\begin{proof}', t: '\\begin{proof}\n  $1\n\\end{proof}', d: 'proof' },
-  { l: '\\item', t: '\\item $1', d: 'list item' },
+  { l: '\\begin{proof}', latexPackage: 'amsthm', t: '\\begin{proof}\n  $1\n\\end{proof}', d: 'proof' },
+  { l: '\\item', t: '\\item $1', d: 'list item', latexEnvs: ['itemize', 'enumerate', 'description'] },
 ];
 
 export const TYPST_COMPLETIONS: SnippetEntry[] = [
@@ -92,26 +96,26 @@ export const TYPST_COMPLETIONS: SnippetEntry[] = [
   { l: '#set table', t: '#set table(stroke: $10.5pt)', d: 'table style' },
   { l: '#set math.equation', t: '#set math.equation(numbering: "$1(1)")', d: 'eq numbering' },
   // layout
-  { l: 'box', t: 'box($1)', d: 'box' },
-  { l: 'block', t: 'block($1)', d: 'block' },
-  { l: 'pad', t: 'pad($11em, $2)', d: 'pad' },
-  { l: 'align', t: 'align($1center, $2)', d: 'align' },
-  { l: 'columns', t: 'columns($12, $2)', d: 'columns' },
-  { l: 'grid', t: 'grid(\n  columns: $12,\n  $2\n)', d: 'grid' },
-  { l: 'stack', t: 'stack($1dir: ttb, $2)', d: 'stack' },
-  { l: 'place', t: 'place($1top + right, $2)', d: 'place' },
-  { l: 'rotate', t: 'rotate($145deg, $2)', d: 'rotate' },
-  { l: 'scale', t: 'scale($180%, $2)', d: 'scale' },
+  { l: 'box', t: 'box[$1body]', d: 'box' },
+  { l: 'block', t: 'block[$1body]', d: 'block' },
+  { l: 'pad', t: 'pad(x: $11em)[$2]', d: 'pad' },
+  { l: 'align', t: 'align($1center)[$2]', d: 'align' },
+  { l: 'columns', t: 'columns($12)[$2]', d: 'columns' },
+  { l: 'grid', t: 'grid(\n  columns: $12,\n  [$2cell],\n  [$3cell],\n)', d: 'grid' },
+  { l: 'stack', t: 'stack(\n  dir: $1ttb,\n  [$2item],\n  [$3item],\n)', d: 'stack' },
+  { l: 'place', t: 'place($1top + right)[$2]', d: 'place' },
+  { l: 'rotate', t: 'rotate($145deg)[$2]', d: 'rotate' },
+  { l: 'scale', t: 'scale(x: $180%)[$2]', d: 'scale' },
   { l: 'pagebreak', t: 'pagebreak()', d: 'page break' },
   { l: 'linebreak', t: 'linebreak()', d: 'line break' },
   // primitives
   { l: 'image', t: 'image("$1path.png", width: $280%)', d: 'image' },
   { l: 'figure', t: 'figure($1image("path.png"), caption: [$2caption])', d: 'figure' },
-  { l: 'table', t: 'table(\n  columns: $13,\n  $2\n)', d: 'table' },
-  { l: 'rect', t: 'rect(width: $1100%, $2)', d: 'rectangle' },
-  { l: 'square', t: 'square($1)', d: 'square' },
-  { l: 'circle', t: 'circle($1)', d: 'circle' },
-  { l: 'ellipse', t: 'ellipse($1)', d: 'ellipse' },
+  { l: 'table', t: 'table(\n  columns: $13,\n  [$2cell],\n  [$3cell],\n)', d: 'table' },
+  { l: 'rect', t: 'rect(width: $1100%)[$2]', d: 'rectangle' },
+  { l: 'square', t: 'square[$1body]', d: 'square' },
+  { l: 'circle', t: 'circle[$1body]', d: 'circle' },
+  { l: 'ellipse', t: 'ellipse[$1body]', d: 'ellipse' },
   { l: 'line', t: 'line(start: ($10pt, 0pt), end: ($2100pt, 0pt))', d: 'line' },
   // text
   { l: 'strong', t: 'strong[$1bold]', d: 'bold' },
@@ -137,7 +141,7 @@ export const TYPST_COMPLETIONS: SnippetEntry[] = [
   { l: 'luma', t: 'luma($150%)', d: 'grayscale' },
   // math
   { l: 'sum', t: 'sum_($1i=1)^($2n) $3', d: 'sum', math: true },
-  { l: 'prod', t: 'prod_($1i=1)^($2n) $3', d: 'product', math: true },
+  { l: 'product', t: 'product_($1i=1)^($2n) $3', d: 'product', math: true },
   { l: 'integral', t: 'integral_($10)^($21) $3', d: 'integral', math: true },
   { l: 'frac', t: 'frac($1a, $2b)', d: 'fraction', math: true },
   { l: 'sqrt', t: 'sqrt($1)', d: 'sqrt', math: true },

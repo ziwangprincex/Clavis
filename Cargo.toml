@@ -5,7 +5,7 @@ name = "clavis"
 version = "1.0.7"
 description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.92"
 
 [build-dependencies]
 tauri-build = { version = "1.5", features = [] }
@@ -15,13 +15,14 @@ tauri = { version = "1.6", features = ["dialog-ask", "dialog-confirm", "dialog-m
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
-typst = "0.11"
-typst-syntax = "0.11"
-typst-svg = "0.11"
-typst-pdf = "0.11"
-fontdb = "0.16"
-typst-assets = { version = "0.11", features = ["fonts"] }
-comemo = "0.4"
+typst = "0.15.1"
+typst-syntax = "0.15.1"
+typst-svg = "0.15.1"
+typst-pdf = "0.15.1"
+typst-layout = "0.15.1"
+typst-utils = "0.15.1"
+fontdb = "0.23.0"
+typst-assets = { version = "0.15.1", features = ["fonts"] }
 chrono = "0.4"
 parking_lot = "0.12"
 once_cell = "1"

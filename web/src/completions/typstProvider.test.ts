@@ -19,6 +19,7 @@ const { resetSignatureCacheForTests } = await import('./signatures');
 const { resetLetCacheForTests } = await import('./typstLetScan');
 const { typstProvider } = await import('./typstProvider');
 const { detectCompletionSite } = await import('./context');
+const { snippetToCM6 } = await import('./snippets');
 
 function param(name: string, extra: Partial<TypstParamSig> = {}): TypstParamSig {
   return {
@@ -71,6 +72,7 @@ beforeEach(() => {
   resetLetCacheForTests();
   listTypstSignatures.mockResolvedValue([
     fn('figure', [param('body', { positional: true, required: true, named: false }), param('caption')]),
+    fn('box', [param('body', { positional: true, required: false, named: false, typeName: 'content | none' })]),
     fn('lorem', [param('words', { positional: true, required: true, named: false, typeName: 'int' })]),
     fn('pagebreak'),
     fn('polygon', [param('vertices', { positional: true, variadic: true, typeName: 'array' })]),
@@ -129,6 +131,13 @@ describe('call shape matches how Typst is written', () => {
     expect(byName(await offer('#emph'), 'emph')?.insertText).toBe('#emph[${1:body}]');
   });
 
+  it('puts an optional trailing content parameter in a content block', async () => {
+    listTypstSignatures.mockResolvedValue([
+      fn('box', [param('body', { positional: true, named: false, typeName: 'content | none' })]),
+    ]);
+    expect(byName(await offer('#box'), 'box')?.insertText).toBe('#box[${1:body}]');
+  });
+
   it('ignores named-only parameters when choosing the shape', async () => {
     // `strong` has a named `delta` before the body; it must not end up in parens.
     expect(byName(await offer('#stro'), 'strong')?.insertText).toBe('#strong[${1:body}]');
@@ -141,6 +150,31 @@ describe('call shape matches how Typst is written', () => {
 
   it('treats a variadic content parameter as a content block', async () => {
     expect(byName(await offer('#list'), 'list')?.insertText).toBe('#list[${1:children}]');
+  });
+
+  it('chooses the content branch of the flattened text overload in markup', async () => {
+    listTypstSignatures.mockResolvedValue([
+      fn('text', [
+        // Typst 0.15 exposes the content branch as named/non-positional.
+        param('body', { positional: false, required: false, named: true }),
+        param('text', { positional: true, required: true, named: false, typeName: 'str' }),
+      ]),
+    ]);
+    expect(byName(await offer('#text'), 'text')?.insertText).toBe('#text[${1:body}]');
+  });
+
+  it('stops before documented alternative overload branches', async () => {
+    listTypstSignatures.mockResolvedValue([
+      fn('color.rgb', [
+        param('red', { positional: true, required: true, named: false, typeName: 'ratio' }),
+        param('green', { positional: true, required: true, named: false, typeName: 'ratio' }),
+        param('blue', { positional: true, required: true, named: false, typeName: 'ratio' }),
+        param('hex', { positional: true, required: true, named: false, typeName: 'str', docs: 'Alternatively: A hexadecimal color.' }),
+        param('color', { positional: true, required: true, named: false, typeName: 'color', docs: 'Alternatively: A color to convert.' }),
+      ]),
+    ]);
+    expect(byName(await offer('#color.r'), 'color.rgb')?.insertText)
+      .toBe('#color.rgb(${1:red}, ${2:green}, ${3:blue})');
   });
 
   it('uses parens when no parameter takes content', async () => {
@@ -164,6 +198,16 @@ describe('call shape matches how Typst is written', () => {
   });
 });
 
+describe('curated math snippets', () => {
+  it('uses Typst 0.15 official symbol names', async () => {
+    const request = { language: 'typst' as const, text: '$ prod', position: 6, explicit: false };
+    const result = await complete(request);
+    const labels = result?.candidates.map(candidate => candidate.label) ?? [];
+    expect(labels).toContain('product');
+    expect(labels).not.toContain('prod');
+  });
+});
+
 describe('math mode', () => {
   // `$...$` reaches a different scope and uses a different call syntax: `frac`
   // and `vec` exist only there, and calls inside take no `#`. Offering `#frac`
@@ -176,7 +220,11 @@ describe('math mode', () => {
       ]), mathOnly: true },
       { ...fn('vec', [param('children', { positional: true, variadic: true })]), mathOnly: true },
       fn('figure', [param('body', { positional: true, required: true, named: false })]),
-      fn('text', [param('body', { positional: true, required: true, named: false })]),
+      fn('text', [
+        // Typst 0.15 exposes the content branch as named/non-positional.
+        param('body', { positional: false, required: false, named: true }),
+        param('text', { positional: true, required: true, named: false, typeName: 'str' }),
+      ]),
     ]);
   });
 
@@ -192,6 +240,10 @@ describe('math mode', () => {
     // A bare word is a real call site in math, unlike in markup.
     const frac = byName(await offer('$ fra'), 'frac');
     expect(frac?.insertText).toBe('frac(${1:num}, ${2:denom})');
+  });
+
+  it('chooses the string branch of the flattened text overload in math', async () => {
+    expect(byName(await offer('$ tex'), 'text')?.insertText).toBe('text("${1:text}")');
   });
 
   it('still hides math-only functions after the dollars close', async () => {
@@ -429,6 +481,40 @@ describe('merging with the hand-written snippets', () => {
     const result = await merged('#figu');
     const figure = byName(result?.candidates ?? [], 'figure');
     expect(figure?.insertText).toContain('image("path.png")');
+  });
+
+  it('does not let a legacy snippet replace Typst content-block syntax', async () => {
+    const result = await merged('#box');
+    const box = byName(result?.candidates ?? [], 'box');
+    expect(box?.snippet).toBe(true);
+    expect(snippetToCM6(box!.insertText)).toBe('#box[${1:body}]');
+  });
+
+  it('keeps named-only layout arguments named and moves bodies into blocks', async () => {
+    const cases = [
+      ['#pad', '#pad(x: ${1:1em})[${2}]'],
+      ['#scale', '#scale(x: ${1:80}%)[${2}]'],
+    ] as const;
+    for (const [query, expected] of cases) {
+      const result = await merged(query);
+      const candidate = byName(result?.candidates ?? [], query.slice(1));
+      expect(candidate?.snippet).toBe(true);
+      expect(snippetToCM6(candidate!.insertText)).toBe(expected);
+    }
+  });
+
+  it('uses the official multi-item call shape for variadic layout children', async () => {
+    const cases = [
+      ['#grid', '#grid(\n  columns: ${1:2},\n  [${2:cell}],\n  [${3:cell}],\n)'],
+      ['#table', '#table(\n  columns: ${1:3},\n  [${2:cell}],\n  [${3:cell}],\n)'],
+      ['#stack', '#stack(\n  dir: ${1:ttb},\n  [${2:item}],\n  [${3:item}],\n)'],
+    ] as const;
+    for (const [query, expected] of cases) {
+      const result = await merged(query);
+      const candidate = byName(result?.candidates ?? [], query.slice(1));
+      expect(candidate?.snippet).toBe(true);
+      expect(snippetToCM6(candidate!.insertText)).toBe(expected);
+    }
   });
 
   it('still surfaces builtins that have no curated snippet', async () => {

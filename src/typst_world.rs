@@ -1,18 +1,17 @@
 // Minimal Typst `World` impl: in-memory main source, embedded + system fonts,
 // and on-disk project files (images / includes) confined to the document root.
 
-use chrono::{DateTime, Datelike, Local};
-use comemo::Prehashed;
+use chrono::{DateTime, Datelike, Local, Utc};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use typst::diag::{FileError, FileResult, SourceDiagnostic};
-use typst::eval::Tracer;
-use typst::foundations::{Bytes, Datetime};
-use typst::syntax::{FileId, Source, VirtualPath};
+use typst::foundations::{Bytes, Datetime, Duration};
+use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
 use typst::text::{Font, FontBook};
-use typst::Library;
-use typst::World;
+use typst::{Library, LibraryExt, World, WorldExt};
+use typst_layout::PagedDocument;
+use typst_utils::LazyHash;
 
 enum FontSlot {
     Embedded {
@@ -30,26 +29,30 @@ enum FontSlot {
 impl FontSlot {
     fn get(&self) -> Option<Font> {
         match self {
-            FontSlot::Embedded { buffer, index, font } => {
-                font.get_or_init(|| Font::new(buffer.clone(), *index)).clone()
-            }
-            FontSlot::System { path, index, font } => {
-                font.get_or_init(|| {
+            FontSlot::Embedded {
+                buffer,
+                index,
+                font,
+            } => font
+                .get_or_init(|| Font::new(buffer.clone(), *index))
+                .clone(),
+            FontSlot::System { path, index, font } => font
+                .get_or_init(|| {
                     let bytes = std::fs::read(path).ok()?;
-                    Font::new(Bytes::from(bytes), *index)
-                }).clone()
-            }
+                    Font::new(Bytes::new(bytes), *index)
+                })
+                .clone(),
         }
     }
 }
 
-static FONTS: Lazy<(Prehashed<FontBook>, Vec<FontSlot>)> = Lazy::new(|| {
+static FONTS: Lazy<(LazyHash<FontBook>, Vec<FontSlot>)> = Lazy::new(|| {
     let mut book = FontBook::new();
     let mut slots: Vec<FontSlot> = Vec::new();
 
     // 1) Embedded fonts shipped with typst-assets (Latin & math coverage).
     for data in typst_assets::fonts() {
-        let buffer = Bytes::from_static(data);
+        let buffer = Bytes::new(data);
         for font in Font::iter(buffer.clone()) {
             book.push(font.info().clone());
             slots.push(FontSlot::Embedded {
@@ -72,7 +75,9 @@ static FONTS: Lazy<(Prehashed<FontBook>, Vec<FontSlot>)> = Lazy::new(|| {
             fontdb::Source::File(p) => p.clone(),
             _ => continue, // skip in-memory or shared faces
         };
-        let Ok(file) = std::fs::File::open(&path) else { continue };
+        let Ok(file) = std::fs::File::open(&path) else {
+            continue;
+        };
         if let Ok(mmap) = unsafe { memmap2::Mmap::map(&file) } {
             let count = ttf_parser::fonts_in_collection(&mmap).unwrap_or(1);
             for index in 0..count {
@@ -88,11 +93,16 @@ static FONTS: Lazy<(Prehashed<FontBook>, Vec<FontSlot>)> = Lazy::new(|| {
         }
     }
 
-    (Prehashed::new(book), slots)
+    (LazyHash::new(book), slots)
 });
 
-pub(crate) static LIBRARY: Lazy<Prehashed<Library>> =
-    Lazy::new(|| Prehashed::new(Library::default()));
+pub(crate) static LIBRARY: Lazy<LazyHash<Library>> =
+    Lazy::new(|| LazyHash::new(Library::default()));
+
+fn project_file_id(path: &str) -> Result<FileId, String> {
+    let vpath = VirtualPath::new(path).map_err(|error| error.to_string())?;
+    Ok(FileId::new(RootedPath::new(VirtualRoot::Project, vpath)))
+}
 
 pub struct SimpleWorld {
     main_id: FileId,
@@ -101,21 +111,19 @@ pub struct SimpleWorld {
     /// `#include`, data files) is confined to this directory. `None` means the
     /// document is unsaved / has no root, so no file access is permitted.
     root: Option<PathBuf>,
-    today: DateTime<Local>,
     /// Per-compile caches so repeated reads within one compile are cheap and
-    /// deterministic (comemo requires stable results).
+    /// deterministic for Typst's tracked world queries.
     file_cache: std::sync::Mutex<HashMap<FileId, FileResult<Bytes>>>,
     source_cache: std::sync::Mutex<HashMap<FileId, FileResult<Source>>>,
 }
 
 impl SimpleWorld {
     pub fn new() -> Result<Self, String> {
-        let main_id = FileId::new(None, VirtualPath::new("/main.typ"));
+        let main_id = project_file_id("/main.typ")?;
         Ok(Self {
             main_id,
             main_source: Source::new(main_id, String::new()),
             root: None,
-            today: Local::now(),
             file_cache: std::sync::Mutex::new(HashMap::new()),
             source_cache: std::sync::Mutex::new(HashMap::new()),
         })
@@ -126,9 +134,6 @@ impl SimpleWorld {
         // Drop per-compile caches: on-disk files may have changed between edits.
         self.file_cache.lock().unwrap().clear();
         self.source_cache.lock().unwrap().clear();
-        // Advance memoization one generation so stale entries eventually drop
-        // without wiping the whole cache (which would defeat incremental compile).
-        comemo::evict(30);
     }
 
     /// Set the project root from the main document's absolute path. The file's
@@ -152,16 +157,14 @@ impl SimpleWorld {
         let root = self
             .root
             .as_ref()
-            .ok_or_else(|| FileError::NotFound(vpath.as_rootless_path().to_path_buf()))?;
-        // VirtualPath::resolve normalizes and rejects paths that climb above
-        // the root (returns None on escape).
-        let resolved = vpath
-            .resolve(root)
-            .ok_or_else(|| FileError::AccessDenied)?;
+            .ok_or_else(|| FileError::NotFound(PathBuf::from(vpath.get_without_slash())))?;
+        // `VirtualPath` is normalized at construction, and `realize` maps it
+        // underneath the supplied root without allowing `..` escapes.
+        let resolved = vpath.realize(root).map_err(FileError::from)?;
         // Defense in depth: canonicalize the result and re-check it is still
         // under the (already canonical) root, so symlinks can't break out.
-        let canon = std::fs::canonicalize(&resolved)
-            .map_err(|_| FileError::NotFound(resolved.clone()))?;
+        let canon =
+            std::fs::canonicalize(&resolved).map_err(|_| FileError::NotFound(resolved.clone()))?;
         if !canon.starts_with(root) {
             return Err(FileError::AccessDenied);
         }
@@ -169,10 +172,35 @@ impl SimpleWorld {
     }
 }
 
+fn today_at<Tz: chrono::TimeZone>(now: DateTime<Tz>, offset: Option<Duration>) -> Option<Datetime> {
+    let (year, month, day) = match offset {
+        None => (now.year(), now.month(), now.day()),
+        Some(offset) => {
+            // Typst requests the date at UTC plus the supplied timezone offset.
+            // Do not convert the shifted instant back to the machine timezone:
+            // that would add the local offset a second time.
+            let millis = (offset.seconds() * 1_000.0).round();
+            if !millis.is_finite() || millis < i64::MIN as f64 || millis > i64::MAX as f64 {
+                return None;
+            }
+            let shifted =
+                now.with_timezone(&Utc) + chrono::Duration::try_milliseconds(millis as i64)?;
+            (shifted.year(), shifted.month(), shifted.day())
+        }
+    };
+    Datetime::from_ymd(year, month.try_into().ok()?, day.try_into().ok()?)
+}
+
 impl World for SimpleWorld {
-    fn library(&self) -> &Prehashed<Library> { &LIBRARY }
-    fn book(&self) -> &Prehashed<FontBook> { &FONTS.0 }
-    fn main(&self) -> Source { self.main_source.clone() }
+    fn library(&self) -> &LazyHash<Library> {
+        &LIBRARY
+    }
+    fn book(&self) -> &LazyHash<FontBook> {
+        &FONTS.0
+    }
+    fn main(&self) -> FileId {
+        self.main_id
+    }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
         if id == self.main_id {
@@ -183,8 +211,7 @@ impl World for SimpleWorld {
         }
         let result = (|| {
             let path = self.resolve_in_root(id)?;
-            let text = std::fs::read_to_string(&path)
-                .map_err(|e| FileError::from_io(e, &path))?;
+            let text = std::fs::read_to_string(&path).map_err(|e| FileError::from_io(e, &path))?;
             Ok(Source::new(id, text))
         })();
         self.source_cache.lock().unwrap().insert(id, result.clone());
@@ -197,9 +224,8 @@ impl World for SimpleWorld {
         }
         let result = (|| {
             let path = self.resolve_in_root(id)?;
-            let bytes = std::fs::read(&path)
-                .map_err(|e| FileError::from_io(e, &path))?;
-            Ok(Bytes::from(bytes))
+            let bytes = std::fs::read(&path).map_err(|e| FileError::from_io(e, &path))?;
+            Ok(Bytes::new(bytes))
         })();
         self.file_cache.lock().unwrap().insert(id, result.clone());
         result
@@ -209,41 +235,45 @@ impl World for SimpleWorld {
         FONTS.1.get(index).and_then(|slot| slot.get())
     }
 
-    fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
-        Datetime::from_ymd(
-            self.today.year(),
-            self.today.month().try_into().ok()?,
-            self.today.day().try_into().ok()?,
-        )
+    fn today(&self, offset: Option<Duration>) -> Option<Datetime> {
+        today_at(Local::now(), offset)
     }
+}
+
+/// Compile the world's main source to a paged document.
+fn compile_paged(world: &SimpleWorld) -> Result<PagedDocument, String> {
+    let result = typst::compile::<PagedDocument>(world);
+    result
+        .output
+        .map_err(|errors| format_diagnostics(&errors, world))
 }
 
 /// Compile the world's main source to a single merged SVG string.
 /// On failure, returns a human-readable error message.
 pub fn compile_to_svg(world: &SimpleWorld) -> Result<String, String> {
-    let mut tracer = Tracer::new();
-    match typst::compile(world, &mut tracer) {
-        Ok(doc) => {
-            let svg = typst_svg::svg_merged(&doc, typst::layout::Abs::pt(0.0));
-            Ok(svg)
-        }
-        Err(errors) => Err(format_diagnostics(&errors, world)),
-    }
+    let document = compile_paged(world)?;
+    Ok(typst_svg::svg_merged(
+        &document,
+        &typst_svg::SvgOptions::default(),
+        typst::layout::Abs::zero(),
+    ))
 }
 
 /// Compile the world's main source to PDF bytes.
 pub fn compile_to_pdf(world: &SimpleWorld) -> Result<Vec<u8>, String> {
-    let mut tracer = Tracer::new();
-    match typst::compile(world, &mut tracer) {
-        Ok(doc) => Ok(typst_pdf::pdf(&doc, typst::foundations::Smart::Auto, None)),
-        Err(errors) => Err(format_diagnostics(&errors, world)),
-    }
+    let document = compile_paged(world)?;
+    typst_pdf::pdf(&document, &typst_pdf::PdfOptions::default())
+        .map_err(|errors| format_diagnostics(&errors, world))
 }
 
 /// Return the unique font family names known to Typst (system + embedded).
 /// Sorted, case-insensitive deduped.
 pub fn list_fonts() -> Vec<String> {
-    let mut names: Vec<String> = FONTS.0.families().map(|(name, _)| name.to_string()).collect();
+    let mut names: Vec<String> = FONTS
+        .0
+        .families()
+        .map(|(name, _)| name.to_string())
+        .collect();
     names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
     names.dedup_by(|a, b| a.to_lowercase() == b.to_lowercase());
     names
@@ -257,15 +287,14 @@ fn format_diagnostics(errors: &[SourceDiagnostic], world: &SimpleWorld) -> Strin
         let line_info = file
             .and_then(|id| world.source(id).ok())
             .and_then(|src| {
-                let range = src.range(span)?;
-                let line = src.byte_to_line(range.start)?;
-                let col = src.byte_to_column(range.start)?;
+                let range = world.range(span)?;
+                let (line, col) = src.lines().byte_to_line_column(range.start)?;
                 Some(format!("line {}, col {}: ", line + 1, col + 1))
             })
             .unwrap_or_default();
         out.push_str(&format!("{}{}\n", line_info, diag.message));
         for hint in &diag.hints {
-            out.push_str(&format!("  hint: {}\n", hint));
+            out.push_str(&format!("  hint: {}\n", hint.v));
         }
     }
     if out.is_empty() {
@@ -279,9 +308,116 @@ mod tests {
     use super::*;
 
     #[test]
+    fn curated_math_completion_examples_compile() {
+        let examples = [
+            "$ sum_(i=1)^(n) i $",
+            "$ product_(i=1)^(n) i $",
+            "$ integral_(0)^(1) x dif x $",
+            "$ frac(a, b) $",
+            "$ sqrt(x) $",
+            "$ root(n, x) $",
+            "$ vec(x) $",
+            "$ mat(1, 2; 3, 4) $",
+            "$ cases(x &\"if\" y, z &\"otherwise\") $",
+            "$ binom(n, k) $",
+            "$ abs(x) $",
+            "$ norm(x) $",
+        ];
+        for source in examples {
+            let mut world = SimpleWorld::new().unwrap();
+            world.set_source(source.into());
+            assert!(
+                compile_to_svg(&world).is_ok(),
+                "curated math completion must compile: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn typst_015_renders_svg_and_pdf() {
+        let mut world = SimpleWorld::new().unwrap();
+        world.set_source("= Typst 0.15\n#box[body]\n$ frac(a, b) $".into());
+
+        let svg = compile_to_svg(&world).expect("SVG compilation should succeed");
+        assert!(svg.contains("<svg"), "expected SVG output");
+
+        let pdf = compile_to_pdf(&world).expect("PDF compilation should succeed");
+        assert!(pdf.starts_with(b"%PDF-"), "expected PDF header");
+    }
+
+    #[test]
+    fn diagnostics_keep_line_and_column() {
+        let mut world = SimpleWorld::new().unwrap();
+        world.set_source("first line\n#unknown-function()".into());
+        let error = compile_to_svg(&world).expect_err("unknown function should fail");
+        assert!(
+            error.contains("line 2, col 2:"),
+            "unexpected diagnostic: {error}"
+        );
+        assert!(
+            error.contains("unknown variable"),
+            "unexpected diagnostic: {error}"
+        );
+    }
+
+    #[test]
+    fn includes_stay_inside_the_workspace_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let main = dir.path().join("main.typ");
+        let child = dir.path().join("child.typ");
+        std::fs::write(&main, "#include \"child.typ\"").unwrap();
+        std::fs::write(&child, "Included").unwrap();
+
+        let mut world = SimpleWorld::new().unwrap();
+        world.set_root_from_doc(main.to_str());
+        world.set_source(std::fs::read_to_string(&main).unwrap());
+        assert!(
+            compile_to_svg(&world).is_ok(),
+            "in-root include should compile"
+        );
+
+        world.set_source("#include \"../outside.typ\"".into());
+        let error = compile_to_svg(&world).expect_err("escaping include should fail");
+        assert!(
+            error.contains("escape the project root")
+                || error.contains("outside of the project sandbox"),
+            "unexpected escape diagnostic: {error}"
+        );
+    }
+
+    #[test]
+    fn today_honors_local_and_requested_timezone_dates() {
+        use chrono::{FixedOffset, TimeZone};
+
+        // At this instant UTC and UTC+8 are on different dates. The no-offset
+        // branch follows the supplied local zone, while explicit offsets are
+        // calculated from UTC exactly once.
+        let zone = FixedOffset::east_opt(8 * 3600).unwrap();
+        let local = zone.with_ymd_and_hms(2026, 1, 2, 4, 30, 0).unwrap();
+
+        let local_date = today_at(local, None).unwrap();
+        assert_eq!(
+            (local_date.year(), local_date.month(), local_date.day()),
+            (Some(2026), Some(1), Some(2))
+        );
+
+        let utc_date = today_at(local, Some(Duration::construct(0, 0, 0, 0, 0))).unwrap();
+        assert_eq!(
+            (utc_date.year(), utc_date.month(), utc_date.day()),
+            (Some(2026), Some(1), Some(1))
+        );
+
+        let plus_eight = today_at(local, Some(Duration::construct(0, 0, 8, 0, 0))).unwrap();
+        assert_eq!(
+            (plus_eight.year(), plus_eight.month(), plus_eight.day()),
+            (Some(2026), Some(1), Some(2))
+        );
+    }
+
+    #[test]
     fn no_root_denies_file_access() {
         let w = SimpleWorld::new().unwrap();
-        let id = FileId::new(None, VirtualPath::new("/secret.png"));
+        let id = project_file_id("/secret.png").unwrap();
         assert!(w.resolve_in_root(id).is_err());
     }
 
@@ -292,8 +428,11 @@ mod tests {
         let src = concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs");
         w.set_root_from_doc(Some(src));
         // Root is .../src ; climbing out must be rejected.
-        let escape = FileId::new(None, VirtualPath::new("/../Cargo.toml"));
-        assert!(w.resolve_in_root(escape).is_err());
+        let escape = project_file_id("/../Cargo.toml");
+        assert!(
+            escape.is_err(),
+            "virtual traversal must be rejected before resolution"
+        );
     }
 
     #[test]
@@ -302,7 +441,7 @@ mod tests {
         let this = concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs");
         w.set_root_from_doc(Some(this));
         // A sibling file that exists under the same root resolves ok.
-        let ok = FileId::new(None, VirtualPath::new("/typst_world.rs"));
+        let ok = project_file_id("/typst_world.rs").unwrap();
         let resolved = w.resolve_in_root(ok);
         assert!(resolved.is_ok(), "expected resolve ok, got {resolved:?}");
         assert!(resolved.unwrap().ends_with("typst_world.rs"));

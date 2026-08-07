@@ -63,7 +63,7 @@ pub struct FuncSig {
 
 /// Render a `CastInfo` as a short type string.
 ///
-/// `CastInfo` has no `Display`/`Repr` impl in typst 0.11, so the formatting is
+/// `CastInfo` has no useful compact `Display`/`Repr` for this payload, so the formatting is
 /// ours. Unions are flattened via `walk` (which recurses through nested unions)
 /// and truncated, because a fully expanded union of every colour name is worse
 /// than useless in a tooltip.
@@ -113,20 +113,24 @@ fn first_sentence(docs: &str) -> String {
 
 fn param_sigs(func: &Func) -> Vec<ParamSig> {
     func.params()
-        .unwrap_or(&[])
-        .iter()
-        .map(|p| ParamSig {
-            name: p.name.to_string(),
-            type_name: match &p.input {
-                CastInfo::Any => String::new(),
-                other => render_type(other),
-            },
-            docs: first_sentence(p.docs),
-            required: p.required,
-            positional: p.positional,
-            named: p.named,
-            variadic: p.variadic,
-            settable: p.settable,
+        .filter_map(|p| {
+            // The standard-library walk below yields native functions and
+            // elements. Closure/plugin metadata has no stable type/docs payload
+            // and is handled by the frontend's own `#let` scanner instead.
+            let native = p.to_native()?;
+            Some(ParamSig {
+                name: native.name.to_string(),
+                type_name: match &native.input {
+                    CastInfo::Any => String::new(),
+                    other => render_type(other),
+                },
+                docs: first_sentence(native.docs),
+                required: p.required(),
+                positional: p.positional(),
+                named: p.named(),
+                variadic: p.variadic(),
+                settable: p.settable(),
+            })
         })
         .collect()
 }
@@ -155,7 +159,7 @@ pub fn builtin_signatures() -> Vec<FuncSig> {
     let push_nested =
         |out: &mut Vec<FuncSig>, prefix: &str, scope: &typst::foundations::Scope, math: bool| {
             for (sub, value) in scope.iter() {
-                if let Value::Func(f) = value {
+                if let Value::Func(f) = value.read() {
                     out.push(func_sig(format!("{prefix}.{sub}"), f, math));
                 }
             }
@@ -165,7 +169,7 @@ pub fn builtin_signatures() -> Vec<FuncSig> {
     // available; the dedup below keeps the first of each name.
     for (module, math) in [(&LIBRARY.global, false), (&LIBRARY.math, true)] {
         for (name, value) in module.scope().iter() {
-            match value {
+            match value.read() {
                 Value::Func(f) => {
                     out.push(func_sig(name.to_string(), f, math));
                     if let Some(inner) = f.scope() {
@@ -204,6 +208,22 @@ mod tests {
             .into_iter()
             .find(|f| f.name == name)
             .unwrap_or_else(|| panic!("`{name}` missing from the signature table"))
+    }
+
+    #[test]
+    fn completion_critical_call_shapes_match_typst_015_metadata() {
+        let text = sig("text");
+        let body = text.params.iter().find(|p| p.name == "body").unwrap();
+        let string = text.params.iter().find(|p| p.name == "text").unwrap();
+        assert!(body.type_name.contains("content"));
+        assert!(!body.positional, "0.15 exposes text.body as named metadata");
+        assert!(string.positional && string.required);
+        assert!(string.type_name.starts_with("str"));
+
+        let box_sig = sig("box");
+        let box_body = box_sig.params.iter().find(|p| p.name == "body").unwrap();
+        assert!(box_body.positional && !box_body.required);
+        assert!(box_body.type_name.contains("content"));
     }
 
     #[test]
@@ -307,8 +327,14 @@ mod tests {
         assert!(!sig("text").math_only, "text is available in markup");
         assert!(!sig("figure").math_only);
 
-        let flagged = builtin_signatures().into_iter().filter(|f| f.math_only).count();
-        assert!(flagged > 30, "expected the ~40 math-only names, got {flagged}");
+        let flagged = builtin_signatures()
+            .into_iter()
+            .filter(|f| f.math_only)
+            .count();
+        assert!(
+            flagged > 30,
+            "expected the ~40 math-only names, got {flagged}"
+        );
     }
 
     #[test]

@@ -1,18 +1,11 @@
 import { normalizePath } from '../files/projectPaths';
-import { latexWorkspaceMacros } from './latexMacroScan';
+import { latexWorkspaceEnvironments, latexWorkspaceMacros } from './latexMacroScan';
 import type {
   CompletionCandidate,
   CompletionDocument,
   CompletionProvider,
   CompletionRequest,
 } from './types';
-
-const STANDARD_ENVIRONMENTS = [
-  'document', 'itemize', 'enumerate', 'description', 'equation', 'equation*',
-  'align', 'align*', 'gather', 'cases', 'matrix', 'pmatrix', 'bmatrix', 'vmatrix',
-  'figure', 'table', 'tabular', 'quote', 'center', 'verbatim', 'abstract',
-  'theorem', 'lemma', 'proof',
-];
 
 /**
  * Strip a Windows extended-length prefix and unify slashes, but PRESERVE casing.
@@ -100,10 +93,6 @@ function labels(docs: readonly CompletionDocument[]): string[] {
   return uniqueMatches(docs, /\\label\s*\{([^{}]+)\}/g);
 }
 
-function declaredEnvironments(docs: readonly CompletionDocument[]): string[] {
-  return uniqueMatches(docs, /\\(?:newenvironment|renewenvironment)\*?\s*\{([^{}]+)\}/g);
-}
-
 function openEnvironments(text: string, position: number): string[] {
   const stack: string[] = [];
   const pattern = /\\(begin|end)\s*\{([^{}]+)\}/g;
@@ -135,7 +124,6 @@ function macroCandidates(request: CompletionRequest): CompletionCandidate[] {
 }
 
 function environmentCandidates(request: CompletionRequest, action: 'begin' | 'end'): CompletionCandidate[] {
-  const docs = documents(request);
   // Rich built-in begin snippets come from snippetProvider. This provider adds
   // project-declared environments and owns every end candidate, including the
   // open-environment ranking that static snippets cannot provide.
@@ -143,9 +131,10 @@ function environmentCandidates(request: CompletionRequest, action: 'begin' | 'en
   // walks the whole prefix.
   const open = action === 'end' ? openEnvironments(request.text, request.position) : [];
   const nearest = open[0];
+  const declared = [...latexWorkspaceEnvironments(request.workspace, request.text).keys()];
   const names = action === 'end'
-    ? [...new Set([...open, ...declaredEnvironments(docs), ...STANDARD_ENVIRONMENTS])]
-    : declaredEnvironments(docs);
+    ? [...new Set([...open, ...declared])]
+    : declared;
 
   return names.map(name => ({
     label: `\\${action}{${name}}`,

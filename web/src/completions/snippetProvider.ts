@@ -1,5 +1,7 @@
 import { snippetsForLang } from './snippets';
 import { inTypstMath, isCommonTypstName } from './typstProvider';
+import { detectMathContext } from './mathContext';
+import { latexProvides } from './cwlProvider';
 import type { CompletionCandidate, CompletionProvider } from './types';
 
 /**
@@ -44,10 +46,19 @@ export const snippetProvider: CompletionProvider = {
     // this curated form wins on boost.
     const typst = request.language === 'typst';
     const math = typst && inTypstMath(request.text, request.position);
+    const latex = request.language === 'latex';
+    const latexContext = latex
+      ? detectMathContext(request.text, request.position)
+      : { math: false, envs: [] as string[] };
+    const latexMath = latexContext.math;
 
     return snippetsForLang(request.language)
       .filter(item => {
         if (typst && !!item.math !== math) return false;
+        if (latex && item.latexPackage && !latexProvides(request.text, item.latexPackage)) return false;
+        if (latex && item.latexInsideMath && !latexMath) return false;
+        if (latex && item.latexEnvs && !item.latexEnvs.some(env => latexContext.envs.includes(env))) return false;
+        if (latex && site.kind === 'environment' && latexMath && !item.latexInsideMath) return false;
         if (site.kind === 'environment') {
           return site.action === 'begin' && item.l.startsWith('\\begin{');
         }

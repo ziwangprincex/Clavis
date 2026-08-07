@@ -766,7 +766,7 @@ export const ipc = {
   // Builtin function signatures for the parameter tooltip. Fetched once and
   // cached client-side: the tooltip refreshes on every cursor move, and the data
   // is a compile-time constant in the typst binary, so there is nothing to
-  // invalidate. ~240 KiB for 391 functions.
+  // invalidate. ~282 KiB for 432 functions with Typst 0.15.1.
   listTypstSignatures: () =>
     invoke<TypstFuncSig[]>('list_typst_signatures'),
 

@@ -1,4 +1,125 @@
 # Clavis - Handoff (updated 2026-08-07)
+## 0. Update - 2026-08-07 (LaTeX completion context and package audit)
+
+An adversarial audit of the LaTeX completion surface found that the curated
+environment skeletons bypassed the package-aware CWL provider and were therefore
+offered even when they could not compile. AMS environments are now capability
+gated: `amsmath`, `mathtools`, and AMS document classes provide AMS math;
+`amsthm` and AMS classes provide `proof`. Math-child environments such as
+`cases` and matrix variants appear only inside math, while text environments are
+hidden there. CWL environment aliases (`#\math` versus `#\array`) now receive
+the same context filtering.
+
+Removed unconditional `theorem`/`lemma` skeletons: these environments exist only
+when a class/package or `\newtheorem` declaration defines them. The semantic
+provider now reuses the shared bounded environment scanner, which recognizes
+`\newtheorem` as well as `\newenvironment`. `\end{...}` no longer invents
+static closing environments; it offers currently open or project-declared names.
+`\item` is restricted to list-like environments.
+
+The shared workspace declaration scanner also had a real path bug: it treated
+`CompletionWorkspace.rootPath` (the main document path) as a directory, dropping
+sibling `.tex` declarations. It now derives the main document's directory, so
+cross-file custom macros and environments are visible without leaking unrelated
+files.
+
+**Evidence and boundary:** final-engine regression tests were first seen failing
+for package leakage, math-child leakage, phantom theorem declarations, and the
+sibling-file path bug. The pinned TeXstudio corpus parser passes all 4,465 CWL
+files and 326 completion-specific tests pass. This machine has no `pdflatex`,
+`xelatex`, `lualatex`, or `latex` executable, so no claim of real TeX-engine
+compilation is made. Full verification is 455 frontend tests, 110 Rust tests,
+frontend typecheck/build, and `git diff --check`.
+
+## 0. Update - 2026-08-07 (Typst 0.15.1 engine migration)
+
+Upgraded the embedded Typst stack from 0.11.1 to 0.15.1 and raised the Rust
+MSRV from 1.75 to 1.92. Migrated `SimpleWorld` to the new rooted `FileId` and
+`LazyHash` APIs, the generic paged compiler output, new SVG/PDF options,
+`DiagSpan` range lookup, syntax-node text access, and `Binding`/iterator-based
+function metadata. The default remains a single built-in engine: no local Typst
+installation, CLI bundle, daemon, terminal, or IDE-style toolchain manager was
+added.
+
+The dependency audit aligned direct `fontdb` with Typst's 0.23 version, removing
+the duplicate 0.16 copy. Added permanent tests that compile real SVG and PDF,
+preserve line/column diagnostics, allow in-root includes, and reject project-root
+escapes. Updated English/Chinese development prerequisites to Rust 1.92+.
+
+**Verified on Windows from `D:\Clavis`:** 110 Rust tests, 455 frontend tests,
+frontend typecheck/build, `cargo check --all-targets`, and `cargo build --release`
+pass. The size-optimized release executable is 39.4 MB and frontend `dist` is
+11.54 MB. A same-version published-asset comparison could not be fetched because
+the unauthenticated GitHub API was rate-limited; retain size/performance
+measurement as a release-review check rather than claiming an unmeasured delta.
+
+`docs/ROADMAP.md` now marks the engine upgrade complete and records an optional,
+strictly bounded System Typst mode as a later possibility. The roadmap explicitly
+keeps Clavis a focused native writing editor, not a plugin platform or general
+IDE.
+
+### Adversarial review fixes after the migration was green
+
+Two real regressions survived the first 107-Rust / 442-frontend green run:
+
+1. Typst 0.15 changed `text.body` to named/non-positional metadata while
+   `text.text` remains required positional. The frontend filtered to positional
+   parameters before selecting the markup overload, so the real table generated
+   `#text("text")` even though the mock fixture still asserted `#text[body]`.
+   The fixture now mirrors 0.15 and the overload branch is selected from the full
+   parameter list before positional filtering.
+2. `World::today(offset)` ignored the 0.15 timezone contract, reused a timestamp
+   captured when the app started, and an initial fix accidentally reapplied the
+   machine timezone after shifting UTC. `today()` now samples the current time on
+   every call; no offset returns the local date, while explicit offsets calculate
+   UTC plus that offset exactly once. A fixed UTC/UTC+8 boundary test locks this
+   down.
+
+The real standard-library audit also confirmed all 432 exported functions use
+native parameter metadata, so `to_native()` does not silently drop builtin
+parameters. The serialized signature payload is now about 282 KiB, not the old
+391-function/~240 KiB figure. Typst compiler warnings remain without a frontend
+channel; this predates the upgrade and is recorded as a bounded follow-up rather
+than expanding IPC/UI in this migration.
+
+A follow-up comparison against the Typst 0.15.1 bundled documentation/source
+found two more curated-template mismatches. `grid`, `table`, and `stack` now use
+the documented multi-item variadic call shape instead of seeding only one
+trailing block. The math product snippet used `prod`, but Typst's official symbol
+name is `product`; the old insertion did not compile. A permanent backend corpus
+now compiles every curated math expansion with the embedded 0.15.1 engine, and
+frontend tests assert the official symbol and variadic templates.
+
+## 0. Update - 2026-08-07 (Typst completion call-shape correctness)
+
+Fixed invalid or non-idiomatic Typst insertion templates that survived the
+standard-library completion rewrite because higher-boost legacy snippets still
+won label deduplication. In particular, `#box` inserted `#box()` instead of a
+trailing content block. The generated fallback also ignored optional positional
+content parameters such as `box.body`, so removing the snippet alone would still
+have produced the wrong shape.
+
+`typstProvider` now recognizes optional trailing `content` parameters and emits
+`[...]`. Curated layout/shape snippets now use trailing content blocks, and
+named-only arguments remain named (`pad(x: 1em)[...]`, `stack(dir: ttb)[...]`,
+`scale(x: 80%)[...]`). Variadic `grid`, `table`, and `stack` use the
+official multi-item argument form rather than a single child placeholder.
+
+The wider audit also found that Typst 0.11.1 flattens overload branches in
+`Func::params()` without retaining branch boundaries. Blindly inserting every
+`required` entry made `text` produce invalid code equivalent to
+`#text([body], "text")`; color constructors similarly expose component and
+conversion branches together. Completion now chooses the content/string branch
+of `text` by context and stops before parameters documented as
+`Alternatively:`. Ordinary multi-argument functions such as `frac` remain
+unchanged.
+
+Evidence: a full-engine regression test first reproduced the exact merged result
+as `#box($1)`; all curated function entries were compared with the linked Typst
+0.11.1 parameter table; 57 context-free concrete samples compiled through the
+repository's own `SimpleWorld`/`typst::compile`; and provider/merge tests cover
+optional content bodies, flattened overloads, and corrected legacy templates.
+
 ## 0. Update - 2026-08-07 (handoff path correction)
 
 Corrected the incomplete `0969d36` move: the tracked handoff now lives at
@@ -1391,11 +1512,9 @@ So both features are built from `Func::params()`, the metadata the `#[func]`
 macro bakes into the binary. Consequences worth keeping:
 
 - **No `typst-ide` dependency was added.** It would buy nothing.
-- **No typst upgrade needed.** We are on **0.11.1**; upstream is at **0.15.1**
-  (2026-07-17), four releases ahead. `Func::params()` exists in both. Upgrading
-  is a separate and non-trivial job: 0.15 changes `autocomplete` to take
-  `&dyn IdeWorld`, moves `ParamInfo` out of `typst::foundations`, and turns
-  `params()` into an iterator.
+- **Historical note (superseded 2026-08-07).** This entry originally deferred
+  the Typst 0.15 migration. The repository now embeds Typst **0.15.1**; see the
+  latest handoff entry for the completed API migration and verification.
 - **`#let` functions cannot come from Rust.** `func.rs` has
   `Repr::Closure(_) => None`, so closures expose no parameters at all. They are
   parsed out of the document instead, and the honest cost is that custom

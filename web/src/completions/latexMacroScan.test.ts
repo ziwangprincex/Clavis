@@ -14,7 +14,7 @@ describe('LaTeX macro declaration scanner', () => {
   });
 
   it('keeps active document macros ahead of workspace declarations', () => {
-    const macros = latexWorkspaceMacros({ rootPath: '/paper', activePath: '/paper/main.tex', documents: [
+    const macros = latexWorkspaceMacros({ rootPath: '/paper/main.tex', activePath: '/paper/main.tex', documents: [
       { path: '/paper/main.tex', language: 'latex', text: '\\newcommand{\\same}[1]{}' },
       { path: '/paper/style.tex', language: 'latex', text: '\\newcommand{\\same}[2]{}\\newcommand{\\other}{}' },
       { path: '/outside.tex', language: 'latex', text: '\\newcommand{\\leak}{}' },
@@ -22,6 +22,18 @@ describe('LaTeX macro declaration scanner', () => {
     expect(macros.get('same')).toMatchObject({ required: 3, imported: false });
     expect(macros.get('other')).toMatchObject({ imported: true });
     expect(macros.has('leak')).toBe(false);
+  });
+
+  it('includes declarations from sibling project documents', () => {
+    const macros = latexWorkspaceMacros({
+      rootPath: 'C:/paper/main.tex',
+      activePath: 'C:/paper/main.tex',
+      documents: [
+        { path: 'C:/paper/main.tex', language: 'latex', text: '' },
+        { path: 'C:/paper/defs.tex', language: 'latex', text: String.raw`\newcommand{\shared}[1]{#1}` },
+      ],
+    }, '');
+    expect(macros.get('shared')).toMatchObject({ imported: true, sourcePath: 'C:/paper/defs.tex' });
   });
 
   it('scans theorem and environment declarations without comments', () => {
@@ -33,7 +45,7 @@ describe('LaTeX macro declaration scanner', () => {
   });
 
   it('keeps active environment declarations ahead of workspace snapshots', () => {
-    const environments = latexWorkspaceEnvironments({ rootPath: '/paper', activePath: '/paper/main.tex', documents: [
+    const environments = latexWorkspaceEnvironments({ rootPath: '/paper/main.tex', activePath: '/paper/main.tex', documents: [
       { path: '/paper/main.tex', language: 'latex', text: String.raw`\newtheorem{claim}{Claim}` },
       { path: '/paper/style.tex', language: 'latex', text: String.raw`\newtheorem{claim}{Old}
 \newenvironment{remark}{}{}` },

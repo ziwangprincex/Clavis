@@ -228,7 +228,7 @@ refuses replacement if any file changed on disk after the search.
 
 For development. To just use the app, download an installer above.
 
-You need Rust 1.75+, Node.js 18+, and the system dependencies Tauri needs
+You need Rust 1.92+, Node.js 18+, and the system dependencies Tauri needs
 (WebView2 on Windows, Xcode command line tools on macOS, `webkit2gtk-4.0` and
 friends on Linux).
 

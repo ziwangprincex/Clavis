@@ -150,16 +150,41 @@ function callTemplate(
   params: readonly TypstParamSig[],
   math: boolean,
 ): { text: string; fields: boolean } {
-  const required = params.filter(p => p.positional && (p.required || p.variadic));
-  const last = required[required.length - 1];
-  const takesContentBlock = !math
-    && !!last
-    && last.typeName.includes('content')
-    && !PAREN_BODY_FUNCTIONS.has(name);
+  let positional = params.filter(p => p.positional);
 
-  // The content parameter moves into the bracket; anything before it stays in
-  // parens as a positional argument.
-  const leading = takesContentBlock ? required.slice(0, -1) : required;
+  // `text` changed shape in Typst 0.15: its markup body is exposed as a
+  // named/non-positional `content` parameter while the string overload remains
+  // required and positional. Choose from the complete metadata before the
+  // positional filter can discard the body branch.
+  if (name === 'text' || name === 'math.text') {
+    const branch = math
+      ? params.find(p => p.name === 'text')
+      : params.find(p => p.name === 'body');
+    if (branch) positional = [branch];
+  }
+
+  // `Func::params()` flattens overloads into one list without retaining branch
+  // boundaries. Typst documents alternative branches with "Alternatively:" for
+  // functions such as `rgb`; including both branches produces an invalid call.
+  // Keep the primary branch and let signature help expose the alternatives.
+  const alternative = positional.findIndex(p => /^alternatively:/i.test(p.docs.trim()));
+  if (alternative > 0) positional = positional.slice(0, alternative);
+
+  const trailing = positional[positional.length - 1];
+  const takesContentBlock = !math
+    && !!trailing
+    && trailing.typeName.includes('content')
+    && !PAREN_BODY_FUNCTIONS.has(name);
+  const required = positional.filter(p => p.required || p.variadic);
+
+  // A trailing content parameter moves into the bracket even when it is
+  // optional (`box`, `block`, and the shape functions all default their body to
+  // `none`). Required positionals before it stay in parens. Optional leading
+  // positionals remain omitted; the signature tooltip exposes them without
+  // forcing arbitrary defaults into the document.
+  const leading = takesContentBlock
+    ? required.filter(p => p !== trailing)
+    : required;
   let field = 0;
   const args = leading.map(p => {
     field++;
@@ -168,7 +193,7 @@ function callTemplate(
   });
 
   const parens = args.length > 0 ? `(${args.join(', ')})` : takesContentBlock ? '' : '()';
-  const bracket = takesContentBlock ? `[\${${++field}:${last.name}}]` : '';
+  const bracket = takesContentBlock ? `[\${${++field}:${trailing.name}}]` : '';
   return { text: `${name}${parens}${bracket}`, fields: field > 0 };
 }
 
@@ -240,7 +265,7 @@ export const typstProvider: CompletionProvider = {
 
     // Outside math, typst function names are only meaningful in code mode, which
     // a `#` opens. Without that marker a word is ordinary prose — `page`, `link`
-    // and `table` are all common English, and offering 391 functions while
+    // and `table` are all common English, and offering 432 functions while
     // someone writes a sentence is worse than offering nothing. Inside `$...$`
     // there is no `#`: `frac(a, b)` is how it is written, so a bare word is a
     // real call site there. An explicit request (Ctrl-Space) overrides either way.

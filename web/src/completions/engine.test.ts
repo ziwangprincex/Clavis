@@ -111,6 +111,126 @@ describe('completion engine', () => {
     }));
   });
 
+  it('does not offer package-defined environments before their package is loaded', async () => {
+    const bare = await complete(request(String.raw`\documentclass{article}
+\begin{ali`));
+    expect(bare?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{align}`);
+
+    const amsmath = await complete(request(String.raw`\documentclass{article}
+\usepackage{amsmath}
+\begin{ali`));
+    expect(amsmath?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{align}`);
+  });
+
+  it('offers math child environments only inside math mode', async () => {
+    const prose = await complete(request(String.raw`\usepackage{amsmath}
+\begin{cas`));
+    expect(prose?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{cases}`);
+
+    const math = await complete(request(String.raw`\usepackage{amsmath}
+\[
+\begin{cas`));
+    expect(math?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{cases}`);
+  });
+
+  it('does not invent theorem-like environments that were never declared', async () => {
+    const bare = await complete(request(String.raw`\documentclass{article}
+\begin{theo`));
+    expect(bare?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{theorem}`);
+
+    const declared = await complete(request(String.raw`\documentclass{article}
+\newtheorem{theorem}{Theorem}
+\begin{theo`));
+    expect(declared?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{theorem}`);
+  });
+
+  it('does not offer text environments inside math mode', async () => {
+    const result = await complete(request(String.raw`\[
+\begin{fig`));
+    expect(result?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{figure}`);
+  });
+
+  it('offers item only inside list environments', async () => {
+    const prose = await complete(request(String.raw`Text \it`));
+    expect(prose?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\item`);
+
+    const list = await complete(request(String.raw`\begin{itemize}
+\it`));
+    expect(list?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\item`);
+  });
+
+  it('offers proof skeleton only when amsthm is loaded', async () => {
+    const bare = await complete(request(String.raw`\documentclass{article}
+\begin{pro`));
+    expect(bare?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{proof}`);
+
+    const loaded = await complete(request(String.raw`\documentclass{article}
+\usepackage{amsthm}
+\begin{pro`));
+    expect(loaded?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{proof}`);
+  });
+
+  it('does not nest display-math environments inside existing math', async () => {
+    const result = await complete(request(String.raw`\usepackage{amsmath}
+\[
+\begin{ali`));
+    expect(result?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\begin{align}`);
+  });
+
+  it('does not invent closing environments', async () => {
+    const result = await complete(request(String.raw`\end{theo`));
+    expect(result?.candidates.map(candidate => candidate.label) ?? [])
+      .not.toContain(String.raw`\end{theorem}`);
+  });
+
+  it('recognizes packages provided by common AMS wrappers and classes', async () => {
+    const mathtools = await complete(request(String.raw`\documentclass{article}
+\usepackage{mathtools}
+\begin{ali`));
+    expect(mathtools?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{align}`);
+
+    const amsClass = await complete(request(String.raw`\documentclass{amsart}
+\begin{pro`));
+    expect(amsClass?.candidates.map(candidate => candidate.label) ?? [])
+      .toContain(String.raw`\begin{proof}`);
+  });
+
+  it('keeps AMS environment families behind their capability and context gates', async () => {
+    const amsTopLevel = ['equation*', 'align', 'align*', 'gather'];
+    const amsMathChildren = ['cases', 'matrix', 'pmatrix', 'bmatrix', 'vmatrix'];
+
+    for (const name of [...amsTopLevel, ...amsMathChildren]) {
+      const bare = await complete(request(`\\begin{${name.slice(0, 3)}`));
+      expect(bare?.candidates.map(candidate => candidate.label) ?? [])
+        .not.toContain(`\\begin{${name}}`);
+    }
+
+    for (const name of amsTopLevel) {
+      const loaded = await complete(request(`\\usepackage{amsmath}\n\\begin{${name.slice(0, 3)}`));
+      expect(loaded?.candidates.map(candidate => candidate.label) ?? [])
+        .toContain(`\\begin{${name}}`);
+    }
+
+    for (const name of amsMathChildren) {
+      const loaded = await complete(request(`\\usepackage{amsmath}\n\\[\n\\begin{${name.slice(0, 3)}`));
+      expect(loaded?.candidates.map(candidate => candidate.label) ?? [])
+        .toContain(`\\begin{${name}}`);
+    }
+  });
+
   it('keeps the richer candidate when two providers share a label', async () => {
     // Regression: dedup keys on label alone so the cwl corpus (which knows an
     // environment exists but carries only its bare name) collapses into the

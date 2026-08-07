@@ -202,18 +202,29 @@ function scanPackages(text: string): string[] {
 let lastScanText: string | null = null;
 let lastScanResult: string[] = [];
 
-function packagesFor(text: string): string[] {
+export function latexPackagesFor(text: string): string[] {
   if (text === lastScanText) return lastScanResult;
   lastScanText = text;
   lastScanResult = scanPackages(text);
   return lastScanResult;
 }
 
+/** Whether the document directly loads, or its class is known to provide, a feature package. */
+export function latexProvides(text: string, feature: string): boolean {
+  const packages = new Set(latexPackagesFor(text));
+  if (packages.has(feature)) return true;
+  const amsClass = ['class-amsart', 'class-amsbook', 'class-amsproc']
+    .some(name => packages.has(name));
+  if (feature === 'amsmath') return packages.has('mathtools') || amsClass;
+  if (feature === 'amsthm') return amsClass;
+  return false;
+}
+
 /** Every parsed package reachable from the document, following `#include:`. */
 function activePackages(text: string): CwlPackage[] {
   ensureAvailableNames();
 
-  const wanted = packagesFor(text);
+  const wanted = latexPackagesFor(text);
   const seen = new Set<string>();
   const out: CwlPackage[] = [];
   const queue = [...wanted];
@@ -338,7 +349,7 @@ function environmentCandidate(environment: CwlEnvironment, pkg: string): Complet
 export function prefetchCwlForDocument(text: string): void {
   try {
     ensureAvailableNames();
-    for (const name of packagesFor(text)) requestPackage(name);
+    for (const name of latexPackagesFor(text)) requestPackage(name);
   } catch {
     // Completion data is a nice-to-have; the editor must still open.
   }
@@ -352,6 +363,11 @@ export function prefetchCwlForDocument(text: string): void {
  * wading through math operators.
  */
 function isApplicable(command: CwlCommand, math: boolean, envs: readonly string[]): boolean {
+  // The base CWL has no classifier on `\item`, but TeX accepts it only inside
+  // list-like environments. Keep this narrow override here rather than
+  // pretending the whole corpus carries semantics it does not encode.
+  if (command.name === 'item'
+      && !envs.some(env => ['itemize', 'enumerate', 'description'].includes(env))) return false;
   if (command.mathOnly && !math) return false;
   if (command.textOnly && math) return false;
   // `#t` means tabular-like. Resolve it through the environment stack rather
@@ -465,6 +481,14 @@ function keyvalCandidates(text: string, command: string, query: string): Complet
   return out;
 }
 
+function isEnvironmentApplicable(environment: CwlEnvironment, math: boolean): boolean {
+  const opensMath = environment.aliases.includes('math');
+  const mathChild = environment.aliases.includes('array') && !opensMath;
+  if (opensMath && math) return false;
+  if (mathChild && !math) return false;
+  return true;
+}
+
 export const cwlProvider: CompletionProvider = {
   complete(request: CompletionRequest, site) {
     if (request.language !== 'latex' || !options.enabled) return [];
@@ -492,8 +516,12 @@ export const cwlProvider: CompletionProvider = {
       // `\end{...}` pairing is ranked by `latexSemanticProvider` from the open
       // environment stack, which beats a static list.
       if (site.action === 'end') return [];
-      return packages.flatMap(pkg =>
-        pkg.environments.map(environment => environmentCandidate(environment, pkg.name)));
+      const math = options.respectContext
+        ? detectMathContext(request.text, request.position).math
+        : false;
+      return packages.flatMap(pkg => pkg.environments
+        .filter(environment => !options.respectContext || isEnvironmentApplicable(environment, math))
+        .map(environment => environmentCandidate(environment, pkg.name)));
     }
 
     if (site.kind === 'command') {

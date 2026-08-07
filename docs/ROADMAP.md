@@ -1,10 +1,15 @@
 # Clavis — Future Improvements Roadmap
 
-Status: **proposed, not yet implemented** (recorded 2026-08-06 from a project
-review). Priorities: **P0** = high leverage / low risk, **P1** = planned,
-**P2** = strategic or later. Each item lists the problem, the suggested change,
-and the relevant code locations. Nothing here is committed work; treat it as a
-backlog, not a plan of record.
+Status: living backlog, last updated 2026-08-07. Priorities: **P0** = high
+leverage / low risk, **P1** = planned, **P2** = strategic or later. Completed
+items stay recorded with their verification evidence so they do not silently
+return as stale backlog.
+
+**Product constraint: stay lightweight.** Clavis is a focused native research
+writing editor, not a general IDE or application platform. New work must justify
+its writing value, binary/runtime cost, and interface cost. Avoid plugin hosts,
+embedded terminals, always-on language services, duplicated toolchains, and
+VS Code-style settings sprawl.
 
 ---
 
@@ -122,17 +127,59 @@ distribution.
 
 ---
 
-## P2 — Typst engine upgrade
+## Completed 2026-08-07: Typst 0.15.1 engine upgrade
 
-**Problem.** `Cargo.toml` pins `typst` / `typst-svg` / `typst-pdf` /
-`typst-assets` at 0.11. Typst the language moves fast (0.12/0.13+ have breaking
-changes); users with newer documents will get compile errors the built-in
-engine cannot handle.
+The built-in engine moved from Typst 0.11.1 to 0.15.1. The migration updated the
+`World` implementation, project-root path model, compiler output API, SVG/PDF
+exporters, diagnostic spans, syntax-tree access, and standard-library signature
+metadata. The Rust MSRV is now 1.92.
 
-**Change.** Upgrade typst crates and run the regression suites in
-`src/typst_world.rs`, `src/typst_sig.rs`, and the frontend Typst preview.
+The upgrade remains self-contained: users still need no local Typst install and
+Clavis does not bundle a second CLI or background service. `fontdb` was aligned
+with Typst's 0.23 dependency to avoid carrying duplicate font databases.
 
-**Payoff.** Correct rendering for current Typst syntax.
+**Verification.** 110 Rust tests include real SVG/PDF output, line/column
+diagnostics, in-root includes, and project-root escape rejection. The frontend
+has 455 passing tests; typecheck, production build, and `cargo check
+--all-targets` pass. A size-optimized Windows release executable is 39.4 MB.
+
+---
+
+
+## P2: Surface embedded Typst compiler warnings
+
+**Problem.** Typst compilation returns non-fatal warnings separately from its
+SVG/PDF output, but the current compact IPC result exposes only success output or
+a fatal error. Warnings were already silent before the 0.15 migration.
+
+**Possible change.** Add an optional bounded `warnings: string[]` field to the
+existing Typst result and show it in the current preview/error surface. Do not
+add a diagnostics service, background process, or Problems-panel subsystem.
+
+**Acceptance bar.** Preserve the existing single-call preview path and verify
+that warning formatting, payload size, and render latency remain negligible.
+
+---
+
+## P2: Optional system Typst mode (strictly bounded)
+
+**Problem.** The built-in engine gives deterministic, zero-setup behavior, but a
+user with a newer local Typst may want new language features before Clavis ships
+another embedded-engine update.
+
+**Possible change.** Only if demand justifies it, add one optional engine choice:
+Built-in or System/Custom executable. Reuse bounded tool detection; invoke one
+short-lived `typst` process with fixed arguments, cancellation, timeout, and a
+confined working root. Fall back to the built-in engine when unavailable.
+
+**Non-goals.** No Typst version manager, downloaded toolchain, LSP daemon,
+terminal, extension host, project graph, or large engine-settings surface. Do
+not keep both engines resident and do not bundle the Typst CLI alongside the
+Rust engine.
+
+**Acceptance bar.** Demonstrate a real compatibility need, preserve the default
+zero-install path, and measure installer size, idle memory, startup, and preview
+latency before shipping.
 
 ---
 

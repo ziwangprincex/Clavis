@@ -7,7 +7,7 @@ import type { TypstFuncSig } from '../api/tauri';
 /**
  * A stand-in for the Rust signature table.
  *
- * The real one is 391 functions; this generates a comparable spread including
+ * The real one is 432 functions; this generates a comparable spread including
  * dotted names, because the thing under test is how many candidates reach the
  * popup, not their content.
  */

@@ -48,7 +48,7 @@ Clavis 启动时会检查更新。也可以手动检查：**设置 → Updates �
 
 面向开发。只是想用的话，直接下载上面的安装包。
 
-需要 Rust 1.75+、Node.js 18+，以及 Tauri 需要的系统依赖（Windows 上的 WebView2、
+需要 Rust 1.92+、Node.js 18+，以及 Tauri 需要的系统依赖（Windows 上的 WebView2、
 macOS 的 Xcode 命令行工具、Linux 上的 `webkit2gtk-4.0` 等）。
 
 ```bash
