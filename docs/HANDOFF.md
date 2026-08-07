@@ -1,4 +1,27 @@
 # Clavis - Handoff (updated 2026-08-07)
+## 0. Release preparation - 2026-08-07 (v1.0.8)
+
+Prepared `v1.0.8` for the Typst 0.15.1 engine migration and the Typst/LaTeX
+completion correctness audit. The three release version locations
+(`Cargo.toml`, the Clavis package in `Cargo.lock`, and `tauri.conf.json`) are
+aligned at `1.0.8`, and `python tools/check_release.py --tag v1.0.8` passes.
+
+**Verified by `tools/release.ps1 1.0.8`:** frontend typecheck, 455 frontend
+tests, frontend production build, and 110 Rust tests all pass. The pre-existing
+Vite static/dynamic `tauri.ts` chunking warning remains non-fatal. This Windows
+machine has no TeX distribution, so the LaTeX audit is backed by the pinned
+4,465-file TeXstudio CWL corpus and final-engine regression tests rather than a
+local `pdflatex`/`xelatex` compile claim.
+
+Release content includes the embedded Typst upgrade from 0.11.1 to 0.15.1,
+Rust MSRV 1.92, official Typst completion call shapes and symbol names, real
+SVG/PDF/path/timezone regressions, package/context-gated LaTeX environments,
+and repaired cross-file macro/environment discovery.
+
+Next: commit this release preparation, create and push `v1.0.8`, wait for the
+shared draft GitHub Release, verify every platform asset plus `latest.json`, and
+publish the draft.
+
 ## 0. Update - 2026-08-07 (LaTeX completion context and package audit)
 
 An adversarial audit of the LaTeX completion surface found that the curated
