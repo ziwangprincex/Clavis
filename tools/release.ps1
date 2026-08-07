@@ -38,9 +38,9 @@ if (-not $SkipChecks) {
     if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed.' }
 }
 
-Write-Host "Update HANDOFF.md with the release preparation before committing." -ForegroundColor Yellow
+Write-Host "Update docs/HANDOFF.md with the release preparation before committing." -ForegroundColor Yellow
 Write-Host "Then run:" -ForegroundColor Cyan
-Write-Host "  git add Cargo.toml Cargo.lock tauri.conf.json HANDOFF.md"
+Write-Host "  git add Cargo.toml Cargo.lock tauri.conf.json docs/HANDOFF.md"
 Write-Host "  git commit -m \"Release $tag\""
 Write-Host "  git tag $tag"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require HANDOFF.md updates whenever repository files change."""
+"""Require docs/HANDOFF.md updates whenever repository files change."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXEMPT_FILES = {"HANDOFF.md"}
+EXEMPT_FILES = {"docs/HANDOFF.md"}
 
 
 def git(*args: str) -> str:
@@ -43,11 +43,11 @@ def main() -> int:
     if not watched:
         print("handoff guard: no changes requiring a handoff update")
         return 0
-    if "HANDOFF.md" in changed:
-        print(f"handoff guard: HANDOFF.md updated for {len(watched)} watched file(s)")
+    if "docs/HANDOFF.md" in changed:
+        print(f"handoff guard: docs/HANDOFF.md updated for {len(watched)} watched file(s)")
         return 0
 
-    print("handoff guard failed: HANDOFF.md must be updated whenever repository files change:", file=sys.stderr)
+    print("handoff guard failed: docs/HANDOFF.md must be updated whenever repository files change:", file=sys.stderr)
     for path in watched:
         print(f"  - {path}", file=sys.stderr)
     return 1

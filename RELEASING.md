@@ -64,7 +64,7 @@ Start from a clean `main` working tree:
 The script refuses a dirty tree or non-`main` branch, updates the version in
 `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`, validates that all three match,
 and runs the frontend checks/build plus Rust tests. It deliberately does **not**
-commit, tag, or push; review the diff and update `HANDOFF.md` first, then run the
+commit, tag, or push; review the diff and update `docs/HANDOFF.md` first, then run the
 commands it prints.
 
 ### Manual equivalent
@@ -75,7 +75,7 @@ commands it prints.
    ```bash
    python tools/check_release.py --tag v1.0.2
    ```
-3. Update `HANDOFF.md`, commit the release preparation, then tag and push:
+3. Update `docs/HANDOFF.md`, commit the release preparation, then tag and push:
    ```bash
    git tag v1.0.2
    git push origin main

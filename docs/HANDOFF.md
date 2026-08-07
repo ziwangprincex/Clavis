@@ -1,4 +1,11 @@
-# Clavis - Handoff (updated 2026-08-06)
+# Clavis - Handoff (updated 2026-08-07)
+## 0. Update - 2026-08-07 (handoff path correction)
+
+Corrected the incomplete `0969d36` move: the tracked handoff now lives at
+`docs/HANDOFF.md` rather than the repository root. Updated the handoff guard,
+release instructions, release helper, and roadmap references to use the new
+path. This is a follow-up commit; the already-pulled history was not rewritten.
+
 ## 0. Update - 2026-08-06 (future improvements roadmap)
 
 Added `docs/ROADMAP.md`: the prioritized backlog from a project review.
@@ -2622,7 +2629,7 @@ is commit `6095d27` and the corrected `v1.0.2` tag points to it.
   runs checks by default, and prints commit/tag/push commands rather than pushing
   automatically.
 - Added `tools/check_handoff.py` and wired it into CI. Any repository change
-  other than `HANDOFF.md` itself must include a `HANDOFF.md` update in the same
+  other than `docs/HANDOFF.md` itself must include a `docs/HANDOFF.md` update in the same
   push or PR, turning the project rule into an enforced check.
 - Added `.gitattributes` with repository-wide LF normalization and explicit
   binary asset patterns, eliminating recurring CRLF diff noise. Python cache

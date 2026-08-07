@@ -171,8 +171,8 @@ Proposed, unordered:
 
 ## P2 — Repo hygiene
 
-- `HANDOFF.md` is ~158 KB and growing; archive per-release entries into
-  `docs/handoffs/` when they age out, keeping the root file as a rolling log.
+- `docs/HANDOFF.md` is ~158 KB and growing; archive per-release entries into
+  `docs/handoffs/` when they age out, keeping `docs/HANDOFF.md` as a rolling log.
 - Generate release notes (currently a one-line body) from HANDOFF/commits in
   `.github/workflows/release.yml`.
 
