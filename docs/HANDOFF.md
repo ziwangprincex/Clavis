@@ -1,4 +1,17 @@
 # Clavis - Handoff (updated 2026-08-07)
+## 0. Release published - 2026-08-07 (v1.0.8)
+
+`v1.0.8` is committed, tagged, pushed, built, and published. GitHub Actions run
+`31153052526` completed successfully. The shared release contains 11 assets:
+Windows NSIS installer plus updater archive/signature, macOS arm64 DMG plus app
+updater archive/signature, Linux AppImage/AppImage updater archive/signature and
+Debian package, and `latest.json`.
+
+The published `latest.json` reports version `1.0.8` and contains signed updater
+entries for Darwin arm64, Linux x86_64, and Windows x86_64. GitHub's
+`/releases/latest` endpoint now resolves to `v1.0.8`; the release was published
+at `2026-08-07T06:30:25Z`.
+
 ## 0. Release preparation - 2026-08-07 (v1.0.8)
 
 Prepared `v1.0.8` for the Typst 0.15.1 engine migration and the Typst/LaTeX
