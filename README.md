@@ -32,8 +32,6 @@ Download the installer for your platform from the
 brew install --cask ziwangprincex/clavis/clavis
 ```
 
-
-
 ### Updates
 
 Clavis checks for updates when it starts. You can also check manually from
@@ -130,7 +128,7 @@ The status bar now shows estimated **Main** and **Abstract** prose words for
 Markdown/Quarto, LaTeX, and Typst. It excludes common markup, code, math,
 citations, and bibliography-like content, so it is intended as a submission
 helper rather than a publisher's official count. Configure optional Main and
-Abstract word limits in **Settings ? Editor**; values beyond the limit are
+Abstract word limits in **Settings → Editor**; values beyond the limit are
 highlighted.
 
 ## Asset references
