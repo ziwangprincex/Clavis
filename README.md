@@ -105,13 +105,23 @@ LaTeX shell-escape use, and author metadata that may matter for an anonymous
 submission. It uses current open-Document text where available and jumps to the
 relevant line. It does not build, anonymize, modify, or package the project.
 
-## Git inspection and prose diff
+## Git inspection, prose diff, and local commits
 
-The Git sidebar is intentionally read-only: it shows repository/branch state,
-ahead/behind counts, changed or untracked files, recent commits, and a file diff.
-A word-level prose view highlights insertions/deletions; LaTeX mode ignores
-comments, whitespace, and common cosmetic formatting commands before comparing.
-This slice does not stage, commit, restore, reset, or push anything.
+The Git sidebar shows repository/branch state, ahead/behind counts, changed or
+untracked files, recent commits, and a file diff. A word-level prose view
+highlights insertions/deletions; LaTeX mode ignores comments, whitespace, and
+common cosmetic formatting commands before comparing.
+
+Writes are deliberately narrow: you can **Stage** / **Unstage** a file that is
+already listed as changed, then create a confirmed **local** commit. Committing
+requires a non-empty single-line message (max 200 characters) and at least one
+staged change; it runs with `--no-gpg-sign` and an empty `core.hooksPath`, so
+repository hooks never fire. Confirmation shows the exact message first.
+
+It remains impossible in Clavis to push, fetch, pull, checkout, reset, restore
+the worktree, rebase, merge, change branches, or contact a remote. Every Git
+call is direct argv with no shell, a 5-second bound, and null stdin; files with
+a configured Git clean filter (such as LFS) are refused rather than staged.
 
 ## Writing consistency checks
 

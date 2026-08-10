@@ -1,6 +1,6 @@
 # Clavis — Future Improvements Roadmap
 
-Status: living backlog, last updated 2026-08-07. Priorities: **P0** = high
+Status: living backlog, last updated 2026-08-10. Priorities: **P0** = high
 leverage / low risk, **P1** = planned, **P2** = strategic or later. Completed
 items stay recorded with their verification evidence so they do not silently
 return as stale backlog.
@@ -40,22 +40,38 @@ rate, and removes a whole class of "missing app" upgrade failures.
 
 ---
 
-## P0 — Documentation drift fixes (README)
+## Completed 2026-08-10: Documentation drift fixes and README language parity
 
-**Problem.** `README.md` **Git inspection and prose diff** still claims the Git
-sidebar "does not stage, commit, restore, reset, or push anything", but
-`src/main.rs` now registers `git_stage_file`, `git_unstage_file`, and
-`git_create_commit` (added 2026-08-06, "bounded local Git stage and commit").
-The README is behind the code and misleads users about the trust boundary.
+`README.md`'s **Git inspection and prose diff** section claimed the sidebar
+"does not stage, commit, restore, reset, or push anything". That had been false
+since 2026-08-06, when `git_stage_file`, `git_unstage_file`, and
+`git_create_commit` were registered (`src/main.rs:365-367`) — a stale
+security-boundary claim, the worst kind to leave in a README. Both language
+versions now describe the bounded write surface (stage/unstage an
+already-listed changed file, confirmed local commit, 200-character single-line
+message, `--no-gpg-sign`, empty `core.hooksPath`, clean-filter files refused)
+and restate what remains impossible: push, fetch, pull, checkout, reset,
+restore, rebase, merge, branch switching, or any remote contact.
 
-**Change.**
+The broken `**Settings ? Editor**` arrow glyph is fixed to `**Settings →
+Editor**`.
 
-- Rewrite the Git section to describe the bounded stage/unstage/commit surface
-  (what is allowed, what remains read-only).
-- Fix the `**Settings ? Editor**` text (the `?` is a broken arrow character).
+The same pass closed a wider drift: `README.zh-CN.md` documented 10 sections
+against the English file's 24, so everything added since the Workspace Trust
+foundation was English-only. The Chinese README is now structurally identical
+(same 24 headings, same order), with 14 sections newly translated. Convention
+for future edits: Chinese headings, but UI strings stay English (`Settings →
+Editor`, `Run Project Doctor`, sidebar names) because the interface itself is
+English — translating them would leave readers unable to find the control.
 
-**Payoff.** Accurate docs, especially important for a security-model-sensitive
-project.
+**Verification.** Documentation only; no source, configuration, or test was
+touched, so no build or test claim applies. Heading parity was verified by
+diffing the two files' `^#` heading lists one-to-one. The Git prose was checked
+against `src/main.rs:365-367` and the 2026-08-06 "bounded local Git stage and
+commit" handoff entry, not against a running UI. The other 13 translated
+sections were taken as accurate from the English text rather than re-verified
+against the code, so unrelated stale claims could still survive in either
+language.
 
 ---
 

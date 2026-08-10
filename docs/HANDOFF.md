@@ -1,4 +1,53 @@
-# Clavis - Handoff (updated 2026-08-07)
+# Clavis - Handoff (updated 2026-08-10)
+## 0. Update - 2026-08-10 (README language parity and Git section drift fix)
+
+The two READMEs had drifted badly apart: `README.md` documented 24 sections
+while `README.zh-CN.md` covered only 10, so every feature added since the
+Workspace Trust foundation existed in English only. `README.zh-CN.md` is now
+structurally identical to the English file — same 24 headings in the same order.
+The 14 newly translated sections are project configuration and trust, bundle
+manifest, Submission Check, Git, writing consistency, word estimates, asset
+references, CSV/TSV conversion, generated artifacts, Better BibTeX, bibliography
+browser, Quarto/Pandoc, references and citations, and Workspace search/replace.
+
+Translation convention, so future edits stay consistent: section headings are
+Chinese, but UI strings stay in English (`Settings → Editor`, `Run Project
+Doctor`, `Submission Check`, sidebar names such as Assets/Writing/Git) because
+the application interface itself is English and translating them would leave
+readers unable to find the corresponding control. Chinese headings gloss the
+English name in parentheses on first use.
+
+This closes the **P0 — Documentation drift fixes (README)** item in
+`docs/ROADMAP.md`, both halves of it:
+
+- The Git section in **both** languages still claimed the sidebar "does not
+  stage, commit, restore, reset, or push anything". That has been false since
+  2026-08-06, when `git_stage_file`, `git_unstage_file`, and `git_create_commit`
+  were registered (`src/main.rs:365-367`). Both files now describe the bounded
+  write surface — stage/unstage an already-listed changed file, confirmed local
+  commit, single-line message capped at 200 characters, `--no-gpg-sign`, empty
+  `core.hooksPath` so repository hooks cannot fire, clean-filter files refused —
+  and restate what remains impossible (push/fetch/pull/checkout/reset/restore/
+  rebase/merge/branch-switch/any remote contact).
+- The broken `**Settings ? Editor**` arrow glyph in the English word-estimates
+  section is now `**Settings → Editor**`.
+
+Note for whoever updates the roadmap: the P0 entry there describes only the
+English README, and its wording ("Rewrite the Git section") predates the
+Chinese file reaching feature parity. The drift class is the real lesson — a
+feature landing in `src/` needs its README claim updated in two files now, and
+a security-boundary claim going stale is worse than a missing one.
+
+**Evidence and boundary:** this is a documentation-only change; no source,
+configuration, or test was touched, so no build or test claim is made or needed.
+Heading parity was verified by diffing the `^#` heading lists of the two files
+(24 vs 24, one-to-one). The Git prose was checked against
+`src/main.rs:365-367` and the 2026-08-06 "bounded local Git stage and commit"
+entry below, not against a running build — this machine cannot exercise the Git
+sidebar UI. The English README's feature descriptions were taken as accurate
+for the other 13 translated sections; they were not each re-verified against
+the code, so an unrelated stale claim could still survive in either language.
+
 ## 0. Release published - 2026-08-07 (v1.0.8)
 
 `v1.0.8` is committed, tagged, pushed, built, and published. GitHub Actions run
