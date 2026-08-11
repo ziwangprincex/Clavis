@@ -1,4 +1,75 @@
-# Clavis - Handoff (updated 2026-08-10)
+# Clavis - Handoff (updated 2026-08-11)
+## 0. Update - 2026-08-11 (vector logo source and full icon generation)
+
+Every bundled icon was a raster upscale, so the app icon was visibly blurry at
+all sizes. The cause was structural, not cosmetic: `tools/render_icons.py` read
+`icons/logo-source.svg`, and **that file had never existed in the repository** —
+`git log --all -- icons/logo-source.svg` returns nothing. The generator could not
+have run at any point in history, so the committed PNGs were produced some other
+way and enlarged from a smaller bitmap.
+
+The mark is now the letter C on ruled notebook paper, drawn from a real vector
+source. `tools/make_logo.py` emits `icons/logo-source.svg` and
+`icons/logo-source-dark.svg`; `tools/render_icons.py` rasterises them.
+
+The C is the actual glyph outline of Anthropic Serif Text Regular, extracted with
+fontTools by the new `tools/extract_glyph.py` and inlined into `make_logo.py` as
+a path constant. Inlining rather than reading the font at build time means
+rendering needs no font installed and is byte-identical on every machine — the
+font is installed per-user here and Figma could not see it either (absent from
+all 8,927 families `listAvailableFontsAsync` reports). The extractor emits
+absolute `M`/`L`/`C`/`Z` only, because Figma's `vectorPaths` rejects the `H`/`V`
+shorthand that fontTools' `SVGPathPen` produces; keeping one restricted form lets
+the same path drive both the SVG files and the Figma document.
+
+Ruling is deliberately sparse — 6 lines 64px apart on a 512 canvas. Dense ruling
+was tried first and collapsed into a grey smear at 32px while competing with the
+letter for attention. The glyph is centred on its ink bounding box, not its
+advance width: a round letter has asymmetric sidebearings, so advance-centring
+reads as off-centre.
+
+`tools/render_icons.py` was rewritten because the old version was incomplete
+beyond the missing source. It emitted only 4 PNGs and wrote a favicon to `ui/`,
+a directory that does not exist; it never produced `icon.ico`, `icon.icns`, or
+the ten `Square*Logo.png` files that `tauri.conf.json` and the MSIX bundle
+reference, so those were stale rasters unreachable by any script. It now covers
+the Tauri PNG set, all Windows Store logos, `icon.ico`, `icon.icns`, and
+`web/public/favicon.ico`. The `.icns` container is assembled by hand — Pillow's
+ICNS writer depends on macOS tooling — as an 8-byte header plus one
+type+length+PNG record per size, 11 entries including the 1024px `ic10` the
+previous file also carried.
+
+Both READMEs now show the logo centred above the title via `<picture>`, so
+GitHub serves the dark variant in dark mode.
+
+**Evidence and boundary:** blur was measured, not eyeballed — counting
+soft-gradient pixels (0 < delta < 40) along three scanlines of `icons/icon.png`
+gives 154/136/94 for the old file versus 6/2/6 for the new one, the expected
+signature of bitmap upscaling replaced by vector antialiasing. Glyph centring was
+verified numerically: the transformed ink bounds centre on exactly (256.0, 256.0)
+of the 512 canvas. `tools/extract_glyph.py` reproduces the inlined path
+byte-for-byte. Both SVGs parse as valid XML; `icon.ico` reads back with all 7
+declared sizes and `icon.icns` with all 11 entries via Pillow. Every raster was
+re-read from disk after generation and inspected at 512/128/64/32/16.
+
+Not verified: the icons have **not** been seen in an installed application — no
+Tauri build was run, so Windows taskbar, macOS Dock, and installer appearance are
+inferred from the rasters alone. At 16px the ruling merges and the C is marginal;
+16px exists only inside `.ico`, where Windows normally selects 32px, but that is
+reasoning rather than an observation. No frontend or Rust code changed, so no
+test claim is made beyond `python tools/check_release.py` passing
+(version 1.0.8 consistent across `Cargo.toml`, `Cargo.lock`, `tauri.conf.json`).
+
+**Open licensing question — resolve before shipping.** Anthropic Serif Text is
+proprietary (`Copyright 2025 Anthropic PBC`, foundry BSPK LLC), not an open font.
+Deriving a third-party product's logo from its outlines may not be permitted and
+may imply an affiliation with Anthropic that does not exist. This is recorded in
+`ANTHROPIC_SERIF_NOTE` in `tools/make_logo.py` and was flagged to the maintainer,
+who has not yet decided. Substituting a clearly-licensed serif is one command —
+`python tools/extract_glyph.py --font "C:/Windows/Fonts/BOOKOS.TTF" --glyph C` —
+then paste the path into `C_PATH` and re-run both scripts; no other code depends
+on which face was used.
+
 ## 0. Update - 2026-08-10 (README language parity and Git section drift fix)
 
 The two READMEs had drifted badly apart: `README.md` documented 24 sections

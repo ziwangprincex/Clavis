@@ -1,6 +1,15 @@
-# Clavis
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="icons/logo-source-dark.svg">
+    <img src="icons/logo-source.svg" alt="Clavis" width="128" height="128">
+  </picture>
+</p>
 
-[English](README.md) · [简体中文](README.zh-CN.md)
+<h1 align="center">Clavis</h1>
+
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 一个用 Tauri 做的桌面编辑器，支持 Markdown、LaTeX 和 Typst。有实时预览、
 带 SyncTeX 的 LaTeX 编译、BibTeX 支持和 PDF 搜索。

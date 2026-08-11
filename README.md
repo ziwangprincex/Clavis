@@ -1,6 +1,15 @@
-# Clavis
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="icons/logo-source-dark.svg">
+    <img src="icons/logo-source.svg" alt="Clavis" width="128" height="128">
+  </picture>
+</p>
 
-[English](README.md) · [简体中文](README.zh-CN.md)
+<h1 align="center">Clavis</h1>
+
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 A desktop editor for Markdown, LaTeX, and Typst, built with Tauri. It has live
 preview, LaTeX compilation with SyncTeX, BibTeX support, and PDF search.
