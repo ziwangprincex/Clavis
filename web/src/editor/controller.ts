@@ -326,6 +326,31 @@ function buildFontExt(font: FontSpec) {
       fontSize: font.size + 'px',
       lineHeight: String(font.lineHeight),
     },
+    // Constrain the text column so long prose does not run the full width of a
+    // wide window. This MUST target `.cm-content`, not `.cm-scroller`:
+    // `.cm-gutters` and `.cm-content` are flex siblings inside the scroller, so
+    // capping the scroller would drag the line-number gutter inward with the
+    // text and interfere with its `overflow-x: auto`. Constraining the content
+    // alone leaves the gutter pinned to the left edge, where it belongs.
+    //
+    // `EditorView.lineWrapping` is enabled unconditionally below, so a narrow
+    // measure wraps rather than overflowing horizontally.
+    //
+    // Sized in `ch`, which for a monospace face is exactly one character wide,
+    // so the cap IS the character count and it scales with `editor_font_size`.
+    // NOT `rem`: this app sets `font-size: 13px` on `body`, not `html`, so `rem`
+    // would resolve against the browser's 16px default and ignore the user's
+    // font-size setting entirely.
+    //
+    // No centring: `.cm-content` is a `flex-grow: 2` child, so centring would
+    // need `justify-content` on the scroller, which would also push the gutter
+    // off the left edge. Padding plus a max-width gets the calm column without
+    // moving anything CodeMirror measures against.
+    '.cm-content': {
+      maxWidth: '88ch',
+      paddingInline: '32px',
+      paddingBlock: '24px',
+    },
   });
 }
 

@@ -5,8 +5,13 @@
   flex: 0 0 24px;
   padding: 0 10px;
   background: var(--panel-solid);
-  border-top: 1px solid var(--border);
-  font-size: 11px;
+  /* Softer rule: the status bar is ambient information and should not draw a
+   * hard edge against the document. Text stays at --text-muted (0.60) rather
+   * than --text-dim (0.30) — dim is the disabled/placeholder level, and the
+   * bar carries real information (compile state, cursor position) that has to
+   * remain legible. */
+  border-top: 1px solid var(--panel-soft);
+  font-size: 10.5px;
   color: var(--text-muted);
   user-select: none;
   gap: 12px;
@@ -76,7 +81,7 @@
   border: none;
   background: transparent;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10.5px;
   white-space: nowrap;
   border-radius: 3px;
 }

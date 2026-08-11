@@ -2,6 +2,15 @@
   "tauri": {
     "windows": [
       {
+        "title": "Clavis — Markdown · LaTeX · Typst",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 720,
+        "minHeight": 480,
+        "resizable": true,
+        "fullscreen": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "decorations": false,
         "transparent": false
       }

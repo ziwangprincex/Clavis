@@ -6,8 +6,10 @@ inlined below as a path — so rendering needs no font installed and is identica
 everywhere. See ANTHROPIC_SERIF_NOTE for provenance and the licensing caveat.
 
 Outputs:
-  icons/logo-source.svg       paper ground, for app icons and light contexts
-  icons/logo-source-dark.svg  ink ground, for dark contexts
+  icons/logo-source.svg             full paper mark for normal/large sizes
+  icons/logo-source-dark.svg        dark-context full mark
+  icons/logo-source-small.svg       simplified optical-size mark for <=48px
+  icons/logo-source-small-dark.svg  dark-context optical-size mark
 
 Run tools/render_icons.py afterwards to rasterise every size the bundle needs.
 
@@ -95,7 +97,7 @@ def rules(color, opacity):
     return "\n".join(out)
 
 
-def build(dark=False):
+def build(dark=False, compact=False):
     top, bot = (DARK_TOP, DARK_BOT) if dark else (PAPER_TOP, PAPER_BOT)
     rule = DARK_RULE if dark else PAPER_RULE
     ink = DARK_INK if dark else PAPER_INK
@@ -104,8 +106,22 @@ def build(dark=False):
     rule_op = 0.55 if dark else 0.9
 
     sq = squircle(SIZE)
-    ruled = rules(rule, rule_op)
 
+    if compact:
+        # Optical-size icon for taskbars, Dock thumbnails, favicons, and small
+        # Store tiles. At <=48px the notebook rules and 2px/512 border become
+        # sub-pixel haze, so use a flat ground and a larger, slightly emboldened
+        # C. This is a distinct vector render, not a filtered large icon.
+        ground = DARK_BOT if dark else "#F7F4EC"
+        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">
+  <title>Clavis compact</title>
+  <path d="{sq}" fill="{ground}"/>
+  <path d="{C_PATH}" fill="{ink}" stroke="{ink}" stroke-width="10"
+        stroke-linejoin="round" transform="translate(256 256) scale(1.16) translate(-256 -256)"/>
+</svg>
+'''
+
+    ruled = rules(rule, rule_op)
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">
   <title>Clavis</title>
   <defs>
@@ -126,9 +142,14 @@ def build(dark=False):
 
 
 if __name__ == '__main__':
-    for path, dark in (('icons/logo-source.svg', False),
-                       ('icons/logo-source-dark.svg', True)):
-        svg = build(dark=dark)
+    outputs = (
+        ('icons/logo-source.svg', False, False),
+        ('icons/logo-source-dark.svg', True, False),
+        ('icons/logo-source-small.svg', False, True),
+        ('icons/logo-source-small-dark.svg', True, True),
+    )
+    for path, dark, compact in outputs:
+        svg = build(dark=dark, compact=compact)
         with open(path, 'w', encoding='utf-8') as f:
             f.write(svg)
         print(f'wrote {path}: {len(svg)} bytes')

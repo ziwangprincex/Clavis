@@ -222,6 +222,22 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     <option value="match">Match app theme</option>
                   </select>
                 </label>
+                <label>
+                  Reading width
+                  <select
+                    value={draft.preview_reading_width}
+                    onChange={e =>
+                      update(
+                        'preview_reading_width',
+                        e.target.value as 'narrow' | 'medium' | 'wide',
+                      )
+                    }
+                  >
+                    <option value="narrow">Narrow (~65 characters)</option>
+                    <option value="medium">Medium (~80 characters)</option>
+                    <option value="wide">Wide</option>
+                  </select>
+                </label>
               </section>
             )}
 

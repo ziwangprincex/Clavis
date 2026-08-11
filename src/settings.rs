@@ -58,10 +58,10 @@ fn default_true() -> bool { true }
 fn default_max_runs() -> u32 { 4 }
 fn default_dark_mode() -> String { "off".to_string() }
 fn default_editor_font_family() -> String {
-    "\"Cascadia Code\", \"JetBrains Mono\", \"Fira Code\", Consolas, Menlo, monospace".to_string()
+    "\"Maple Mono NF\", \"Maple Mono NF CN\", \"JetBrains Mono\", \"IBM Plex Mono\", \"Cascadia Code\", Consolas, Menlo, monospace".to_string()
 }
 fn default_editor_font_size() -> u32 { 14 }
-fn default_editor_line_height() -> f32 { 1.55 }
+fn default_editor_line_height() -> f32 { 1.7 }
 fn default_editor_theme() -> String { "auto".to_string() }
 
 impl Default for Settings {
@@ -275,6 +275,15 @@ async fn probe_all(app: AppHandle, names: &'static [&'static str]) -> Result<Vec
 mod tests {
     use super::*;
 
+    #[test]
+    fn rust_defaults_match_frontend_typography_defaults() {
+        let settings = Settings::default();
+        assert_eq!(
+            settings.editor_font_family,
+            "\"Maple Mono NF\", \"Maple Mono NF CN\", \"JetBrains Mono\", \"IBM Plex Mono\", \"Cascadia Code\", Consolas, Menlo, monospace"
+        );
+        assert_eq!(settings.editor_line_height, 1.7);
+    }
     /// A program that never exits must not hang the probe. Without the deadline
     /// this test blocks forever rather than failing.
     #[test]

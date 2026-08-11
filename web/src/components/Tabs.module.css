@@ -2,10 +2,10 @@
   display: flex;
   align-items: center;
   background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--panel-soft);
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 6px 8px;
+  padding: 4px 8px;
   gap: 4px;
   flex: none;
 }

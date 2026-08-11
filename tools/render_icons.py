@@ -13,7 +13,10 @@ import resvg_py
 from PIL import Image
 
 SVG_PATH = 'icons/logo-source.svg'
+SMALL_SVG_PATH = 'icons/logo-source-small.svg'
 SVG = open(SVG_PATH, 'r', encoding='utf-8').read()
+SMALL_SVG = open(SMALL_SVG_PATH, 'r', encoding='utf-8').read()
+SMALL_MAX_SIZE = 48
 
 # Tauri's PNG set.
 PNG_TARGETS = {
@@ -53,8 +56,9 @@ ICNS_ENTRIES = (
 
 
 def render(size):
-    """Rasterise the SVG at size x size and return the PNG bytes."""
-    png = bytes(resvg_py.svg_to_bytes(svg_string=SVG, width=size, height=size))
+    """Rasterise the size-appropriate SVG directly at the target dimensions."""
+    source = SMALL_SVG if size <= SMALL_MAX_SIZE else SVG
+    png = bytes(resvg_py.svg_to_bytes(svg_string=source, width=size, height=size))
     return strip_ancillary(png)
 
 
@@ -85,11 +89,28 @@ def write_png(path, size):
 
 
 def write_ico(path, sizes):
-    """Pillow builds the multi-resolution ICO from one high-res image."""
+    """Assemble an ICO whose PNG layers are rendered independently.
+
+    Pillow's convenience writer downsamples every layer from one bitmap. That
+    defeats the optical-size SVG and adds an unnecessary raster resample.
+    """
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-    base = Image.open(io.BytesIO(render(256))).convert('RGBA')
-    base.save(path, format='ICO', sizes=[(s, s) for s in sizes])
-    print(f'  {path}: {sorted(sizes)}, {os.path.getsize(path)} bytes')
+    payloads = [(size, render(size)) for size in sizes]
+    header_size = 6 + 16 * len(payloads)
+    entries = bytearray()
+    data = bytearray()
+    offset = header_size
+    for size, png in payloads:
+        edge = 0 if size == 256 else size
+        entries += struct.pack(
+            '<BBBBHHII', edge, edge, 0, 0, 1, 32, len(png), offset
+        )
+        data += png
+        offset += len(png)
+    blob = struct.pack('<HHH', 0, 1, len(payloads)) + entries + data
+    with open(path, 'wb') as f:
+        f.write(blob)
+    print(f'  {path}: {sorted(sizes)}, {len(blob)} bytes')
 
 
 def write_icns(path):
@@ -109,7 +130,7 @@ def write_icns(path):
 
 
 if __name__ == '__main__':
-    print(f'source: {SVG_PATH}')
+    print(f'sources: {SVG_PATH}; <= {SMALL_MAX_SIZE}px: {SMALL_SVG_PATH}')
     print('PNGs:')
     for path, size in PNG_TARGETS.items():
         write_png(path, size)

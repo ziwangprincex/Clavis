@@ -3,10 +3,12 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  height: 40px;
-  flex: 0 0 40px;
+  height: 36px;
+  flex: 0 0 36px;
   background: var(--panel-solid);
-  border-bottom: 1px solid var(--border);
+  /* Softer than --border: the toolbar sits directly above the writing surface,
+   * and a hard rule there reads as a seam between chrome and content. */
+  border-bottom: 1px solid var(--panel-soft);
   user-select: none;
 }
 
@@ -24,7 +26,7 @@
 .divider {
   width: 1px;
   height: 18px;
-  background: var(--border-strong);
+  background: var(--border);
   margin: 0 4px;
 }
 
@@ -73,8 +75,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 26px;
+  width: 26px;
+  height: 24px;
   background: transparent;
   color: var(--text-muted);
   border: none;

@@ -36,3 +36,14 @@ describe('migrateSettings: pane_editor_width -> pane_editor_ratio', () => {
     expect(migrateSettings(withLegacy(0)).pane_editor_ratio).toBe(0);
   });
 });
+
+describe('migrateSettings: preview reading width', () => {
+  it('falls back to the default for an unknown persisted value', () => {
+    const dirty = {
+      ...defaultSettings,
+      preview_reading_width: 'unexpected',
+    } as unknown as Settings;
+
+    expect(migrateSettings(dirty).preview_reading_width).toBe('narrow');
+  });
+});

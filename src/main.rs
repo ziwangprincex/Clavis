@@ -315,6 +315,12 @@ fn main() {
                 // path, which Tauri v1 does not expose). Failures are cosmetic and
                 // must never block startup.
                 let _ = restore_undecorated_shadow(&window);
+                // Set the live HWND icon explicitly. Windows can otherwise keep
+                // showing a cached class/taskbar icon even after the executable's
+                // embedded ICO changes during development or an update.
+                let _ = window.set_icon(tauri::Icon::Raw(
+                    include_bytes!("../icons/icon.ico").to_vec(),
+                ));
             }
             #[cfg(not(windows))]
             let _ = app;

@@ -2,7 +2,7 @@
 
 [package]
 name = "clavis"
-version = "1.0.9"
+version = "1.1.0"
 description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
 edition = "2021"
 rust-version = "1.92"
@@ -11,7 +11,7 @@ rust-version = "1.92"
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "1.6", features = ["dialog-ask", "dialog-confirm", "dialog-message", "dialog-open", "dialog-save", "process-relaunch", "updater", "window-start-dragging", "window-minimize", "window-maximize", "window-unmaximize", "window-close"] }
+tauri = { version = "1.6", features = ["dialog-ask", "dialog-confirm", "dialog-message", "dialog-open", "dialog-save", "process-relaunch", "updater", "window-start-dragging", "window-minimize", "window-maximize", "window-unmaximize", "window-close", "icon-ico"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"

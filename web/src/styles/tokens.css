@@ -51,7 +51,13 @@
     'Microsoft YaHei', sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
     'SF Pro', 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
-  --font-mono: 'SF Mono', ui-monospace, 'Menlo', 'JetBrains Mono', 'Cascadia Code',
+  /* Mono stack. Maple Mono NF leads because it ships the Nerd Font glyph range
+   * the status bar and log panel can draw on; the CN variant follows so a
+   * machine with only that installed still gets the same metrics. 'SF Mono' and
+   * ui-monospace stay ahead of the generic fallbacks so macOS keeps its native
+   * look when none of the named faces are present. */
+  --font-mono: 'Maple Mono NF', 'Maple Mono NF CN', 'JetBrains Mono',
+    'IBM Plex Mono', 'SF Mono', ui-monospace, 'Cascadia Code', 'Menlo',
     Consolas, monospace;
 
   /* Shape */

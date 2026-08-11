@@ -1,4 +1,179 @@
 # Clavis - Handoff (updated 2026-08-11)
+## 0. Release preparation - 2026-08-11 (v1.1.0)
+
+Prepared `v1.1.0` for the writing-surface typography update and its follow-up
+correctness audit. The release adds a constrained CodeMirror prose column,
+selectable Markdown preview measures, calmer preview rhythm and chrome seams,
+and updated editor typography defaults. The Windows and Rust settings paths now
+agree on those defaults; invalid persisted preview-width values migrate safely;
+and fixed-layout Typst SVG pages are no longer shrunk by Markdown reading-width
+classes.
+
+The app icon pipeline now has dedicated optical-size vectors for 16-48px output.
+Small icons omit sub-pixel notebook rules and hairline edges, enlarge and slightly
+embolden the C, and every ICO layer is rendered directly at its target size. A
+second audit found that `tauri.windows.conf.json` replaced the complete main
+window array, causing Windows development/release builds to fall back to the
+`Tauri App` title and default window properties. The Windows override now
+preserves the full window definition, startup explicitly sets the live HWND icon,
+and `check_release.py` guards the required window fields.
+
+The three release version locations (`Cargo.toml`, the Clavis package in
+`Cargo.lock`, and `tauri.conf.json`) are aligned at `1.1.0`, and
+`python tools/check_release.py --tag v1.1.0` passes. Full frontend and Rust
+verification is run immediately before the release commit; record the final
+counts below if they differ from 456 frontend tests and 111 Rust tests.
+
+**Known release risk accepted by the maintainer:** the C outline remains derived
+from Anthropic Serif Text, a proprietary typeface, as documented in
+`tools/make_logo.py`. The licensing/affiliation concern recorded in the v1.0.9
+handoff has not been resolved; the maintainer explicitly requested proceeding
+with this release after the warning was repeated.
+
+After pushing `main` and tag `v1.1.0`, the tag-triggered Release workflow will
+create one shared draft release and upload the Windows, macOS, and Linux assets
+plus signed updater metadata. Review the draft assets and publish it manually;
+the Homebrew workflow runs only when that draft is published.
+## 0. Follow-up - 2026-08-11 (optical-size app icons)
+
+The regenerated vector icon was sharp at large sizes but still looked blurred in
+the Windows taskbar/Dock-sized presentation. Extraction from
+`target/debug/clavis.exe` proved the executable contained the current ICO and
+that its 32px layer was byte-for-byte the source layer, ruling out stale assets
+and the development launch path. The blur came from the design and pipeline:
+3px notebook rules and a 2px edge on a 512px source become sub-pixel haze at
+16-48px, while Pillow previously generated every ICO layer by resampling one
+256px bitmap.
+
+`make_logo.py` now emits dedicated light/dark optical-size SVGs. At 48px and
+below they use a flat ground, omit notebook rules and the hairline edge, and
+render a larger, slightly emboldened C. `render_icons.py` selects that SVG for
+small PNG/ICNS/ICO targets and assembles ICO containers from independently
+rendered target-size PNG layers instead of downsampling one raster. Verification
+parsed all seven ICO entries and compared each one pixel-for-pixel with a fresh
+direct SVG render; all matched. The 30px and 44px Windows Store assets and the
+16/32/48px favicon layers use the same optical-size source.
+## 0. Follow-up - 2026-08-11 (typography audit fixes)
+
+A post-handoff audit found and fixed three issues in the typography change:
+
+- Rust explicitly models `editor_font_family` and `editor_line_height`, so its
+  old defaults overwrote the new frontend defaults on a fresh profile. The Rust
+  defaults now match the frontend, with a regression test locking the two values.
+- Persisted unknown `preview_reading_width` values now migrate to `narrow`
+  instead of leaving the Settings select invalid and silently rendering wide.
+- Reading-width classes now apply only to reflowing Markdown. Typst preview is a
+  fixed-layout merged page SVG; constraining it to `34em`/`42em` merely shrank
+  the whole page, so Typst retains the historical 880px preview ceiling.
+
+The stale PreviewPane comment that said the measure used `rem` was corrected to
+`em`. The earlier statement that no Rust change was needed was too broad: it was
+correct for the flattened preview-width field, but incorrect for the two editor
+fields Rust owns directly.
+
+## 0. Update - 2026-08-11 (reading typography for the editor, preview, and chrome)
+
+The app read as an IDE rather than a writing tool. Three concrete causes, all
+measured rather than assumed: editor text ran flush to the left edge with no
+horizontal inset, so on a wide window the eye had to sweep the full screen; the
+preview column was capped at `880px`, well past the 65-75 character measure that
+is the long-standing optimum for prose; and the chrome drew hard `--border`
+rules against the writing surface at every seam.
+
+Editor text is now confined to a calm column and the preview offers a chosen
+reading measure. The mono stack also now leads with Maple Mono NF, then JetBrains
+Mono, then IBM Plex Mono, in both `editor_font_family` and the `--font-mono`
+token.
+
+**`.cm-content` is the constrained element, not `.cm-scroller`.** This is the
+one non-obvious decision and it is load-bearing: `.cm-gutters` and `.cm-content`
+are flex siblings inside the scroller (`@codemirror/view` 6772-6790, 6889-6895),
+so capping the scroller drags the line-number gutter inward along with the text
+and interferes with its `overflow-x: auto`. Constraining the content alone leaves
+the gutter pinned left. For the same reason the column is *not* centred —
+centring a `flex-grow: 2` child needs `justify-content` on the scroller, which
+would again move the gutter. A `max-width` plus padding achieves the effect
+without moving anything CodeMirror measures against.
+
+**A units bug was found and fixed during implementation.** The approved plan
+specified `rem` for both measures, on the stated grounds that it would scale with
+the user's font size. That reasoning was wrong: this app sets `font-size: 13px`
+on `body` (`global.css:18`), not on `html`, and nothing sets a root font size, so
+`rem` resolves against the browser's 16px default and ignores the font-size
+setting entirely — the scalability the plan claimed would not have existed. The
+editor now uses `88ch`, which for a monospace face is exactly a character count
+and tracks `editor_font_size`; the preview uses `34em` / `42em`, where `em` is
+the element's own size and `preview_font_size` is applied inline on that very
+element. Anyone revisiting these values should not "simplify" them back to `rem`.
+
+New setting `preview_reading_width: 'narrow' | 'medium' | 'wide'`
+(`store/settings.ts:61,117`), defaulting to `narrow`, surfaced in Settings ->
+Preview and applied as a modifier class following the existing `preview_paper`
+pattern. Frontend-only: the Rust `Settings` struct carries
+`#[serde(flatten)] extra` (`src/settings.rs:51-52`), which round-trips unmodelled
+keys, so no Rust change and no migration were needed.
+
+Preview vertical rhythm was reworked: page padding `24px` -> `48px`, paragraph
+spacing `0.6em` -> `0.9em`, block elements (quote, table, pre) to `1.2em`,
+heading top margin `1.2em` -> `1.8em` against a tighter `0.5em` below so a
+heading reads as belonging to the section beneath it, and h1/h2 enlarged to
+`2em`/`1.5em`. The h1 bottom border was removed — that is a GitHub-README
+convention that draws a hard horizontal edge across a narrow measure.
+`editor_line_height` default `1.55` -> `1.7` (`store/settings.ts:93`); it remains
+a user setting.
+
+Chrome was tuned for density and contrast only, no structural change: toolbar
+`40px` -> `36px` with icon buttons `28x26` -> `26x24`, status bar type `11px` ->
+`10.5px`, tab bar padding `6px` -> `4px`, and the toolbar / tab-bar / status-bar /
+preview seams moved from `--border` to the softer `--panel-soft`. `TitleBar` was
+deliberately left alone: it carries an 84px left inset for the macOS traffic
+lights and platform branching, and the risk there is not proportionate to the
+gain.
+
+Two deviations from the approved plan, both because the plan was wrong on
+contact. The status bar was *not* dimmed to `--text-dim`: that token is 0.30
+alpha, the disabled/placeholder level, while the bar carries live information
+(compile state, cursor position) that has to stay legible — this app explicitly
+honours `prefers-contrast: more`. Only its type size changed. And the editor
+column is not centred, for the gutter reason above.
+
+**Evidence and boundary:** frontend typecheck passes, 455 frontend tests across
+41 files pass, and the frontend production build succeeds — the same counts as
+`v1.0.9`, so no regression. `noUnusedLocals` is on, so the typecheck also proves
+no orphaned imports. SyncTeX was reasoned about rather than exercised:
+`synctex.ts:8-20` sends `line` plus a hardcoded column `0` and the reverse path
+sends PDF-side `page/x/y`, and a repository-wide search found no
+`coordsAtPos`/`posAtCoords` and no editor-coordinate reads outside `PdfViewer`
+and `usePaneLayout`, so horizontal padding cannot shift the logical mapping.
+CodeMirror reads only `paddingTop`/`paddingBottom` for layout math
+(`@codemirror/view:6293`). `EditorView.lineWrapping` is unconditional
+(`controller.ts:422`), which is what makes a narrow measure wrap instead of
+overflow.
+
+**Not verified — this is CSS typography and it has not been looked at.** A dev
+server was started only far enough to confirm it compiles and boots; no rendered
+window was inspected. Unverified: the actual feel of the editor column, that the
+gutter really does stay at the left edge, the three reading widths, `em`/`ch`
+scaling at `preview_font_size` 10 and 32, behaviour when the splitter is dragged
+to `MIN_PANE_PX` (220px, far below the 88ch cap), the chrome seams across the 13
+built-in themes, the `paperLight` interaction (it overrides `--panel-soft` to an
+opaque `#ececec`, so the softened preview border resolves differently there), and
+SyncTeX round-tripping in a real compile. No Rust changed, so `cargo test` was
+not re-run for this entry; it passed at 110 during the `v1.0.9` preparation.
+
+Maple Mono NF is **not installed on this machine** — both variants sit unpacked
+in `~/Downloads` — so the new mono stack was never rendered here and falls
+through to Cascadia Code. The family names were taken from the font metadata
+(`Maple Mono NF`, `Maple Mono NF CN`, with spaces), not guessed from the
+filenames, because a wrong family name fails silently to the next candidate.
+Note also that a persisted `settings.json` overrides these defaults on load
+(`{ ...defaultSettings, ...raw }`), so an existing install keeps whatever font it
+already had; the new default only reaches a fresh profile.
+
+Version is still `1.0.9` and this work is uncommitted. It belongs to a future
+`1.0.10`, not to the published `v1.0.9`, whose entry below correctly claims icons
+and documentation only.
+
 ## 0. Release preparation - 2026-08-11 (v1.0.9)
 
 Prepared `v1.0.9` to ship the vector logo and the regenerated icon set (see the

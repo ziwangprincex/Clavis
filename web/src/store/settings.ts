@@ -53,6 +53,12 @@ export interface Settings {
   problems_panel_open: boolean;
   /** Preview surface: keep it as a light paper page, or derive from the theme. */
   preview_paper: 'light' | 'match';
+  /**
+   * Reading line length for the preview surface. `narrow` (~65 characters) is
+   * the typographic optimum for prose; `medium` (~80) suits documents with wide
+   * tables or long display math; `wide` keeps the historical 880px column.
+   */
+  preview_reading_width: 'narrow' | 'medium' | 'wide';
   /** Offer commands from the bundled TeXstudio `.cwl` corpus. */
   cwl_enabled: boolean;
   /**
@@ -82,9 +88,9 @@ export const defaultSettings: Settings = {
   pdf_dark_mode: 'off',
   pdf_bg_color: '',
   editor_font_family:
-    '"Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, Menlo, monospace',
+    '"Maple Mono NF", "Maple Mono NF CN", "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", Consolas, Menlo, monospace',
   editor_font_size: 14,
-  editor_line_height: 1.55,
+  editor_line_height: 1.7,
   editor_theme: 'auto',
   editor_theme_overrides: {},
   editor_spellcheck: false,
@@ -108,6 +114,7 @@ export const defaultSettings: Settings = {
   ui_color_overrides: {},
   problems_panel_open: true,
   preview_paper: 'light',
+  preview_reading_width: 'narrow',
   cwl_enabled: true,
   cwl_show_unusual: false,
   cwl_respect_context: true,
@@ -134,12 +141,18 @@ interface SettingsStore {
  * installs land near their previous split instead of snapping back to 50/50.
  */
 export function migrateSettings(s: Settings): Settings {
+  let migrated = s;
   const legacyPx = (s as unknown as { pane_editor_width?: number }).pane_editor_width;
   if (!s.pane_editor_ratio && typeof legacyPx === 'number' && legacyPx > 120) {
     const ratio = legacyPx / 1200;
-    return { ...s, pane_editor_ratio: Math.max(0.15, Math.min(0.85, ratio)) };
+    migrated = { ...migrated, pane_editor_ratio: Math.max(0.15, Math.min(0.85, ratio)) };
   }
-  return s;
+
+  if (!['narrow', 'medium', 'wide'].includes(migrated.preview_reading_width)) {
+    migrated = { ...migrated, preview_reading_width: defaultSettings.preview_reading_width };
+  }
+
+  return migrated;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
