@@ -1,4 +1,44 @@
 # Clavis - Handoff (updated 2026-08-11)
+## 0. Release preparation - 2026-08-11 (v1.0.9)
+
+Prepared `v1.0.9` to ship the vector logo and the regenerated icon set (see the
+entry below). The three release version locations (`Cargo.toml`, the Clavis
+package in `Cargo.lock`, and `tauri.conf.json`) are aligned at `1.0.9`, and
+`python tools/check_release.py --tag v1.0.9` passes.
+
+Release content is icon and documentation only: a real vector logo source, a
+rewritten icon generator covering every bundled size including `icon.ico` /
+`icon.icns` / the Windows Store logos, and the logo added to both READMEs. No
+frontend or Rust source changed, so this release alters what the application
+looks like in the taskbar, Dock, and installer, not what it does.
+
+**Verified by running the checks individually, not by `tools/release.ps1`:**
+frontend typecheck, 455 frontend tests across 41 files, frontend production
+build, and 110 Rust tests all pass. `tools/release.ps1 1.0.9` was attempted first
+and refused at its clean-tree guard (`release.ps1:19`) because the version bump
+had already been applied by hand, so it exited before running any check. The four
+checks were therefore run directly; `tools/set_version.py` was likewise not the
+mechanism for this bump, though `check_release.py` confirms the result is
+consistent. `web/node_modules` was empty on this machine and required `npm ci`
+before the frontend checks could run at all. The pre-existing Vite
+static/dynamic `tauri.ts` chunking warning remains and is still non-fatal.
+
+**Not verified:** no Tauri bundle was built, so the new icons have still not been
+seen in an installed application — Windows taskbar, macOS Dock, and installer
+appearance remain inferred from the rasters. Building the installers is what the
+Release workflow does on tag push, so the first real look at the icons will be
+the draft release assets; check one before publishing.
+
+**Blocking question carried into this release.** The C is derived from Anthropic
+Serif Text, a proprietary Anthropic typeface (see the licensing paragraph in the
+entry below). Publishing a release distributes that derivation to users, which is
+harder to walk back than a commit on `main`. This is unresolved as of writing and
+should be settled *before* the draft release is published, not after.
+
+Next: commit this release preparation, create and push `v1.0.9`, wait for the
+shared draft GitHub Release, verify every platform asset plus `latest.json`,
+confirm the icon looks right in at least one installer, and publish the draft.
+
 ## 0. Update - 2026-08-11 (vector logo source and full icon generation)
 
 Every bundled icon was a raster upscale, so the app icon was visibly blurry at
