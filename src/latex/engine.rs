@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use super::types::{LogLine, RunStart};
 
-pub(crate) const SINGLE_RUN_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const SINGLE_RUN_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const SYNCTEX_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub(crate) fn resolve_engine(name: &str, custom: Option<&str>) -> Result<PathBuf, String> {
@@ -62,27 +62,45 @@ pub fn enriched_path() -> std::ffi::OsString {
 fn fallback_engine_dirs() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        vec![
-            PathBuf::from("/Library/TeX/texbin"),
-            PathBuf::from("/usr/local/texlive/2026/bin/universal-darwin"),
-            PathBuf::from("/usr/local/texlive/2025/bin/universal-darwin"),
-            PathBuf::from("/usr/local/texlive/2024/bin/universal-darwin"),
-            PathBuf::from("/opt/homebrew/bin"),
-            PathBuf::from("/usr/local/bin"),
-        ]
+        let mut dirs = vec![PathBuf::from("/Library/TeX/texbin")];
+        dirs.extend(discover_texlive_dirs("universal-darwin"));
+        dirs.push(PathBuf::from("/opt/homebrew/bin"));
+        dirs.push(PathBuf::from("/usr/local/bin"));
+        dirs
     }
     #[cfg(target_os = "linux")]
     {
-        vec![
-            PathBuf::from("/usr/local/texlive/2026/bin/x86_64-linux"),
-            PathBuf::from("/usr/local/texlive/2025/bin/x86_64-linux"),
-            PathBuf::from("/usr/local/bin"),
-        ]
+        let mut dirs = discover_texlive_dirs("x86_64-linux");
+        dirs.extend(discover_texlive_dirs("aarch64-linux"));
+        dirs.push(PathBuf::from("/usr/local/bin"));
+        dirs
     }
     #[cfg(target_os = "windows")]
     {
         Vec::new()
     }
+}
+
+/// Scan /usr/local/texlive for year directories and return bin/<arch> paths,
+/// sorted newest-first so the most recent TeX Live wins.
+fn discover_texlive_dirs(arch: &str) -> Vec<PathBuf> {
+    let base = Path::new("/usr/local/texlive");
+    let Ok(entries) = std::fs::read_dir(base) else { return Vec::new() };
+    let mut years: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name();
+            let s = name.to_string_lossy();
+            if s.chars().all(|c| c.is_ascii_digit()) && s.len() == 4 {
+                let bin = e.path().join("bin").join(arch);
+                if bin.is_dir() { Some(bin) } else { None }
+            } else {
+                None
+            }
+        })
+        .collect();
+    years.sort_unstable_by(|a, b| b.cmp(a));
+    years
 }
 
 pub(crate) async fn run_streaming(

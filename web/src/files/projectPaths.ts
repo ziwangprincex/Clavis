@@ -30,7 +30,8 @@ export function normalizePath(p: string | null | undefined): string {
   // across platforms; the unit tests use POSIX paths).
   const isWindows = /^[A-Za-z]:\//.test(s) || s.startsWith('//');
   if (isWindows) s = s.toLowerCase();
-  return s;
+  // macOS APFS returns NFD-normalized filenames; unify to NFC for stable comparison.
+  return s.normalize('NFC');
 }
 
 /** True if two absolute paths refer to the same file, tolerant of \\?\ / slashes. */
@@ -38,9 +39,9 @@ export function pathsEqual(a: string | null | undefined, b: string | null | unde
   return normalizePath(a) === normalizePath(b);
 }
 
-/** Normalize a path for comparison: forward slashes, strip leading "./". */
+/** Normalize a path for comparison: forward slashes, strip leading "./", NFC Unicode. */
 function normalizeRel(p: string): string {
-  return p.replace(/\\/g, '/').replace(/^\.\//, '');
+  return p.replace(/\\/g, '/').replace(/^\.\//, '').normalize('NFC');
 }
 
 /**

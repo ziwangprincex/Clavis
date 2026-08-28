@@ -51,10 +51,14 @@ pub fn export_latex_pdf(
         return Err("target_path must be absolute".to_string());
     }
     // Reject writes into the compile workdir; that dir is auto-cleaned.
-    if let Ok(canon_target_parent) = target.parent().ok_or(())
-        .and_then(|p| std::fs::canonicalize(p).map_err(|_| ()))
-    {
-        if canon_target_parent.starts_with(dir.path()) {
+    // Both sides must be canonicalized: on macOS, TempDir returns a path through
+    // /var/folders/… which is a symlink to /private/var/folders/…, so a raw
+    // starts_with check against a canonicalized target would always fail.
+    if let (Ok(canon_target_parent), Ok(canon_workdir)) = (
+        target.parent().ok_or(()).and_then(|p| std::fs::canonicalize(p).map_err(|_| ())),
+        std::fs::canonicalize(dir.path()),
+    ) {
+        if canon_target_parent.starts_with(&canon_workdir) {
             return Err("cannot export into the compile workdir".to_string());
         }
     }

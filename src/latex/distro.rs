@@ -151,7 +151,14 @@ pub async fn install_package(
         }
     };
     if !status.success() {
-        return Err(format!("installer exited with code {:?}", status.code()));
+        let code = status.code();
+        let hint = if manager == "tlmgr" && code == Some(2) {
+            " (permission denied — try running `sudo tlmgr install` in a terminal, \
+             or configure tlmgr for user-mode with `tlmgr init-usertree`)"
+        } else {
+            ""
+        };
+        return Err(format!("installer exited with code {code:?}{hint}"));
     }
     Ok(())
 }

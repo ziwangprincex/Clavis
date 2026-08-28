@@ -14,6 +14,7 @@ import { ensurePdfjs } from '../pdf/pdfjs';
 import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore } from '../store';
 import { usePdfSearch } from '../hooks/usePdfSearch';
+import { fmtShortcut } from '../platform';
 // We import a minimal subset of pdfjs's textLayer CSS — see ../pdf/textLayer.css.
 import '../pdf/textLayer.css';
 import styles from './PdfViewer.module.css';
@@ -366,7 +367,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           className={styles.btn}
           onClick={() => (findOpen ? closeFinder() : openFinder())}
           disabled={!bytes}
-          title="Find in PDF (Ctrl+F)"
+          title={`Find in PDF (${fmtShortcut('Ctrl+F')})`}
         >
           <IconSearch size={13} />
         </button>

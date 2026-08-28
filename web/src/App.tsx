@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
+import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
 import { TitleBar } from './components/TitleBar';
 import { StatusBar } from './components/StatusBar';
@@ -474,10 +475,10 @@ export function App() {
   useEffect(() => {
     const reg = useCommandsStore.getState().register;
     const offs = [
-      reg({ id: 'file.open', name: 'Open file…', shortcut: 'Ctrl+O', run: () => openFileDialog() }),
-      reg({ id: 'file.save', name: 'Save', shortcut: 'Ctrl+S', run: () => saveActiveTab() }),
-      reg({ id: 'file.saveAs', name: 'Save as…', shortcut: 'Ctrl+Shift+S', run: () => saveActiveTab({ saveAs: true }) }),
-      reg({ id: 'workspace.openFolder', name: 'Open folder…', shortcut: 'Ctrl+Shift+O', run: openFolder }),
+      reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
+      reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
+      reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
+      reg({ id: 'workspace.openFolder', name: 'Open folder…', shortcut: fmtShortcut('Ctrl+Shift+O'), run: openFolder }),
       reg({
         id: 'workspace.closeFolder',
         name: 'Close folder',
@@ -558,7 +559,7 @@ export function App() {
       reg({
         id: 'workspace.search',
         name: 'Search / Replace in Workspace',
-        shortcut: 'Ctrl+Shift+F',
+        shortcut: fmtShortcut('Ctrl+Shift+F'),
         when: () => workspaceFolder !== null,
         run: () => setWorkspaceSearchOpen(true),
       }),
@@ -568,7 +569,7 @@ export function App() {
         when: () => useProjectStore.getState().workspace !== null,
         run: () => setDoctorOpen(true),
       }),
-      reg({ id: 'app.settings', name: 'Open settings', run: () => setSettingsOpen(true) }),
+      reg({ id: 'app.settings', name: 'Open settings', shortcut: isMac ? '⌘,' : undefined, run: () => setSettingsOpen(true) }),
       reg({ id: 'app.checkUpdates', name: 'Check for Updates…', run: () => checkForUpdates({ silent: false }) }),
       reg({
         id: 'table.convert',
@@ -619,14 +620,14 @@ export function App() {
       reg({
         id: 'latex.compile',
         name: 'Compile (LaTeX)',
-        shortcut: 'Ctrl+B',
+        shortcut: fmtShortcut('Ctrl+B'),
         when: () => lang === 'latex',
         run: () => compileNow(),
       }),
       reg({
         id: 'latex.synctexForward',
         name: 'SyncTeX: jump to PDF',
-        shortcut: 'Ctrl+Alt+J',
+        shortcut: fmtShortcut('Ctrl+Alt+J'),
         when: () => lang === 'latex',
         run: async () => {
           const line = editorApiRef.current?.cursorLine() ?? 1;
@@ -636,14 +637,14 @@ export function App() {
       reg({
         id: 'latex.exportPdf',
         name: 'Export PDF',
-        shortcut: 'Ctrl+Shift+E',
+        shortcut: fmtShortcut('Ctrl+Shift+E'),
         when: () => lang === 'latex',
         run: exportLatexPdf,
       }),
       reg({
         id: 'typst.exportPdf',
         name: 'Export PDF (Typst)',
-        shortcut: 'Ctrl+Shift+E',
+        shortcut: fmtShortcut('Ctrl+Shift+E'),
         when: () => lang === 'typst',
         run: exportTypstPdf,
       }),
@@ -683,13 +684,16 @@ export function App() {
       } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'b' && lang === 'latex') {
         e.preventDefault();
         void compileNow();
-      } else if (mod && e.altKey && e.key.toLowerCase() === 'j' && lang === 'latex') {
+      } else if (mod && e.altKey && e.code === 'KeyJ' && lang === 'latex') {
         e.preventDefault();
         void syncTexForwardFromEditor(editorApiRef.current?.cursorLine() ?? 1);
       } else if (mod && e.shiftKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         if (lang === 'latex') void exportLatexPdf();
         else if (lang === 'typst') void exportTypstPdf();
+      } else if (isMac && e.metaKey && !e.shiftKey && !e.altKey && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
       }
     }
     window.addEventListener('keydown', onKey);

@@ -1,4 +1,50 @@
-# Clavis - Handoff (updated 2026-08-11)
+# Clavis - Handoff (updated 2026-08-28)
+## 0. Release preparation - 2026-08-28 (v1.1.1)
+
+macOS-native correctness audit and fixes on arm64 macOS 26.6 with MacTeX 2026.
+
+**Bug fixes:**
+
+- `export_latex_pdf` path canonicalization: the workdir sandbox check compared a
+  canonicalized target against a raw `TempDir` path. On macOS, `/var/folders/…`
+  is a symlink to `/private/var/folders/…`, so the `starts_with` guard was always
+  false. Both sides are now canonicalized. (`src/latex/workdir.rs`)
+- Command Palette shortcut hints hardcoded `"Ctrl+X"` on all platforms. Added
+  `web/src/platform.ts` with `fmtShortcut()` that converts to ⌘/⌥/⇧ on macOS.
+  Applied to all palette registrations and the PDF viewer tooltip.
+- `Cmd+,` (macOS Preferences convention) now opens Settings.
+- SyncTeX forward shortcut (`Cmd+Option+J`) used `e.key` which fails on macOS
+  international keyboards where Option+J produces a dead key. Changed to
+  `e.code === 'KeyJ'`.
+
+**Optimizations:**
+
+- TeX Live fallback directories: replaced hardcoded 2024/2025/2026 year list
+  with dynamic `read_dir("/usr/local/texlive")` scanning, sorted newest-first.
+  Linux now includes `aarch64-linux` alongside `x86_64-linux`.
+  (`src/latex/engine.rs`)
+- `SINGLE_RUN_TIMEOUT` increased from 60s to 120s to accommodate first-run
+  XeLaTeX/LuaLaTeX font cache generation on MacTeX.
+- `tlmgr install` permission-denied error (exit code 2) now suggests
+  `sudo tlmgr install` or `tlmgr init-usertree`. (`src/latex/distro.rs`)
+- Unicode NFC normalization: macOS APFS returns NFD-normalized filenames while
+  TeX `\input{...}` paths are NFC. `rel_from()` in `src/latex/project.rs` now
+  normalizes path components to NFC via `unicode-normalization` crate.
+  Frontend `normalizePath()` and `normalizeRel()` apply `.normalize('NFC')`.
+
+**Editor:**
+
+- Removed `foldGutter` (LaTeX uses `StreamLanguage` which cannot provide fold
+  ranges, so the gutter was an empty gap). Content left padding reduced from
+  32px to 4px. (`web/src/editor/controller.ts`)
+
+**Verified on macOS 26.6 arm64:** 111 Rust tests, 456 frontend tests, frontend
+typecheck, and production build all pass. MacTeX 2026 xelatex cold-start
+compiles in <1s on this machine.
+
+The three release version locations (`Cargo.toml`, `Cargo.lock`,
+`tauri.conf.json`) are aligned at `1.1.1`.
+
 ## 0. Release preparation - 2026-08-11 (v1.1.0)
 
 Prepared `v1.1.0` for the writing-surface typography update and its follow-up

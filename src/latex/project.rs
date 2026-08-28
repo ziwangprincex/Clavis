@@ -8,6 +8,7 @@
 use base64::Engine as _;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use unicode_normalization::UnicodeNormalization;
 
 pub(crate) const MAX_PROJECT_FILES: usize = 200;
 pub(crate) const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
@@ -123,7 +124,9 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
 
     fn rel_from(base: &Path, full: &Path) -> Option<String> {
         full.strip_prefix(base).ok()
-            .map(|p| p.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"))
+            .map(|p| p.components()
+                .map(|c| c.as_os_str().to_string_lossy().nfc().collect::<String>())
+                .collect::<Vec<_>>().join("/"))
     }
 
     fn binary_ext(ext: &str) -> bool {

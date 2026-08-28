@@ -2,7 +2,7 @@
 
 [package]
 name = "clavis"
-version = "1.1.0"
+version = "1.1.1"
 description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
 edition = "2021"
 rust-version = "1.92"
@@ -36,6 +36,7 @@ memmap2 = "0.9.10"
 rusqlite = { version = "0.32", features = ["bundled"] }
 ttf-parser = "0.25.1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_Controls"] }

@@ -16,7 +16,6 @@ import {
 } from '@codemirror/view';
 import { history } from '@codemirror/commands';
 import {
-  foldGutter,
   indentOnInput,
   bracketMatching,
   StreamLanguage,
@@ -348,7 +347,8 @@ function buildFontExt(font: FontSpec) {
     // moving anything CodeMirror measures against.
     '.cm-content': {
       maxWidth: '88ch',
-      paddingInline: '32px',
+      paddingInlineStart: '4px',
+      paddingInlineEnd: '32px',
       paddingBlock: '24px',
     },
   });
@@ -416,7 +416,6 @@ export class EditorController {
       highlightActiveLineGutter(),
       drawSelection(),
       history(),
-      foldGutter(),
       indentOnInput(),
       bracketMatching(),
       closeBrackets(),
