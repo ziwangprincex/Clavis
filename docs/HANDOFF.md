@@ -1,5 +1,22 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. v1.2.0 publication blocked on authentication - 2026-09-08
+
+Release commit **aa38d78** and annotated tag **v1.2.0** exist locally. No remote
+ref changed: origin/main remains 9a9e9a2, the remote v1.2.0 tag is absent, and the
+public latest release is still v1.1.1. No release workflow or draft was created.
+
+Default HTTPS Git credentials failed. A per-command GitHub CLI credential helper
+reached GitHub, but its OAuth token lacks **workflow** scope, so GitHub rejected
+both refs atomically because this release updates .github/workflows. Existing
+SSH authentication also failed; no keys, secrets or global Git settings changed.
+
+Resume after the owner completes `gh auth refresh -h github.com -s workflow`.
+Push main plus the EXISTING v1.2.0 tag atomically using the GitHub CLI credential
+helper, then monitor CI/builds, verify assets/signatures, publish, and verify
+Homebrew/latest.json. Do not create a second tag or move the existing release tag.
+Five one-off local diagnostic/update scripts remain untracked intentionally.
+
 ## 0. Authorized v1.2.0 release - 2026-09-08
 
 The owner explicitly requested publication. This supersedes the local-only
