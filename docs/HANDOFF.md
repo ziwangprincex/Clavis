@@ -1,5 +1,29 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. Authorized v1.3.2 formal update - 2026-09-08
+
+The owner explicitly clarified that this delivery must update the formal installers and allow their MacBook Air to upgrade, not merely push main. This authorizes the patch release commit/new v1.3.2 tag, CI draft/publication and Homebrew update. Latest published is v1.3.1; remote main matches d473157. Existing tags and old installer bytes remain unchanged.
+
+Include ordinary Write-mode 12px inline spacing, compact update notes and explicit install/later labels, all associated regressions and the short-notes release policy. Split, Read and opt-in Focus remain unchanged. Align Cargo.toml, Cargo.lock and tauri.conf.json to 1.3.2; preserve the enabled production updater and deployed public key. User-facing notes are limited to three short bullets in docs/releases/v1.3.2.md and in the actual latest.json. The earlier local v1.3.1 app-only ZIP has its updater disabled: anyone running that trial needs one manual install of the formal DMG before future in-app upgrades.
+
+Fresh versioned validation completed: 658 frontend tests, 142 Rust tests (three existing optional ignored), ten Python guard tests, typecheck/production build, Rust all-target check, metadata/HANDOFF and whitespace checks. Evidence: target/release-1.3.2/local-checks.log (pre-bump checks also passed). The local native candidate build for these fixes is recorded below; formal 1.3.2 installers will be built by tag CI. Remote release verification is pending; do not claim publication or native Air acceptance yet. No Apple credentials/notarization, key rotation, user-app installation, Gongfeng/MCP or Chrome. Leave the five pre-existing one-off tools and all target artifacts local.
+
+Before publication require exact-tag CI and every platform build, all 11 assets and complete six-entry manifest, cryptographic updater verification and macOS package version/CWL checks. Correct generated notes and pin URLs to v1.3.2 if needed, preserving package bytes/signatures. After publishing verify the public latest endpoint and Homebrew DMG checksum, then record the outcome here.
+
+## 0. Write-only spacing / requested local app - 2026-09-08
+
+The owner narrowed the recurring sidebar/editor gap to Write mode and requested an app. Ordinary Write now overrides CM scroller inline padding to a fixed 12px via the existing data-layout=editor state, explicitly excluding focusMode. The Marker centering rules stay intact for Split and opt-in Focus; Read and vertical spacing are unchanged. A stylesheet regression requires exactly this mode-scoped override rather than merely checking that centering formulas exist.
+
+Local app build succeeded: **658 frontend tests, 142 Rust tests (three existing optional ignored), ten Python guard tests**, typecheck/production build, release metadata and HANDOFF checks pass. App codesign verification, ZIP integrity and exact pre/post Cargo input checksums pass. Build log: target/local-builds/write-gap/build.log. Download: target/local-builds/Clavis-1.3.1-Write-Fix-macOS-arm64.zip (26 MiB, arm64, ad-hoc signed and not Apple-notarized). Native MacBook Air visual acceptance remains unverified.
+
+Includes the compact-prompt source changes already present in the workspace. Version remains 1.3.1: this is a hand-delivered candidate, not a new release. The standard app-only build disables the updater only in the candidate bundle; no installation, signing credentials, commit, push, tag or public manifest changes. The five pre-existing untracked one-off tools remain untouched.
+
+## 0. Compact update prompt (local only) - 2026-09-08
+
+The owner reported long release notes pushing the native update-confirmation buttons off the MacBook Air screen and requested short notes going forward. The updater previously passed the entire manifest body to a non-scrolling native alert. It now displays at most three 60-code-point highlights (or one short plain-text summary), with explicit Install & Relaunch / Later labels; consent, signature verification, install and relaunch flow are unchanged. The local v1.3.1 notes are reduced to three bullets. RELEASING now limits user-facing notes to three short bullets / 240 characters; technical detail stays here.
+
+Typecheck and all **657 frontend tests** pass, including 12 new summary/confirmation regressions. This is not native Air visual acceptance. No app build/install, version change, commit, push or public release/manifest edit. The published v1.3.1 notes remain long: old installs need an explicitly authorized notes-only latest.json correction (preserving version/URLs/signatures/packages) or manual installation to bypass the existing alert. Editing local notes or only the GitHub release body cannot change their prompt. Leave the five existing untracked one-off tools untouched.
+
 ## 0. v1.3.1 published and distribution verified - 2026-09-08
 
 **Published successfully** at 2026-09-08 14:46:12 UTC (22:46:12 UTC+8): https://github.com/ziwangprincex/Clavis/releases/tag/v1.3.1 . Release commit/tag target is **bc4e088**. Main CI 34237649679, Release 34237650223 (including exact-tag CI and all three platform builds), and Homebrew update 34240405977 all succeeded. Existing v1.3.0 remains unchanged on its failed commit.

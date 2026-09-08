@@ -46,6 +46,17 @@ describe('editorial writing surfaces', () => {
     expect(read('../App.module.css')).not.toContain('--editor-inline-padding');
   });
 
+  it('keeps ordinary Write insets fixed without changing Split, Read or Focus', () => {
+    const overrides: Rule[] = [];
+    postcss.parse(read('../App.module.css')).walkRules(rule => {
+      if (rule.selector.includes(':global(.cm-scroller)')) overrides.push(rule);
+    });
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0].selector).toBe(".app[data-layout='editor']:not(.focusMode) .editorPane :global(.cm-scroller)");
+    expect(overrides[0].parent?.type).toBe('root');
+    expect(declarations(overrides[0])).toEqual({ 'padding-inline': '12px' });
+  });
+
   it('keeps reading widths ordered and proportional to the selected font size', () => {
     const rules = new Map<string, Record<string, string>>();
     sheet('PreviewPane').walkRules(rule => {

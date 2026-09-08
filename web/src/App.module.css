@@ -3,6 +3,8 @@
 .workArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .editorRow { flex: 1; display: flex; min-height: 0; }
 .editorPane { flex: 1.12; min-width: 0; display: flex; flex-direction: column; }
+/* Only ordinary Write mode is compact; preserve Split and opt-in Focus spacing. */
+.app[data-layout='editor']:not(.focusMode) .editorPane :global(.cm-scroller) { padding-inline: 12px; }
 .previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .hiddenPane { display: none; }
 .tabStrip { flex: none; min-width: 0; }

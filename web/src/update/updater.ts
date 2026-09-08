@@ -21,6 +21,19 @@ import {
 
 let inFlight = false;
 
+/** Native alerts do not scroll: keep remote notes to three short lines. */
+export function summarizeUpdateNotes(body = ''): string {
+  const lines = body.split(/\r?\n/).map(line => line.trim())
+    .filter(line => line && !/^#{1,6}\s/.test(line));
+  const bullets = lines.filter(line => /^[-*+]\s/.test(line));
+  const summary = bullets.length ? bullets.slice(0, 3) : [lines.join(' ')];
+  return summary.map(line => {
+    const text = line.replace(/^[-*+]\s+/, '').replace(/\s+/g, ' ').trim();
+    const chars = Array.from(text);
+    return chars.length > 60 ? `${chars.slice(0, 59).join('')}…` : text;
+  }).filter(Boolean).join('\n');
+}
+
 export async function checkForUpdates({ silent }: { silent: boolean }): Promise<void> {
   if (!hasTauri()) {
     if (!silent) {
@@ -47,10 +60,10 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
     }
 
     const m = status.manifest;
-    const notes = m.body ? `\n\n${m.body}` : '';
+    const summary = summarizeUpdateNotes(m.body);
     const consented = await dialogConfirm(
-      `Clavis ${m.version} is available. Install and relaunch now?${notes}`,
-      { title: 'Update available' },
+      `Clavis ${m.version} is available.${summary ? `\n\n${summary}` : ''}\n\nInstall and relaunch now?`,
+      { title: 'Update available', okLabel: 'Install & Relaunch', cancelLabel: 'Later' },
     );
     if (!consented) return;
 

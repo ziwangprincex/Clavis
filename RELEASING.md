@@ -9,25 +9,28 @@ per release.
 
 ## Current release preparation (2026-09-08)
 
-The owner explicitly approved **1.3.1** after confirming that v1.3.0 failed its
-release CI before creating a draft or installers. Keep the existing v1.3.0 tag
-unchanged; retrying it would not include the repair. The repaired main commit
-cad40f6 passed GitHub CI 34235294211. The latest published release before this
-preparation is **v1.2.0**.
+The owner explicitly requested a **formal installer and in-app update** for their
+MacBook Air, not just a main push. Prepare **1.3.2** from published v1.3.1 with the
+ordinary Write-mode spacing fix and compact update confirmation. Split, Read and
+opt-in Focus spacing stay unchanged. Notes live in
+[v1.3.2.md](docs/releases/v1.3.2.md); keep them short in the actual updater manifest
+so already-installed clients also retain accessible confirmation buttons.
 
-This release includes the full unpublished writer/typesetting features, preview
-and save-safety fixes, refined writing surfaces and Unix process-group
-cancellation repair. Notes live in [v1.3.1.md](docs/releases/v1.3.1.md). Native
-acceptance and an actual in-app upgrade remain unverified, not implicitly marked
-passed by this approval.
+Authorization covers this release commit, new v1.3.2 tag, GitHub draft/publication
+and Homebrew distribution update. Do not move existing tags, replace old packages,
+rotate updater keys or disable the production updater. Local app-only trial ZIPs
+have the updater disabled and require a one-time manual install of the formal DMG.
+Native Air visual acceptance and actual installed-app upgrading remain unverified.
 
-Authorization covers the release commit, new v1.3.1 tag, GitHub draft/publication
-and Homebrew distribution update for this version. Future local work still does
-not imply permission to publish. Do not reuse or move an existing release tag.
 The draft must have successful CI, all three platform installers and signed
-updater packages with a complete manifest before publication. Each future tag
-must include its reviewed `docs/releases/<tag>.md` for the draft body. Record the
-actual publication and distribution results in HANDOFF after verification.
+updater packages with a complete manifest before publication. Validate every
+package signature against the deployed public key. The existing workflow can
+produce empty notes and mutable latest-download URLs: before publishing, copy the
+reviewed notes into latest.json and pin its package URLs to this exact tag,
+preserving all signatures and platform entries. Reverify after uploading only the
+corrected manifest. Each future tag must include its reviewed
+`docs/releases/<tag>.md`; record publication, public latest.json and Homebrew
+verification in HANDOFF. Future local work does not imply permission to publish.
 
 Local preparation (no commit required):
 
@@ -132,8 +135,17 @@ A normal push to `main` only runs CI; it does not create or update a Release.
 
 - Installed apps run a silent check at startup and expose "Check for Updates…"
   in the command palette (Ctrl/Cmd+Shift+P).
-- When a newer version is found, the app shows the version + release notes and,
+- When a newer version is found, the app shows the version + a short summary and,
   on confirm, downloads → verifies signature → installs → relaunches.
+- Keep `docs/releases/<tag>.md`, the GitHub release body and `latest.json` notes
+  to a version heading and at most three short user-facing bullets (240 characters
+  total). Put test counts, CI details and technical handoff material in HANDOFF,
+  not the update prompt. Mention any critical migration warning within this budget.
+- Older installed apps show the entire manifest notes in a non-scrolling native
+  alert. Always check the actual `latest.json` notes before publication; shortening
+  only the GitHub release page or local notes does not fix their update prompt.
+  Updating already-published notes needs explicit remote authorization; preserve
+  all versions, package URLs, signatures and installer bytes.
 
 ## Notes / limitations
 

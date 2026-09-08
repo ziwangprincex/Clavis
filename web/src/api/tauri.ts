@@ -154,7 +154,7 @@ export function dialogSave(opts?: SaveDialogOptions): Promise<string | null> {
 }
 
 /** Native yes/no confirmation dialog. Returns true if the user confirmed. */
-export function dialogConfirm(message: string, opts?: { title?: string }): Promise<boolean> {
+export function dialogConfirm(message: string, opts?: { title?: string; okLabel?: string; cancelLabel?: string }): Promise<boolean> {
   return tauri().dialog.confirm(message, opts);
 }
 
