@@ -1,5 +1,15 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. v1.3.1 published and distribution verified - 2026-09-08
+
+**Published successfully** at 2026-09-08 14:46:12 UTC (22:46:12 UTC+8): https://github.com/ziwangprincex/Clavis/releases/tag/v1.3.1 . Release commit/tag target is **bc4e088**. Main CI 34237649679, Release 34237650223 (including exact-tag CI and all three platform builds), and Homebrew update 34240405977 all succeeded. Existing v1.3.0 remains unchanged on its failed commit.
+
+Downloaded and SHA256-checked all **11 assets**; verified the three updater archives cryptographically against the unchanged public key deployed in v1.2.0. The macOS archive reports 1.3.1 and includes the CWL corpus; Windows ZIP integrity and Linux updater archive content pass. The manifest has all three canonical platform entries plus their app/nsis/appimage aliases. Public latest.json matches the verified manifest. Homebrew Casks/clavis.rb is 1.3.1 with the exact downloaded DMG checksum. Evidence and reproducible checks: target/release-1.3.1/verification.json, publication.json, asset-verification.log, verify-assets.py and verify-public.py. These artifacts remain local.
+
+Publication review caught tauri-action generating empty manifest notes and mutable /releases/latest/download/ package URLs when invoked with releaseId alone. Before publication, backed up the generated manifest, filled its notes from docs/releases/v1.3.1.md, and pinned every package URL to /releases/download/v1.3.1/. Preserved all package bytes, signatures and six platform entries. Uploaded only the corrected latest.json to the draft, then revalidated asset hashes and signatures. Future releases must repeat this review or add a tested workflow finalization step; do not claim the current workflow automatically does it. Draft metadata was retrieved by release ID because the tag endpoint returned 404 before publication.
+
+This follow-up is a HANDOFF-only main commit, not a retag or another release. Normal main CI still runs by policy. No user app was installed, no OS-signing credentials or updater keys changed, and no manual native GUI or installed-app upgrade acceptance is claimed. The five old one-off tools remain untracked and excluded.
+
 ## 0. Authorized v1.3.1 recovery release - 2026-09-08
 
 The owner approved a fresh **1.3.1** release after confirming v1.3.0 never produced installers. Authorization includes this release commit/tag, GitHub draft/publication, signature verification and Homebrew distribution. Keep v1.3.0 unchanged. Remote main matches cad40f6 and its CI 34235294211 passed; latest published remains v1.2.0 before this operation.
