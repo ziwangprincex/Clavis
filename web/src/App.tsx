@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
+import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
+import { WriterDialog, type WriterTool } from './components/WriterDialog';
 import { TitleBar } from './components/TitleBar';
 import { StatusBar } from './components/StatusBar';
 import { CommandPalette } from './components/CommandPalette';
@@ -27,7 +28,9 @@ import { SubmissionCheckDialog } from './components/SubmissionCheckDialog';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
-import { runLatexCompile } from './compile/latex';
+import { runLatexCompile, stopLatexCompile } from './compile/latex';
+import { documentRoot, inside, latexOptions, typstInput } from './compile/project';
+import { useTypstPreviewStore } from './store/typstPreview';
 import { belongsToPdf } from './compile/target';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
@@ -36,6 +39,10 @@ import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
+import { useLatexAutoCompile } from "./hooks/useLatexAutoCompile";
+import { useDocumentSync } from './hooks/useDocumentSync';
+import { SaveConflictNotice } from './components/SaveConflictNotice';
+import { checkExternalDocuments } from './files/documentSync';
 import { useFileDrop } from './hooks/useFileDrop';
 import { usePaneLayout } from './hooks/usePaneLayout';
 import { ipc } from './api/tauri';
@@ -82,6 +89,7 @@ export function App() {
   const layout = focusMode ? 'editor' : settings.editor_layout;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [writerTool, setWriterTool] = useState<WriterTool | null>(null);
   const [doctorOpen, setDoctorOpen] = useState(false);
   const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
   const [renameReferenceOpen, setRenameReferenceOpen] = useState(false);
@@ -93,7 +101,6 @@ export function App() {
   const setStatus = useStatusStore(s => s.set);
 
   const editorApiRef = useRef<EditorPaneRef | null>(null);
-  const autoCompileTimerRef = useRef<number | null>(null);
   const workspaceOpenSeqRef = useRef(0);
   const pendingRenderRef = useRef<RenderContext | null>(null);
 
@@ -162,6 +169,7 @@ export function App() {
   // Persist session (debounced) on tab changes + flush on unload; manage the
   // opt-in disk-autosave interval.
   useSessionPersistence(settings.autosave_enabled);
+  useDocumentSync();
 
   function refreshReferences(root = workspaceFolder) {
     if (!root || !hasTauri()) return;
@@ -275,37 +283,18 @@ export function App() {
     useTabsStore.getState().patchTab(activeTab.id, { lang: next });
   }
 
+  function jumpToPreview() {
+    const line = editorApiRef.current?.cursorLine() ?? 1;
+    if (lang === 'typst') useTypstPreviewStore.getState().requestJump(activeTab?.filePath ?? null, line);
+    else void syncTexForwardFromEditor(line);
+  }
+
   async function compileNow() {
     if (!hasTauri()) return;
     await runLatexCompile();
   }
 
-  // Auto-compile: re-run when active LaTeX tab content changes (debounced).
-  // Skips the very first effect run so we don't compile right after the seed
-  // tabs are inserted at boot — only edits / tab switches should trigger.
-  const autoCompileSkipFirstRef = useRef(true);
-  useEffect(() => {
-    if (lang !== 'latex') return;
-    if (!activeTab) return;
-    const skipInitial = autoCompileSkipFirstRef.current;
-    autoCompileSkipFirstRef.current = false;
-    // Observe the initial document even when hidden so the first reveal
-    // compiles its newest contents instead of consuming the startup skip.
-    if (!autoCompile || layout === 'editor' || skipInitial) return;
-    if (autoCompileTimerRef.current) {
-      clearTimeout(autoCompileTimerRef.current);
-    }
-    autoCompileTimerRef.current = window.setTimeout(() => {
-      void compileNow();
-    }, 300);
-    return () => {
-      if (autoCompileTimerRef.current) {
-        clearTimeout(autoCompileTimerRef.current);
-        autoCompileTimerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCompile, lang, activeTab?.content, activeTab?.id, layout]);
+  useLatexAutoCompile(activeTab, autoCompile && layout !== 'editor');
 
   useEffect(() => {
     const timer = window.setTimeout(() => refreshWriting(), 700);
@@ -358,13 +347,14 @@ export function App() {
     if (!tab || tab.lang !== 'typst') return;
     try {
       setStatus('Compiling PDF…', 'info');
-      const r = await ipc.compileTypstPdf(tab.content, tab.filePath);
+      const input = await typstInput(tab);
+      const r = await ipc.compileTypstPdf(input.source, input.docPath, input.snapshot);
       if (!r.ok || !r.pdfBase64) {
         setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed', 'error');
         return;
       }
       const target = await dialogSave({
-        defaultPath: tab.filePath ? tab.filePath.replace(/\.typ$/i, '.pdf') : undefined,
+        defaultPath: input.docPath ? input.docPath.replace(/\.typ$/i, '.pdf') : undefined,
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (typeof target === 'string') {
@@ -383,7 +373,11 @@ export function App() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
     if (!tab?.filePath) return;
     try {
-      const r = await ipc.collectProjectFiles(tab.filePath);
+      const r = tab.lang === 'latex' ? await ipc.collectProjectFiles(tab.filePath) : { files: [], warnings: [] };
+      const directory = tab.filePath.replace(/[\\/][^\\/]*$/, '');
+      for (const other of useTabsStore.getState().tabs) {
+        if (other.lang === tab.lang && inside(other.filePath, directory)) useTabsStore.getState().patchTab(other.id, { projectRoot: tab.filePath });
+      }
       useProjectStore.setState({
         rootAbs: tab.filePath,
         rootBasename: tab.filePath.split(/[\\/]/).pop() ?? null,
@@ -649,10 +643,15 @@ export function App() {
         when: () => lang === 'typst',
         run: exportTypstPdf,
       }),
+      reg({ id: 'typeset.jump', name: 'Typst: jump to preview', when: () => lang === 'typst', run: jumpToPreview }),
+      reg({ id: 'latex.quick', name: 'LaTeX: quick preview (one pass)', when: () => lang === 'latex', run: () => runLatexCompile('quick').then(() => {}) }),
+      reg({ id: 'latex.clean', name: 'LaTeX: clean rebuild', when: () => lang === 'latex', run: () => runLatexCompile('clean').then(() => {}) }),
+      reg({ id: 'latex.full', name: 'LaTeX: full build with latexmk', when: () => lang === 'latex', run: () => runLatexCompile('full').then(() => {}) }),
+      reg({ id: 'latex.stop', name: 'LaTeX: stop compilation', when: () => lang === 'latex', run: stopLatexCompile }),
       reg({
         id: 'latex.setMain',
         name: 'Set current file as project main',
-        when: () => lang === 'latex' && !!useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath,
+        when: () => lang !== 'markdown' && !!useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath,
         run: setProjectMain,
       }),
     ];
@@ -728,12 +727,16 @@ export function App() {
         onToggleSidebar={() => { setFocusMode(false); void patchAndSave({ sidebar_visible: focusMode || !settings.sidebar_visible }); }}
         lang={lang}
         onLangChange={setLang}
-        latexEngine={settings.latex_engine}
-        onLatexEngineChange={engine => patchAndSave({ latex_engine: engine })}
+        latexEngine={(() => { try { return activeTab ? latexOptions(activeTab, tabs.find(t => t.filePath === documentRoot(activeTab))?.content ?? activeTab.content).engine : settings.latex_engine; } catch { return settings.latex_engine; } })()}
+        onLatexEngineChange={engine => { if (activeTab) { const owner = tabs.find(t => t.filePath === documentRoot(activeTab)) ?? activeTab; useTabsStore.getState().patchTab(owner.id, { latexEngineOverride: engine }); } }}
         autoCompile={autoCompile}
         onAutoCompileChange={setAutoCompile}
         onCompile={compileNow}
-        onSynctexForward={() => syncTexForwardFromEditor(editorApiRef.current?.cursorLine() ?? 1)}
+        onStopCompile={() => void stopLatexCompile()}
+        onQuickCompile={() => void runLatexCompile('quick')}
+        onCleanCompile={() => void runLatexCompile('clean')}
+        onFullCompile={() => void runLatexCompile('full')}
+        onSynctexForward={jumpToPreview}
         onSetMain={setProjectMain}
         onExportLatexPdf={exportLatexPdf}
         onExportTypstPdf={exportTypstPdf}
@@ -742,6 +745,9 @@ export function App() {
         onSave={() => saveActiveTab()}
         onToggleRecent={() => setRecentOpen(o => !o)}
         onToggleSymbols={() => setSymbolsOpen(o => !o)}
+        onWriterTool={setWriterTool}
+        inlineMath={settings.editor_inline_math}
+        onInlineMathChange={value => void patchAndSave({ editor_inline_math: value })}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenCommandPalette={() => setPaletteOpen(true)}
       />
@@ -894,7 +900,7 @@ export function App() {
                       }
                     />
                   ) : (
-                    <PreviewPane visible={layout !== 'editor'} />
+                    <PreviewPane onEnvironment={() => setWriterTool('environment')} visible={layout !== 'editor'} onNavigate={(path, line) => void openFileAndScrollToLine(path, line, l => editorApiRef.current?.scrollToLine(l))} />
                   )}
                 </ErrorBoundary>
               </Suspense>
@@ -916,6 +922,9 @@ export function App() {
                   <TaskPanel />
                 ) : (
                   <LogPanel
+                    onEnvironment={() => setWriterTool('environment')}
+                    onSettings={() => setSettingsOpen(true)}
+                    onFullBuild={() => void runLatexCompile('full')}
                     onJumpTo={(file, line) => {
                       const project = useProjectStore.getState();
                       const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
@@ -940,12 +949,14 @@ export function App() {
       />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {writerTool && <WriterDialog tool={writerTool} onClose={() => setWriterTool(null)} />}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ProjectDoctorDialog
         open={doctorOpen}
         workspace={workspaceInspection}
         onClose={() => setDoctorOpen(false)}
       />
+      <SaveConflictNotice />
       <WorkspaceSearchDialog
         open={workspaceSearchOpen}
         root={workspaceFolder}
@@ -955,15 +966,7 @@ export function App() {
         }
         dirtyPaths={tabs.filter(tab => tab.isDirty && tab.filePath).map(tab => tab.filePath!)}
         onFilesChanged={paths => {
-          const tabs = useTabsStore.getState();
-          for (const path of paths) {
-            const open = tabs.tabs.find(tab => pathsEqual(tab.filePath, path));
-            if (open && !open.isDirty) {
-              void fs.readTextFile(path).then(content =>
-                useTabsStore.getState().patchTab(open.id, { content, isDirty: false }),
-              );
-            }
-          }
+          if (paths.length) void checkExternalDocuments(true).catch(() => {});
           setFolderRefreshKey(key => key + 1);
         }}
       />
@@ -975,13 +978,7 @@ export function App() {
         onClose={() => setRenameReferenceOpen(false)}
         onApplied={paths => {
           void (async () => {
-            for (const path of paths) {
-              const open = useTabsStore.getState().tabs.find(tab => pathsEqual(tab.filePath, path));
-              if (open && !open.isDirty) {
-                const content = await fs.readTextFile(path);
-                useTabsStore.getState().patchTab(open.id, { content, isDirty: false });
-              }
-            }
+            if (paths.length) await checkExternalDocuments(true).catch(() => {});
             refreshReferences();
           })();
         }}

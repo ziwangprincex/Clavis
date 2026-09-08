@@ -24,7 +24,7 @@
   max-height: 86vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-elevated);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -87,7 +87,7 @@
   gap: 2px;
   padding: 12px 8px;
   border-right: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--panel-solid);
   overflow-y: auto;
 }
 
@@ -258,11 +258,12 @@
 
 .primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .primary:hover {
   background: var(--accent-hover);
+  color: var(--on-accent-hover);
 }
 
 .secondary {

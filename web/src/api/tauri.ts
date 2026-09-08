@@ -171,7 +171,27 @@ export function dialogMessage(message: string, opts?: { title?: string }): Promi
 // capability 鈥?all reads/writes are auditable Rust commands. Paths still
 // originate from user-driven open/save dialogs.
 
+export interface DiskSnapshot {
+  content: string | null;
+  revision: string;
+  stamp: string;
+}
+export type DocumentSaveResult = { status: 'saved'; revision: string; stamp: string; history_warning?: string | null }
+  | { status: 'conflict'; disk: DiskSnapshot };
+export interface DocumentProbe { path: string; stamp: string | null; error: string | null }
+
+export interface LocalVersion { id: string; timestamp: number; bytes: number }
+export const history = {
+  list: (path: string) => invoke<LocalVersion[]>('list_document_versions', { path }),
+  read: (path: string, id: string) => invoke<string>('read_document_version', { path, id }),
+  checkpoint: (path: string, content: string) => invoke<void>('checkpoint_document', { path, content }),
+};
+export const createTemplate = (parent: string, name: string, template: string) => invoke<string>('create_template', { parent, name, template });
 export const fs = {
+  readDocument: (path: string) => invoke<DiskSnapshot>('read_document', { path }),
+  probeDocuments: (paths: string[]) => invoke<DocumentProbe[]>('probe_documents', { paths }),
+  saveDocument: (path: string, contents: string, expectedRevision: string) =>
+    invoke<DocumentSaveResult>('save_document', { path, contents, expectedRevision }),
   readTextFile: (path: string) => invoke<string>('read_text_file', { path }),
   writeTextFile: (path: string, contents: string) =>
     invoke<void>('write_text_file', { path, contents }),
@@ -191,6 +211,11 @@ export interface ProjectFile {
 
 export interface CompileOptions {
   source: string;
+  sourceIdentity?: string | null;
+  cacheToken?: string | null;
+  requestId?: string;
+  fullBuild?: boolean;
+  workspaceRoot?: string | null;
   engine: string;
   customPath?: string;
   bibEngine?: 'auto' | 'bibtex' | 'biber' | 'none';
@@ -657,6 +682,17 @@ export interface AppSettings {
   [k: string]: unknown;
 }
 
+export interface TypstDiagnostic {
+  file: string | null; line: number | null; column: number | null;
+  endLine: number | null; endColumn: number | null;
+  severity: 'error' | 'warning'; message: string; hints: string[];
+}
+export interface TypstPoint { file: string | null; line: number; column: number; x: number; y: number }
+export interface TypstTextRun { text: string; width: number; size: number; matrix: number[] }
+export interface TypstPage { svg: string; svgHash: string; width: number; height: number; points: TypstPoint[]; text: TypstTextRun[]; links: { x: number; y: number; width: number; height: number; page: number; target_y: number }[] }
+export interface TypstResult { ok: boolean; pages: TypstPage[]; diagnostics: TypstDiagnostic[]; missingPackages: string[]; dependencies: string[] }
+export interface TypstSnapshot { knownSvg?: string[]; root: string | null; documents: Array<{ path: string; content: string }> }
+
 // ---------- Typed command bindings ----------
 
 export const ipc = {
@@ -728,6 +764,7 @@ export const ipc = {
     invoke<ApplyRenameResult>('apply_reference_rename', { options }),
 
   // --- LaTeX ---
+  cancelLatexCompile: (requestId: string) => invoke<void>('cancel_latex_compile', { requestId }),
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),
   exportLatexPdf: (workdirToken: string, targetPath: string) =>
     invoke<void>('export_latex_pdf', { workdirToken, targetPath }),
@@ -760,10 +797,12 @@ export const ipc = {
     invoke<SyncTexEdit>('synctex_backward', { workdirToken, page, x, y }),
 
   // --- Typst ---
-  compileTypst: (source: string, docPath?: string | null) =>
-    invoke<{ ok: boolean; svg?: string; error?: string }>('compile_typst', { source, docPath }),
-  compileTypstPdf: (source: string, docPath?: string | null) =>
-    invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath }),
+  renderFormula: (source: string) => invoke<string | null>('render_formula', { source }),
+  compileTypst: (source: string, docPath?: string | null, snapshot?: TypstSnapshot) =>
+    invoke<TypstResult>('compile_typst', { source, docPath, snapshot }),
+  compileTypstPdf: (source: string, docPath?: string | null, snapshot?: TypstSnapshot) =>
+    invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath, snapshot }),
+  downloadTypstPackage: (spec: string, confirmed: boolean) => invoke<void>('download_typst_package', { spec, confirmed }),
   listTypstFonts: () => invoke<string[]>('list_typst_fonts'),
   // Builtin function signatures for the parameter tooltip. Fetched once and
   // cached client-side: the tooltip refreshes on every cursor move, and the data

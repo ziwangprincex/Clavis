@@ -23,6 +23,10 @@ export interface ToolbarProps {
   autoCompile?: boolean;
   onAutoCompileChange?: (v: boolean) => void;
   onCompile?: () => void;
+  onStopCompile?: () => void;
+  onQuickCompile?: () => void;
+  onCleanCompile?: () => void;
+  onFullCompile?: () => void;
   onSynctexForward?: () => void;
   onSetMain?: () => void;
   onExportLatexPdf?: () => void;
@@ -34,6 +38,9 @@ export interface ToolbarProps {
   onToggleSymbols?: () => void;
   onOpenCommandPalette?: () => void;
   onToggleRecent?: () => void;
+  onWriterTool?: (tool: 'templates' | 'history' | 'environment') => void;
+  inlineMath?: boolean;
+  onInlineMathChange?: (enabled: boolean) => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -95,8 +102,8 @@ export function Toolbar(props: ToolbarProps) {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" /></svg>
         </button>
         {lang === 'latex' && (
-          <button className={styles.primaryBtn} aria-label="Compile" disabled={compiling} aria-busy={compiling} onClick={props.onCompile} title={`Compile (${fmtShortcut('Ctrl+B')})`}>
-            <IconPlay size={14} aria-hidden="true" /><span className={styles.actionLabel}>{compiling ? 'Typesetting…' : 'Compile'}</span>
+          <button className={styles.primaryBtn} aria-label={compiling ? "Stop compilation" : "Compile"} aria-busy={compiling} onClick={compiling ? props.onStopCompile : props.onCompile} title={`Compile (${fmtShortcut('Ctrl+B')})`}>
+            <IconPlay size={14} aria-hidden="true" /><span className={styles.actionLabel}>{compiling ? 'Stop' : 'Compile'}</span>
           </button>
         )}
         <div className={styles.disclosure} ref={disclosure} onBlur={event => {
@@ -108,6 +115,10 @@ export function Toolbar(props: ToolbarProps) {
           {open && (
             <div className={styles.popover} id={panelId} aria-label="Document tools">
               <div className={styles.menuHeading}>Document</div>
+              <button className={styles.menuItem} onClick={() => run(() => props.onWriterTool?.('templates'))}>New from template…</button>
+              <button className={styles.menuItem} onClick={() => run(() => props.onWriterTool?.('history'))}>Local version timeline…</button>
+              <label className={styles.optionRow}><span>Formulas in text</span><input type="checkbox" checked={props.inlineMath ?? false} onChange={e => props.onInlineMathChange?.(e.target.checked)} /></label>
+              <button className={styles.menuItem} onClick={() => run(() => props.onWriterTool?.('environment'))}>Check environment…</button>
               <label className={styles.optionRow}>
                 <span>Language</span>
                 <select value={lang} onChange={event => onLangChange(event.target.value as Lang)}>
@@ -132,10 +143,18 @@ export function Toolbar(props: ToolbarProps) {
                     </select>
                   </label>
                   <label className={styles.optionRow}><span>Compile automatically</span><input type="checkbox" checked={props.autoCompile ?? false} onChange={event => props.onAutoCompileChange?.(event.target.checked)} /></label>
+                  <button className={styles.menuItem} onClick={() => run(props.onQuickCompile)}>Quick preview · one pass</button>
+                  <button className={styles.menuItem} onClick={() => run(props.onCleanCompile)}>Clean rebuild</button>
+                  <button className={styles.menuItem} onClick={() => run(props.onFullCompile)}>Full build · latexmk</button>
                   <button className={styles.menuItem} onClick={() => run(props.onSynctexForward)}><IconTarget aria-hidden="true" />Jump to PDF</button>
                   <button className={styles.menuItem} onClick={() => run(props.onSetMain)}><IconPin aria-hidden="true" />Set as project main</button>
                 </>
               )}
+              {lang === 'typst' && <>
+                <div className={styles.menuHeading}>Typesetting</div>
+                <button className={styles.menuItem} onClick={() => run(props.onSetMain)}><IconPin aria-hidden="true" />Set as project main</button>
+                <button className={styles.menuItem} onClick={() => run(props.onSynctexForward)}><IconTarget aria-hidden="true" />Jump to preview</button>
+              </>}
               {lang !== 'markdown' && <button className={styles.menuItem} onClick={() => run(lang === 'latex' ? props.onExportLatexPdf : props.onExportTypstPdf)}><IconExport aria-hidden="true" />Export PDF<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>}
               <div className={styles.menuHeading}>Workspace</div>
               <button className={styles.menuItem} onClick={() => run(props.onOpenCommandPalette)}><IconCommand aria-hidden="true" />Command palette</button>

@@ -192,6 +192,8 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     if (activeTab.lang === 'typst') prefetchTypstSignatures();
   }, [activeTabId, activeTab]);
 
+  useEffect(() => { controllerRef.current?.setInlineMath(settings.editor_inline_math); }, [settings.editor_inline_math, activeTabId]);
+
   // Completion preferences are pushed into the provider rather than read from
   // the store there, because `complete()` is synchronous and on the keystroke
   // path.

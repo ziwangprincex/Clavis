@@ -23,6 +23,7 @@ export interface Settings {
   editor_theme: string;
   editor_theme_overrides: Record<string, string>;
   editor_spellcheck: boolean;
+  editor_inline_math: boolean;
   /** Tab width in spaces. */
   editor_tab_size: number;
   /** Whether Tab inserts spaces (true) or a literal tab (false). */
@@ -100,6 +101,7 @@ export const defaultSettings: Settings = {
   editor_theme: 'auto',
   editor_theme_overrides: {},
   editor_spellcheck: false,
+  editor_inline_math: false,
   editor_tab_size: 2,
   editor_indent_with_spaces: true,
   recent_files: [],

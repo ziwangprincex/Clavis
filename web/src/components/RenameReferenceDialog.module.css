@@ -10,5 +10,5 @@
 .body { flex: 1; overflow: auto; padding: 14px 20px; } .summary, .empty { color: var(--text-muted); }
 .body ul { list-style: none; margin: 12px 0 0; padding: 0; } .body li { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; border-bottom: 1px solid var(--border); } .body li span { color: var(--text-muted); font-size: 11px; }
 .dialog footer { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
-.dialog footer button { background: var(--accent); color: white; border-color: transparent; }
+.dialog footer button { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 @media (max-width: 760px) { .form { grid-template-columns: 1fr; } }

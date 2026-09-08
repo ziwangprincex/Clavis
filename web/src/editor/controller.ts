@@ -35,8 +35,14 @@ import { stex } from '@codemirror/legacy-modes/mode/stex';
 import type { Lang } from '../store';
 import { buildCompletionSource, type CompletionWorkspace } from '../completions/source';
 import { inputLinkExtension } from './inputLinks';
+import { writingAssist } from './writingAssist';
+import { inlineMath } from './inlineMath';
 import { buildEditorKeymap } from './keymaps';
 import { signatureTheme, signatureTooltipExt } from './signatureTooltip';
+import { type ThemeSpec } from '../theme/themes';
+import { withAlpha } from '../theme/colors';
+export { BUILTIN_THEMES, type ThemeSpec } from '../theme/themes';
+export { withAlpha } from '../theme/colors';
 
 // Minimal Typst syntax (StreamLanguage).
 const typstStream = StreamLanguage.define({
@@ -72,144 +78,6 @@ function languageExtension(lang: Lang) {
   return [];
 }
 
-export interface ThemeSpec {
-  label: string;
-  dark: boolean;
-  bg: string;
-  fg: string;
-  gutterBg: string;
-  gutterFg: string;
-  activeBg: string;
-  cursor: string;
-  selection: string;
-  /** Accent color for links/selection/focus in the surrounding app chrome. */
-  accent: string;
-}
-
-export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
-  paper: {
-    label: 'Clavis Paper', dark: false,
-    bg: '#fcfbf8', fg: '#343530', gutterBg: '#fcfbf8', gutterFg: '#99998f',
-    activeBg: '#f5f4ef', cursor: '#526957', selection: '#dce5da', accent: '#526957',
-  },
-  ink: {
-    label: 'Clavis Ink', dark: true,
-    bg: '#232522', fg: '#d9dcd3', gutterBg: '#232522', gutterFg: '#83897f',
-    activeBg: '#2a2e28', cursor: '#a7baa0', selection: '#414f3e', accent: '#a7baa0',
-  },
-  'vscode-dark': {
-    label: 'VS Code Dark',
-    dark: true,
-    bg: '#1e1e1e', fg: '#d4d4d4',
-    gutterBg: '#1e1e1e', gutterFg: '#666',
-    activeBg: '#252526', cursor: '#ffffff', selection: '#2b5d96',
-    accent: '#4aa5ff',
-  },
-  'vscode-light': {
-    label: 'VS Code Light',
-    dark: false,
-    bg: '#ffffff', fg: '#1e1e1e',
-    gutterBg: '#ffffff', gutterFg: '#999',
-    activeBg: '#f3f3f3', cursor: '#000000', selection: '#add6ff',
-    accent: '#007aff',
-  },
-  'github-dark': {
-    label: 'GitHub Dark',
-    dark: true,
-    bg: '#0d1117', fg: '#c9d1d9',
-    gutterBg: '#0d1117', gutterFg: '#484f58',
-    activeBg: '#161b22', cursor: '#58a6ff', selection: '#1f4e79',
-    accent: '#58a6ff',
-  },
-  'github-light': {
-    label: 'GitHub Light',
-    dark: false,
-    bg: '#ffffff', fg: '#1f2328',
-    gutterBg: '#f6f8fa', gutterFg: '#9098a3',
-    activeBg: '#f6f8fa', cursor: '#1f2328', selection: '#b6e3ff',
-    accent: '#0969da',
-  },
-  'one-dark': {
-    label: 'One Dark',
-    dark: true,
-    bg: '#282c34', fg: '#abb2bf',
-    gutterBg: '#282c34', gutterFg: '#5c6370',
-    activeBg: '#2c313a', cursor: '#528bff', selection: '#4b5263',
-    accent: '#61afef',
-  },
-  'solarized-dark': {
-    label: 'Solarized Dark',
-    dark: true,
-    bg: '#002b36', fg: '#93a1a1',
-    gutterBg: '#073642', gutterFg: '#586e75',
-    activeBg: '#073642', cursor: '#fdf6e3', selection: '#0f5468',
-    accent: '#268bd2',
-  },
-  'solarized-light': {
-    label: 'Solarized Light',
-    dark: false,
-    bg: '#fdf6e3', fg: '#586e75',
-    gutterBg: '#eee8d5', gutterFg: '#93a1a1',
-    activeBg: '#eee8d5', cursor: '#586e75', selection: '#c0ddd3',
-    accent: '#268bd2',
-  },
-  monokai: {
-    label: 'Monokai',
-    dark: true,
-    bg: '#272822', fg: '#f8f8f2',
-    gutterBg: '#272822', gutterFg: '#75715e',
-    activeBg: '#3e3d32', cursor: '#f8f8f0', selection: '#5f5e4f',
-    accent: '#66d9ef',
-  },
-  dracula: {
-    label: 'Dracula',
-    dark: true,
-    bg: '#282a36', fg: '#f8f8f2',
-    gutterBg: '#282a36', gutterFg: '#6272a4',
-    activeBg: '#44475a', cursor: '#f8f8f0', selection: '#565f89',
-    accent: '#bd93f9',
-  },
-  nord: {
-    label: 'Nord',
-    dark: true,
-    bg: '#2e3440', fg: '#d8dee9',
-    gutterBg: '#2e3440', gutterFg: '#4c566a',
-    activeBg: '#3b4252', cursor: '#d8dee9', selection: '#4c566a',
-    accent: '#88c0d0',
-  },
-  tomorrow: {
-    label: 'Tomorrow Night',
-    dark: true,
-    bg: '#1d1f21', fg: '#c5c8c6',
-    gutterBg: '#1d1f21', gutterFg: '#5c6370',
-    activeBg: '#282a2e', cursor: '#aeafad', selection: '#454a52',
-    accent: '#81a2be',
-  },
-  material: {
-    label: 'Material Darker',
-    dark: true,
-    bg: '#212121', fg: '#eeffff',
-    gutterBg: '#212121', gutterFg: '#545454',
-    activeBg: '#2c2c2c', cursor: '#ffcc00', selection: '#4d4d4d',
-    accent: '#82aaff',
-  },
-  gruvbox: {
-    label: 'Gruvbox Dark',
-    dark: true,
-    bg: '#282828', fg: '#ebdbb2',
-    gutterBg: '#282828', gutterFg: '#7c6f64',
-    activeBg: '#3c3836', cursor: '#fe8019', selection: '#665c54',
-    accent: '#fabd2f',
-  },
-};
-
-/** `#rrggbb` → `rgba(r, g, b, a)`; anything else passes through unchanged. */
-export function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  if (hex.length !== 7 || Number.isNaN(n)) return hex;
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
-
 function buildThemeExt(spec: ThemeSpec) {
   return EditorView.theme(
     {
@@ -233,41 +101,81 @@ function buildThemeExt(spec: ThemeSpec) {
       '.cm-cursorLayer': { zIndex: '3 !important', pointerEvents: 'none' },
       '.cm-selectionMatch': { backgroundColor: withAlpha(spec.accent, 0.24) },
       '.cm-content': { caretColor: spec.cursor },
-      // Completion uses a neutral document-like surface. Candidate characters
-      // retain identical size, weight, and color, including typed matches.
+      // Tooltips follow the window palette, including dark writing surfaces.
+      // Completion matches use weight rather than underlines or a size change.
+      '.cm-tooltip': {
+        backgroundColor: 'var(--bg-elevated)', color: spec.fg,
+        border: '1px solid var(--border)', borderRadius: '8px',
+        boxShadow: 'var(--shadow-md)',
+      },
+      '.cm-panels': { backgroundColor: 'var(--panel-solid)', color: spec.fg },
+      '.cm-searchMatch': { backgroundColor: withAlpha(spec.accent, 0.20) },
+      '.cm-searchMatch.cm-searchMatch-selected': { outline: `1px solid ${spec.accent}` },
+      '.cm-foldPlaceholder': {
+        backgroundColor: spec.activeBg, color: spec.fg,
+        border: '1px solid var(--border)', borderRadius: '4px',
+      },
       '.cm-tooltip.cm-tooltip-autocomplete': {
-        backgroundColor: '#ffffff',
-        color: '#111111',
-        border: '1px solid #d6d6d6',
-        borderRadius: '4px',
-        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.16)',
+        backgroundColor: 'var(--bg-elevated)',
+        color: spec.fg,
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+        boxShadow: 'var(--shadow-md)',
+        overflow: 'hidden',
       },
       '.cm-tooltip.cm-tooltip-autocomplete > ul': {
-        fontFamily: 'Helvetica, Arial, sans-serif',
+        fontFamily: 'var(--font-sans)',
         fontSize: '13px',
         fontWeight: '400',
-        lineHeight: '1.4',
         padding: '4px',
-        maxHeight: '320px',
+        minWidth: 'min(260px, 80vw)',
+        maxWidth: 'min(480px, 80vw)',
+        maxHeight: '264px',
       },
       '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
-        padding: '5px 8px',
-        borderRadius: '2px',
-        color: '#111111',
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: '16px',
+        padding: '6px 9px',
+        lineHeight: '1.4',
+        borderRadius: '4px',
+        color: spec.fg,
       },
-      '.cm-completionLabel, .cm-completionMatchedText': {
-        color: '#111111',
+      '.cm-completionIcon': { display: 'none' },
+      '.cm-completionLabel': {
+        minWidth: '0',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        fontFamily: 'var(--font-mono)',
         fontSize: '13px',
         fontWeight: '400',
+        color: spec.fg,
+      },
+      '.cm-completionMatchedText': {
+        color: 'inherit',
+        fontSize: 'inherit',
+        fontWeight: '600',
         textDecoration: 'none',
       },
-      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-        backgroundColor: '#eeeeee',
-        color: '#111111',
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li:hover': {
+        backgroundColor: 'var(--panel-soft)',
       },
-      '.cm-completionDetail, .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail': {
-        color: '#666666',
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+        backgroundColor: 'var(--tint-accent)',
+        color: spec.fg,
+      },
+      '.cm-completionDetail': {
+        flex: '0 1 auto',
+        minWidth: '0',
+        maxWidth: '45%',
+        marginLeft: 'auto',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '12px',
+        fontStyle: 'normal',
         fontWeight: '400',
+        color: 'var(--text-muted)',
       },
     },
     { dark: spec.dark },
@@ -318,14 +226,14 @@ const lightHighlightStyle = HighlightStyle.define([
 ]);
 
 function buildHighlightExt(spec: ThemeSpec) {
-  if (spec.label === 'Clavis Paper' || spec.label === 'Clavis Ink') {
-    const accent = spec.dark ? '#a7baa0' : '#526957';
-    const secondary = spec.dark ? '#b8b0cc' : '#70627e';
+  if (spec.syntax) {
+    const accent = spec.syntax.name;
+    const secondary = spec.syntax.keyword;
     return syntaxHighlighting(HighlightStyle.define([
       { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: secondary },
       { tag: [t.name, t.propertyName, t.macroName, t.typeName, t.tagName], color: accent },
-      { tag: [t.number, t.bool, t.atom, t.string], color: spec.dark ? '#c2b493' : '#816c49' },
-      { tag: [t.comment, t.meta], color: spec.dark ? '#90998b' : '#7b8175', fontStyle: 'italic' },
+      { tag: [t.number, t.bool, t.atom, t.string], color: spec.syntax.literal },
+      { tag: [t.comment, t.meta], color: spec.syntax.comment, fontStyle: 'italic' },
       { tag: t.heading, color: spec.fg, fontWeight: '600' },
       { tag: t.strong, fontWeight: '600' },
       { tag: t.emphasis, fontStyle: 'italic' },
@@ -394,6 +302,9 @@ export class EditorController {
   private tabSizeCompartment = new Compartment();
   private includeLinkCompartment = new Compartment();
   private signatureCompartment = new Compartment();
+  private writingCompartment = new Compartment();
+  private inlineMathCompartment = new Compartment();
+  private inlineMathEnabled = false;
   private signatureThemeCompartment = new Compartment();
   private suppressEvents = false;
   private activeDocumentId: string | null = null;
@@ -432,6 +343,8 @@ export class EditorController {
     const indentUnitStr = this.indentWithSpaces ? ' '.repeat(tabSize) : '\t';
     const exts = [
       lineNumbers(),
+      this.writingCompartment.of(writingAssist(this.currentLang, this.getCompletionWorkspaceCb)),
+      this.inlineMathCompartment.of([]),
       placeholder('Begin with a thought…'),
       highlightActiveLine(),
       highlightActiveLineGutter(),
@@ -566,6 +479,8 @@ export class EditorController {
     this.view.dispatch({
       effects: [
         this.langCompartment.reconfigure(languageExtension(lang)),
+        this.writingCompartment.reconfigure(writingAssist(lang, this.getCompletionWorkspaceCb)),
+        this.inlineMathCompartment.reconfigure(this.inlineMathEnabled ? inlineMath(lang) : []),
         this.completionCompartment.reconfigure(
           autocompletion({
             override: [buildCompletionSource(lang, this.getCompletionWorkspaceCb)],
@@ -596,6 +511,11 @@ export class EditorController {
         this.signatureThemeCompartment.reconfigure(signatureTheme(spec)),
       ],
     });
+  }
+
+  setInlineMath(on: boolean) {
+    this.inlineMathEnabled = on;
+    this.view.dispatch({ effects: this.inlineMathCompartment.reconfigure(on ? inlineMath(this.currentLang) : []) });
   }
 
   setSpellcheck(on: boolean) {

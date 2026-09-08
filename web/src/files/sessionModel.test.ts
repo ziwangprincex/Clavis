@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeSessionSnapshot, encodeSessionSnapshot, MAX_RESTORED_TABS } from './sessionModel';
+import { decodeSessionSnapshot, encodeSessionSnapshot } from './sessionModel';
 import type { Tab } from '../store/tabs';
 
 function persistedTab(over: Record<string, unknown> = {}) {
@@ -71,21 +71,23 @@ describe('Session Snapshot', () => {
     ]);
   });
 
-  it('caps restore while retaining the active tab and newest dirty tabs', () => {
-    const tabs = Array.from({ length: MAX_RESTORED_TABS + 10 }, (_, index) =>
-      persistedTab({
-        title: `scratch-${index}`,
-        content: String(index),
-        isDirty: index >= MAX_RESTORED_TABS - 2,
-      }),
-    );
-    const result = decodeSessionSnapshot(raw(tabs, 1));
+  it.each([false, true])('restores every scratch, even beyond 50 tabs (dirty=%s)', (isDirty) => {
+    const tabs: Tab[] = Array.from({ length: 75 }, (_, index) => ({
+      id: String(index), title: `scratch-${index}`, filePath: null, lang: 'latex',
+      content: `unique writing ${index}`, isDirty,
+    }));
+    const result = decodeSessionSnapshot(encodeSessionSnapshot(tabs, '69'));
+    expect(result?.tabs.map(tab => tab.content)).toEqual(tabs.map(tab => tab.content));
+    expect(result?.activeIndex).toBe(69);
+  });
 
-    expect(result?.tabs).toHaveLength(MAX_RESTORED_TABS);
-    expect(result?.tabs.some(tab => tab.content === '1')).toBe(true);
-    expect(result?.tabs.filter(tab => tab.isDirty)).toHaveLength(12);
-    expect(result?.tabs.some(tab => tab.content === '0')).toBe(false);
-    expect(result?.activeIndex).toBe(result?.tabs.findIndex(tab => tab.content === '1'));
+  it('does not discard file-backed unsaved buffers beyond the old limit either', () => {
+    const tabs = Array.from({ length: 75 }, (_, index) => persistedTab({
+      filePath: `/work/${index}.tex`, content: `unsaved ${index}`, isDirty: true,
+    }));
+    const result = decodeSessionSnapshot(raw(tabs, 74));
+    expect(result?.tabs.map(tab => tab.content)).toEqual(tabs.map(tab => tab.content));
+    expect(result?.activeIndex).toBe(74);
   });
 
   it('encodes only persistent tab fields and restores version 1 snapshots', () => {

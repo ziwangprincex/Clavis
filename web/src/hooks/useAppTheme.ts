@@ -17,6 +17,11 @@ export function useAppTheme(settings: Settings): void {
   useEffect(() => {
     const root = document.documentElement;
 
+    // Remove previous overrides BEFORE deriving the palette. Removing them
+    // afterward would also erase newly restored theme defaults.
+    const previousKeys = (root.dataset.clavisOverrideKeys ?? '').split(',').filter(Boolean);
+    for (const key of previousKeys) root.style.removeProperty(`--${key}`);
+
     // 1) Theme-derived chrome palette (also sets data-theme + color-scheme).
     applyChromeTokens(spec);
 
@@ -35,10 +40,6 @@ export function useAppTheme(settings: Settings): void {
 
     // 4) Arbitrary --var color overrides, layered last so they always win.
     const ov = settings.ui_color_overrides ?? {};
-    const knownKeys: string[] = (root.dataset.clavisOverrideKeys ?? '').split(',').filter(Boolean);
-    for (const key of knownKeys) {
-      if (!(key in ov)) root.style.removeProperty(`--${key}`);
-    }
     for (const [key, value] of Object.entries(ov)) {
       if (value) root.style.setProperty(`--${key}`, value);
     }

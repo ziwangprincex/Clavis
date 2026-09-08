@@ -1,13 +1,11 @@
 import type { Tab } from '../store/tabs';
 import type { ProjectFile } from '../store/project';
 import { pathsEqual } from '../files/projectPaths';
+import { documentRoot } from './project';
+import { useProjectStore } from '../store/project';
 
 export function latexRoot(tab: Tab, project: { rootAbs: string | null; files: ProjectFile[] }): string | null {
-  if (tab.filePath && project.rootAbs && (
-    pathsEqual(tab.filePath, project.rootAbs)
-    || project.files.some(file => pathsEqual(file.absPath, tab.filePath))
-  )) return project.rootAbs;
-  return tab.projectRoot ?? tab.filePath;
+  return documentRoot(tab, { ...useProjectStore.getState(), ...project });
 }
 
 export function belongsToPdf(tab: Tab | undefined, pdf: {

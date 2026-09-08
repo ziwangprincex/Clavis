@@ -2,7 +2,7 @@
 
 [package]
 name = "clavis"
-version = "1.2.0"
+version = "1.3.0"
 description = "A native typesetting key for Markdown, LaTeX & Typst — with live preview"
 edition = "2021"
 rust-version = "1.92"
@@ -21,6 +21,9 @@ typst-svg = "0.15.1"
 typst-pdf = "0.15.1"
 typst-layout = "0.15.1"
 typst-utils = "0.15.1"
+reqwest = { version = "0.11.27", features = ["stream"] }
+flate2 = "1"
+tar = "0.4"
 fontdb = "0.23.0"
 typst-assets = { version = "0.15.1", features = ["fonts"] }
 chrono = "0.4"
@@ -37,6 +40,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 ttf-parser = "0.25.1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 unicode-normalization = "0.1"
+sha2 = "0.10.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_Controls"] }

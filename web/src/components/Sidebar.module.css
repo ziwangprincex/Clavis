@@ -4,7 +4,7 @@
 .views { display: flex; margin: 0 14px 22px; padding: 3px; gap: 1px; background: var(--panel-soft); border-radius: 7px; }
 .view { flex: 1; min-width: 0; padding: 6px 2px; background: transparent; border: none; border-radius: 5px; color: var(--text-muted); font: inherit; font-size: 0.85em; cursor: pointer; transition: background-color 160ms var(--ease), color 160ms var(--ease); }
 .view:hover { color: var(--text); }
-.view.selected { color: var(--text); background: var(--bg); box-shadow: 0 1px 3px rgb(0 0 0 / 5%); font-weight: 500; }
+.view.selected { color: var(--text); background: var(--bg-elevated); box-shadow: var(--shadow-sm); font-weight: 500; }
 .content { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 12px 24px; }
 .section + .section { margin-top: 22px; }
 .sectionHeader { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: none; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.86em; font-weight: 550; cursor: pointer; text-align: left; }

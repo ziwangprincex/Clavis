@@ -1,3 +1,4 @@
+import { proseMask } from '../editor/writingSyntax';
 import type { Lang, Tab } from '../store/tabs';
 
 export interface WritingOptions {
@@ -20,26 +21,7 @@ const VARIANT_PAIRS: ReadonlyArray<[string, string]> = [
 ];
 
 function maskedLines(text: string, language: Lang): string[] {
-  let out = text;
-  if (language === 'latex') {
-    out = out.split(/\r?\n/).map(line => {
-      for (let i = 0; i < line.length; i++) {
-        if (line[i] !== '%') continue;
-        let slashes = 0;
-        for (let j = i - 1; j >= 0 && line[j] === '\\'; j--) slashes++;
-        if (slashes % 2 === 0) return line.slice(0, i);
-      }
-      return line;
-    }).join('\n');
-    out = out.replace(/\\begin\{(?:verbatim\*?|lstlisting|minted|thebibliography)\}[\s\S]*?\\end\{(?:verbatim\*?|lstlisting|minted|thebibliography)\}/g, match => match.replace(/[^\n]/g, ' '));
-  } else if (language === 'typst') {
-    out = out.replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, ' ')).replace(/\/\/[^\n]*/g, '');
-    out = out.replace(/`+[^\n]*?`+/g, match => ' '.repeat(match.length));
-  } else {
-    out = out.replace(/^\s*(```+|~~~+).*?^\s*(?:```+|~~~+)\s*$/gms, match => match.replace(/[^\n]/g, ' '));
-    out = out.replace(/`+[^\n]*?`+/g, match => ' '.repeat(match.length));
-  }
-  return out.split(/\r?\n/);
+  return proseMask(text, language).split(/\r?\n/);
 }
 
 function addMatch(out: WritingDiagnostic[], code: WritingDiagnostic['code'], message: string, path: string | null, line: number, text: string, re: RegExp, severity: WritingDiagnostic['severity'] = 'warning') {

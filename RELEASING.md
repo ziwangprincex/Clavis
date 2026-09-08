@@ -9,14 +9,19 @@ per release.
 
 ## Current release preparation (2026-09-08)
 
-The owner explicitly authorized formal release on 2026-09-08. This release uses
-**1.2.0**, including the writing-continuity candidate and release guard fixes.
-Notes live in [v1.2.0.md](docs/releases/v1.2.0.md); native acceptance and actual
+The owner explicitly authorized pushing and releasing the accumulated writer
+changes according to this runbook and HANDOFF. This release uses **1.3.0**:
+new writer/typesetting features, appearance updates and the six audited fixes.
+Notes live in [v1.3.0.md](docs/releases/v1.3.0.md). Native acceptance and an actual
 in-app upgrade remain unverified, not implicitly marked passed by this approval.
 
-Authorization covers the release commit, new tag, GitHub draft/publication and
-Homebrew distribution update for this version. Future local work still does not
-imply permission to publish. Do not reuse or move an existing release tag.
+Remote verification confirms **v1.2.0 is already published** and its tag resolves
+to aa38d78. The old HANDOFF authentication blocker is historical; do not repush,
+replace or move that tag. The newer feature set uses a fresh minor version.
+
+Authorization covers the release commit, new v1.3.0 tag, GitHub draft/publication
+and Homebrew distribution update for this version. Future local work still does
+not imply permission to publish. Do not reuse or move an existing release tag.
 The draft must have successful CI, all three platform installers and signed
 updater packages with a complete manifest before publication. Each future tag
 must include its reviewed `docs/releases/<tag>.md` for the draft body.

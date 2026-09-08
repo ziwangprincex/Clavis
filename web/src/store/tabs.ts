@@ -2,6 +2,7 @@
 // Mirrors the legacy `tabs[]` + `activeTabId` globals (ui-legacy/app.js).
 
 import { create } from 'zustand';
+import type { DiskSnapshot } from '../api/tauri';
 
 export type Lang = 'markdown' | 'latex' | 'typst';
 
@@ -13,8 +14,14 @@ export interface Tab {
   lang: Lang;
   content: string;
   isDirty: boolean;
+  /** Revision of the disk content this buffer was opened/saved against. */
+  diskRevision?: string;
+  diskStamp?: string;
+  diskError?: string;
+  conflict?: { targetPath: string; disk: DiskSnapshot };
   /** LaTeX project root (active tex file) — only relevant for lang='latex' */
   projectRoot?: string | null;
+  latexEngineOverride?: string;
   projectActive?: string | null;
   latexWorkdirToken?: string | null;
 }

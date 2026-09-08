@@ -6,6 +6,16 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct CompileOptions {
     pub source: String,
+    #[serde(default)]
+    pub source_identity: Option<String>,
+    #[serde(default)]
+    pub cache_token: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
+    #[serde(default)]
+    pub full_build: bool,
+    #[serde(default)]
+    pub workspace_root: Option<String>,
     pub engine: String,
     #[serde(default)]
     pub custom_path: Option<String>,

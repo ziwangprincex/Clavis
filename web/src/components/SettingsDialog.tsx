@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettingsStore, defaultSettings } from '../store';
 import type { Settings } from '../store/settings';
-import { BUILTIN_THEMES } from '../editor/controller';
+import { BUILTIN_THEMES } from '../theme/themes';
+import { resolveThemeSpec, useOsDark } from '../theme/appTheme';
+import { ThemePicker } from './ThemePicker';
 import { getAppVersion, hasTauri, ipc } from '../api/tauri';
 import { checkForUpdates } from '../update/updater';
 import {
@@ -38,6 +40,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   // Generation gate: a slow probe resolving after the dialog reopened (or after
   // a newer Detect again) must not overwrite fresher state.
   const probeGeneration = useRef(0);
+  const osDark = useOsDark(open && draft.editor_theme === 'auto');
+  const draftTheme = resolveThemeSpec(draft.editor_theme, draft.editor_theme_overrides, osDark);
+  const sampleTheme = { ...draftTheme, accent: draft.ui_accent_color || draftTheme.accent };
 
   useEffect(() => {
     if (open) setDraft(stored);
@@ -131,14 +136,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           <div className={styles.pane}>
             {active === 'Appearance' && (
               <section className={styles.section}>
-                <h3>Appearance</h3>
+                <ThemePicker value={draft.editor_theme} selectedSpec={sampleTheme}
+                  onChange={id => update('editor_theme', id)} />
                 <label>
                   Theme
                   <select
                     value={draft.editor_theme}
                     onChange={e => update('editor_theme', e.target.value)}
                   >
-                    <option value="auto">Auto (follow system)</option>
+                    <option value="auto">Auto (Paper by day, Ink by night)</option>
                     {Object.entries(BUILTIN_THEMES).map(([key, spec]) => (
                       <option key={key} value={key}>
                         {spec.label}
@@ -147,8 +153,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   </select>
                 </label>
                 <p className={styles.hint}>
-                  The chosen theme colors the whole window — editor, sidebar, and preview.
+                  Save applies the palette to the whole window. Printed pages stay unchanged.
+                  {Object.keys(draft.editor_theme_overrides ?? {}).length > 0 || draft.ui_accent_color || Object.keys(draft.ui_color_overrides ?? {}).length > 0
+                    ? ' Custom colors are kept; clear them to use the original palette.' : ''}
                 </p>
+                {(Object.keys(draft.editor_theme_overrides ?? {}).length > 0 || draft.ui_accent_color || Object.keys(draft.ui_color_overrides ?? {}).length > 0) && (
+                  <button type="button" className={styles.secondary} style={{ marginBottom: 16 }}
+                    onClick={() => setDraft(d => ({ ...d, editor_theme_overrides: {}, ui_color_overrides: {}, ui_accent_color: '' }))}>
+                    Use original palette
+                  </button>
+                )}
                 <label>
                   UI font family
                   <input
@@ -173,7 +187,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       type="color"
-                      value={draft.ui_accent_color || '#007aff'}
+                      value={sampleTheme.accent}
                       onChange={e => update('ui_accent_color', e.target.value)}
                       style={{ width: 36, height: 24, padding: 0, borderRadius: 4 }}
                     />

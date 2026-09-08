@@ -1,0 +1,91 @@
+.toolbar {
+  position: sticky;
+  top: 34px;
+  z-index: 3;
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.toolbar button,
+.toolbar select,
+.toolbar input {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  min-width: 0;
+}
+.toolbar button {
+  cursor: pointer;
+}
+.toolbar button:disabled {
+  opacity: 0.35;
+}
+.toolbar input {
+  width: 130px;
+}
+.toolbar .pageInput {
+  width: 38px;
+  text-align: center;
+}
+.pages {
+  flex: none;
+  overflow-anchor: none;
+  padding: 22px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.page {
+  position: relative;
+  width: 100%;
+  background: white;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 6px #0001;
+}
+.art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.text {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.text text {
+  fill: transparent;
+  white-space: pre;
+  cursor: text;
+}
+.text text::selection {
+  background: #6595c666;
+  fill: transparent;
+}
+.text .hit {
+  fill: #244a73;
+  text-decoration: underline;
+}
+.text a {
+  cursor: pointer;
+}
+.text a:hover rect {
+  fill: #6595c622;
+}

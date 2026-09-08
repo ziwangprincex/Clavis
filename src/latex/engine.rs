@@ -110,6 +110,7 @@ pub(crate) async fn run_streaming(
     font_dirs: &[PathBuf],
     window: &tauri::Window,
     run_idx: u32,
+    cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(i32, String), String> {
     let display_cmd = format!(
         "{} {}",
@@ -139,7 +140,9 @@ pub(crate) async fn run_streaming(
         .env("OSFONTDIR", os_font_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .stdin(std::process::Stdio::null());
+        .stdin(std::process::Stdio::null()).kill_on_drop(true);
+    #[cfg(unix)]
+    cmd.process_group(0);
     let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {e}"))?;
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
@@ -169,30 +172,52 @@ pub(crate) async fn run_streaming(
         }
     });
 
-    let collector = tokio::spawn(async move {
+    let mut collector = tokio::spawn(async move {
         let mut acc = String::new();
         while let Some((_, line)) = rx.recv().await {
-            acc.push_str(&line);
-            acc.push('\n');
+            if acc.len() < 8 * 1024 * 1024 { acc.push_str(&line); acc.push('\n'); }
         }
         acc
     });
 
-    // Wait for child with timeout
-    let status = match timeout(SINGLE_RUN_TIMEOUT, child.wait()).await {
-        Ok(s) => s.map_err(|e| format!("wait failed: {e}"))?,
-        Err(_) => {
-            let _ = child.kill().await;
-            return Err(format!("engine timed out after {}s", SINGLE_RUN_TIMEOUT.as_secs()));
+    let cancelled = async {
+        loop {
+            if cancel.load(std::sync::atomic::Ordering::SeqCst) { break; }
+            tokio::time::sleep(Duration::from_millis(40)).await;
         }
     };
-
-    // Drain remaining output
-    if let Ok(s) = collector.await {
-        combined.push_str(&s);
+    let outcome = tokio::select! {
+        result = timeout(SINGLE_RUN_TIMEOUT, child.wait()) => match result {
+            Ok(status) => status.map_err(|e| format!("wait failed: {e}")),
+            Err(_) => Err(format!("engine timed out after {}s", SINGLE_RUN_TIMEOUT.as_secs())),
+        },
+        _ = cancelled => Err("Compilation cancelled".to_string()),
+    };
+    let status = match outcome {
+        Ok(status) => status,
+        Err(error) => {
+            terminate(&mut child).await;
+            collector.abort();
+            return Err(error);
+        }
+    };
+    match timeout(Duration::from_secs(2), &mut collector).await {
+        Ok(Ok(output)) => combined.push_str(&output),
+        _ => collector.abort(),
     }
 
     Ok((status.code().unwrap_or(-1), combined))
+}
+
+async fn terminate(child: &mut tokio::process::Child) {
+    if let Some(pid) = child.id() {
+        #[cfg(unix)]
+        let _ = TokioCommand::new("kill").args(["-KILL", &format!("-{pid}")]).status().await;
+        #[cfg(windows)]
+        let _ = TokioCommand::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status().await;
+    }
+    let _ = child.kill().await;
+    let _ = child.wait().await;
 }
 
 pub(crate) async fn run_synctex(prog: &Path, args: &[&str], cwd: &Path) -> Result<String, String> {
@@ -209,4 +234,19 @@ pub(crate) async fn run_synctex(prog: &Path, args: &[&str], cwd: &Path) -> Resul
         Err(_) => return Err("synctex timed out".into()),
     };
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+#[cfg(all(test, unix))]
+mod cancellation_tests {
+    use super::*;
+    #[tokio::test]
+    async fn stop_reaps_the_engine_process() {
+        let mut command = TokioCommand::new("sleep");
+        command.arg("30").process_group(0).kill_on_drop(true);
+        let mut child = command.spawn().unwrap();
+        let started = std::time::Instant::now();
+        terminate(&mut child).await;
+        assert!(started.elapsed() < Duration::from_secs(3));
+        assert!(child.try_wait().unwrap().is_some());
+    }
 }

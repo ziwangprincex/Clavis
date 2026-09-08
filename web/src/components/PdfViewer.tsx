@@ -4,12 +4,13 @@
 //   can select text AND we can highlight search matches.
 // - SyncTeX reverse search: clicking a page surface (without selecting text)
 //   reports (page, xPoints, yPoints) up via onSyncTexBackward.
-// - Text search (Ctrl+F): scans the rendered text layers, wraps each match
-//   in a `.pdf-match` span, and provides Prev/Next navigation.
+// - Text search (Ctrl+F): indexes all pages independently of virtualized
+//   surfaces; mounted text layers display the matching fragments.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { TextLayer } from 'pdfjs-dist';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
+import { PdfPages } from '../pdf/pages';
+import { bindPreviewZoom, capturePageAnchor, type ZoomPoint } from '../pdf/zoom';
 import { ensurePdfjs } from '../pdf/pdfjs';
 import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '../store';
@@ -29,7 +30,9 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const pdf = usePdfStore();
   const bytes = belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
-  const compiling = useCompileStore(s => s.status === 'compiling');
+  const compileStatus = useCompileStore(s => s.status);
+  const compileError = useCompileStore(s => s.errors[0]?.message);
+  const compiling = compileStatus === 'compiling';
   const zoom = usePdfStore(s => s.zoom);
   const setZoom = usePdfStore(s => s.setZoom);
   const setNumPages = usePdfStore(s => s.setNumPages);
@@ -43,17 +46,22 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
 
   const containerRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PDFDocumentProxy | null>(null);
-  const renderSeqRef = useRef(0);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const pagesRef = useRef<PdfPages | null>(null);
+  const zoomRef = useRef(zoom);
+  const zoomPoint = useRef<ZoomPoint>();
   const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [searchDoc, setSearchDoc] = useState<PDFDocumentProxy | null>(null);
 
-  // In-PDF text find (operates on the rendered .textLayer DOM).
+  // Search the attached document, not an in-flight candidate or hidden viewer.
   const {
     findOpen,
     findQuery,
     findCase,
     findCount,
     findIndex,
+    searching,
+    searchError,
     findInputRef,
     setFindQuery,
     setFindCase,
@@ -61,250 +69,104 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
     openFinder,
     closeFinder,
     gotoMatch,
-  } = usePdfSearch(containerRef);
+  } = usePdfSearch(containerRef, visible && bytes ? searchDoc : null);
 
-  // ---- PDF load ----
+  const highlightRef = useRef(applyHighlights);
+  highlightRef.current = applyHighlights;
+  zoomRef.current = zoom;
+
   useEffect(() => {
-    return () => {
-      // Tear down observer + doc on PdfViewer unmount.
-      observerRef.current?.disconnect();
-      observerRef.current = null;
-      if (docRef.current) {
-        docRef.current.destroy().catch(() => {});
-        docRef.current = null;
-      }
-    };
-  }, []);
+    const host = containerRef.current;
+    if (!host || !visible) return;
+    return bindPreviewZoom(host, () => zoomRef.current, (value, point) => {
+      zoomPoint.current = point;
+      zoomRef.current = value;
+      setZoom(value);
+    });
+  }, [visible, setZoom]);
 
+  useLayoutEffect(() => {
+    pagesRef.current?.setZoom(zoom, zoomPoint.current);
+    zoomPoint.current = undefined;
+  }, [zoom]);
+
+  // Keep the last successful pages visible while new bytes load. A candidate
+  // owns its render tasks until attach; hide/tab switch cancels it immediately.
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
+    let candidate: PdfPages | undefined;
+    let candidateDoc: PDFDocumentProxy | undefined;
+    let loading: PDFDocumentLoadingTask | undefined;
     async function load() {
+      const host = containerRef.current;
+      if (!host) return;
       if (!bytes) {
-        ++renderSeqRef.current;
-        observerRef.current?.disconnect();
-        observerRef.current = null;
+        pagesRef.current?.destroy();
+        pagesRef.current = null;
         const previous = docRef.current;
         docRef.current = null;
-        if (previous) await previous.destroy().catch(() => {});
-        if (cancelled) return;
-        setError(null);
+        if (previous) void previous.destroy();
+        host.replaceChildren();
+        setSearchDoc(null);
         setNumPages(0);
         setCurrentPage(1);
-        if (containerRef.current) containerRef.current.innerHTML = '';
+        setError(null);
         return;
       }
       try {
-        const pdfjs = ensurePdfjs();
-        const data = new Uint8Array(bytes);
-        const newDoc = await pdfjs.getDocument({ data }).promise;
-        if (cancelled) {
-          await newDoc.destroy().catch(() => {});
-          return;
-        }
+        loading = ensurePdfjs().getDocument({ data: new Uint8Array(bytes) });
+        candidateDoc = await loading.promise;
+        if (cancelled) return;
+        candidate = new PdfPages(
+          host, candidateDoc, zoomRef.current,
+          () => highlightRef.current(),
+          error => { if (!cancelled) setError(String(error)); },
+        );
+        await candidate.prepare();
+        if (cancelled) return;
+        pagesRef.current?.destroy();
         const previous = docRef.current;
-        ++renderSeqRef.current;
-        observerRef.current?.disconnect();
-        docRef.current = newDoc;
-        if (previous) void previous.destroy().catch(() => {});
-        setNumPages(newDoc.numPages);
-        setCurrentPage(Math.min(usePdfStore.getState().currentPage, newDoc.numPages));
+        candidate.attach(zoomRef.current);
+        pagesRef.current = candidate;
+        docRef.current = candidateDoc;
+        setSearchDoc(candidateDoc);
+        candidate = undefined;
+        candidateDoc = undefined;
+        if (previous) void previous.destroy();
+        setNumPages(docRef.current.numPages);
+        setCurrentPage(Math.min(usePdfStore.getState().currentPage, docRef.current.numPages));
         setError(null);
-        await renderAll();
-      } catch (e) {
-        if (!cancelled) setError(String(e));
+      } catch (error) {
+        candidate?.destroy();
+        if (!cancelled) {
+          void loading?.destroy();
+          setError(String(error));
+        }
       }
     }
     void load();
     return () => {
       cancelled = true;
-      ++renderSeqRef.current;
-      observerRef.current?.disconnect();
+      candidate?.destroy();
+      if (!docRef.current || docRef.current.loadingTask !== loading) void loading?.destroy();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bytes, visible]);
+  }, [bytes, visible, retry, setNumPages, setCurrentPage]);
 
   useEffect(() => {
-    if (!visible || !docRef.current) return;
-    const raf = requestAnimationFrame(() => {
-      void renderAll();
-    });
-    return () => cancelAnimationFrame(raf);
-    // Reopening is handled by the load effect; avoid repainting the old PDF
-    // concurrently with loading the latest bytes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
-
-  const renderAll = useCallback(async () => {
-    const container = containerRef.current;
-    const doc = docRef.current;
-    if (!visible || !container || !doc) return;
-    const seq = ++renderSeqRef.current;
-    // Preserve scroll so recompiles don't yank the user back to page 1.
-    const savedScrollTop = container.scrollTop;
-    const savedScrollLeft = container.scrollLeft;
-    const previousPage = Array.from(container.children).find(element => {
-      const page = element as HTMLElement;
-      return page.offsetTop + page.offsetHeight > savedScrollTop;
-    }) as HTMLElement | undefined;
-    const anchorPage = Number(previousPage?.dataset.page ?? 1);
-    const anchorFraction = previousPage ? (savedScrollTop - previousPage.offsetTop) / previousPage.offsetHeight : 0;
-    const fragment = document.createDocumentFragment();
-    const dpr = window.devicePixelRatio || 1;
-    ensurePdfjs();
-
-    // Phase 1: lay out empty page placeholders sized to each page's viewport.
-    // We need true sizes for correct scroll height & IntersectionObserver math,
-    // so we still call getPage(i) up front — but rendering the canvas is
-    // deferred until the placeholder enters the viewport.
-    type SlotState = { rendered: boolean; rendering: boolean };
-    const slots = new Map<HTMLDivElement, SlotState>();
-    const pages: { wrap: HTMLDivElement; viewport: ReturnType<Awaited<ReturnType<typeof doc.getPage>>['getViewport']>; index: number }[] = [];
-
-    for (let i = 1; i <= doc.numPages; i++) {
-      if (seq !== renderSeqRef.current) return;
-      const page = await doc.getPage(i);
-      if (seq !== renderSeqRef.current) return;
-      const viewport = page.getViewport({ scale: zoom });
-      const wrap = document.createElement('div');
-      wrap.className = styles.page;
-      wrap.dataset.page = String(i);
-      wrap.style.width = viewport.width + 'px';
-      wrap.style.height = viewport.height + 'px';
-      wrap.style.setProperty('--scale-factor', String(zoom));
-      fragment.appendChild(wrap);
-      slots.set(wrap, { rendered: false, rendering: false });
-      pages.push({ wrap, viewport, index: i });
+    if (!visible) {
+      setSearchDoc(null);
+      pagesRef.current?.destroy();
+      pagesRef.current = null;
     }
-
-    async function paint(idx: number, wrap: HTMLDivElement, viewport: typeof pages[number]['viewport']) {
-      if (seq !== renderSeqRef.current) return;
-      const slot = slots.get(wrap);
-      if (!slot || slot.rendered || slot.rendering) return;
-      // doc is captured by closure but TS forgets the narrowing across the
-      // async boundary; re-check explicitly.
-      const d = doc;
-      if (!d) return;
-      slot.rendering = true;
-      try {
-        const page = await d.getPage(idx);
-        if (seq !== renderSeqRef.current) return;
-
-        const canvas = document.createElement('canvas');
-        const renderViewport = dpr === 1 ? viewport : page.getViewport({ scale: zoom * dpr });
-        canvas.width = renderViewport.width;
-        canvas.height = renderViewport.height;
-        canvas.style.width = viewport.width + 'px';
-        canvas.style.height = viewport.height + 'px';
-        wrap.appendChild(canvas);
-
-        const textLayerDiv = document.createElement('div');
-        textLayerDiv.className = `textLayer ${styles.textLayer}`;
-        textLayerDiv.style.width = viewport.width + 'px';
-        textLayerDiv.style.height = viewport.height + 'px';
-        wrap.appendChild(textLayerDiv);
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        try {
-          await page.render({ canvas, canvasContext: ctx, viewport: renderViewport }).promise;
-        } catch {
-          /* aborted by zoom change */
-        }
-
-        try {
-          const textContent = await page.getTextContent();
-          const tl = new TextLayer({
-            textContentSource: textContent,
-            container: textLayerDiv,
-            viewport,
-          });
-          await tl.render();
-        } catch (e) {
-          console.warn('text layer render failed for page', idx, e);
-        }
-
-        slot.rendered = true;
-        // A detached staging page is highlighted after the atomic swap.
-        if (findQuery && wrap.isConnected) applyHighlights();
-      } finally {
-        slot.rendering = false;
-      }
-    }
-
-    function unpaint(wrap: HTMLDivElement) {
-      const slot = slots.get(wrap);
-      if (!slot || !slot.rendered) return;
-      // Drop heavy children (canvas + textLayer) but preserve the wrapper's
-      // dimensions so scroll position stays stable.
-      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
-      slot.rendered = false;
-    }
-
-    // Keep the previous PDF visible until the replacement viewport is painted.
-    // Staging detached pages avoids both blank flashes and intermediate reflows.
-    const anchorIndex = Math.max(0, Math.min(anchorPage - 1, pages.length - 1));
-    const viewportPages = pages.slice(anchorIndex, anchorIndex + 2);
-    await Promise.all(viewportPages.map(page => paint(page.index, page.wrap, page.viewport)));
-    if (seq !== renderSeqRef.current) return;
-    observerRef.current?.disconnect();
-    container.replaceChildren(fragment);
-    const anchor = pages[anchorIndex]?.wrap;
-    const targetTop = anchor ? anchor.offsetTop + anchorFraction * anchor.offsetHeight : savedScrollTop;
-    container.scrollTop = Math.max(0, Math.min(targetTop, container.scrollHeight - container.clientHeight));
-    container.scrollLeft = savedScrollLeft;
-    setCurrentPage(anchorIndex + 1);
-    if (findQuery) applyHighlights();
-
-    // Phase 2: observe & swap heavy DOM in/out as users scroll.
-    // Margin of ~one viewport keeps adjacent pages ready, so quick scrolls
-    // feel instant without holding the whole document in memory.
-    const observer = new IntersectionObserver(
-      entries => {
-        for (const entry of entries) {
-          const wrap = entry.target as HTMLDivElement;
-          const meta = pages.find(p => p.wrap === wrap);
-          if (!meta) continue;
-          if (entry.isIntersecting) {
-            void paint(meta.index, wrap, meta.viewport);
-          } else {
-            // Only unpaint when we're well clear of the viewport. The observer
-            // fires with isIntersecting=false the moment any edge crosses,
-            // which is too aggressive for fast scrolls.
-            const rect = entry.boundingClientRect;
-            const root = entry.rootBounds;
-            if (root && (rect.bottom < root.top - root.height || rect.top > root.bottom + root.height)) {
-              unpaint(wrap);
-            }
-          }
-        }
-      },
-      {
-        root: container,
-        rootMargin: '300px 0px 300px 0px',
-      },
-    );
-    for (const p of pages) observer.observe(p.wrap);
-    observerRef.current?.disconnect();
-    observerRef.current = observer;
-    // Restore scroll now that layout is committed. Clamp so we don't overshoot
-    // when a shorter document replaced a longer one.
-    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
-    container.scrollTop = Math.max(0, Math.min(targetTop, maxTop));
-    container.scrollLeft = savedScrollLeft;
-    // Fast path: paint the page under the current scroll position immediately
-    // rather than waiting for the observer's next microtask. Cuts perceived
-    // compile→visible latency by ~1 frame on recompile.
-    const probeY = container.scrollTop + container.clientHeight / 3;
-    for (const p of pages) {
-      const top = p.wrap.offsetTop;
-      const bot = top + p.wrap.offsetHeight;
-      if (probeY >= top && probeY < bot) {
-        void paint(p.index, p.wrap, p.viewport);
-        break;
-      }
-    }
-  }, [zoom, findQuery, applyHighlights, visible]);
+    return () => {
+      pagesRef.current?.destroy();
+      pagesRef.current = null;
+      const previous = docRef.current;
+      docRef.current = null;
+      if (previous) void previous.destroy();
+    };
+  }, [visible]);
 
   // Honor external scroll requests (forward SyncTeX: editor line → PDF spot).
   useEffect(() => {
@@ -315,8 +177,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
       `.${styles.page}[data-page="${scrollRequest.page}"]`,
     );
     if (!wrap) return;
-    // SyncTeX y is in PDF points (72 dpi); page DOM is CSS px (96 dpi) × zoom.
-    const yPx = scrollRequest.y != null ? scrollRequest.y * zoom * (96 / 72) : 0;
+    // PDF.js viewport scale 1 maps one PDF point to one CSS pixel.
+    const yPx = scrollRequest.y != null ? scrollRequest.y * zoom : 0;
     container.scrollTop = Math.max(0, wrap.offsetTop + yPx - container.clientHeight / 3);
     setCurrentPage(scrollRequest.page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -326,25 +188,12 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
     const container = containerRef.current;
     const doc = docRef.current;
     if (!container || !doc) return;
-    const top = container.scrollTop;
-    const probe = top + container.clientHeight / 3;
-    const pages = container.querySelectorAll<HTMLDivElement>(`.${styles.page}`);
-    for (const w of pages) {
-      const offTop = w.offsetTop;
-      const offBot = offTop + w.offsetHeight;
-      if (probe >= offTop && probe < offBot) {
-        const n = Number(w.dataset.page) || 1;
-        if (n !== currentPage) setCurrentPage(n);
-        break;
-      }
-    }
-  }
-
-  function onWheel(e: React.WheelEvent) {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    e.preventDefault();
-    if (e.deltaY < 0) setZoom(Math.min(4, zoom + 0.1));
-    else setZoom(Math.max(0.5, zoom - 0.1));
+    const box = container.getBoundingClientRect();
+    const anchor = capturePageAnchor(container, pagesRef.current?.elements ?? [], {
+      x: box.left + container.clientWidth / 2,
+      y: box.top + container.clientHeight / 3,
+    });
+    if (anchor && anchor.index + 1 !== currentPage) setCurrentPage(anchor.index + 1);
   }
 
   function onPageClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -359,9 +208,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const page = Number(wrap.dataset.page) || 1;
-    // SyncTeX expects PDF points (72 dpi); page CSS pixels are 96 dpi × zoom.
-    const cssToPt = 72 / 96;
-    onSyncTexBackward(page, (x / zoom) * cssToPt, (y / zoom) * cssToPt);
+    onSyncTexBackward(page, x / zoom, y / zoom);
   }
 
   function scrollToPage(n: number) {
@@ -432,8 +279,9 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
             }}
             placeholder="Find in PDF…"
           />
-          <span className={styles.finderInfo}>
-            {findQuery ? (findCount ? `${findIndex + 1}/${findCount}` : '0/0') : ''}
+          <span className={styles.finderInfo} aria-live="polite" title={searchError ?? undefined}>
+            {searchError ? 'Search failed' : searching ? 'Searching…'
+              : findQuery ? (findCount ? `${findIndex + 1}/${findCount}` : '0/0') : ''}
           </span>
           <button
             className={styles.btn}
@@ -466,26 +314,32 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
       )}
 
       {/* The scroll container must stay mounted even while an error or the
-        * empty state is showing — renderAll() writes into containerRef, and a
+        * empty state is showing — PdfPages writes into containerRef, and a
         * remount between a failed load and the next successful one would leave
         * the viewer permanently blank. Overlays sit on top instead. */}
       <div className={styles.body} aria-busy={compiling}>
-        {compiling && bytes && <div className={styles.updateNotice} role="status">Updating preview · showing last successful render</div>}
+        {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? "Updating preview" : "Preview not updated"} · showing last successful render</div>}
         <div
           ref={containerRef}
           className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
           style={pdfBg ? { background: pdfBg } : undefined}
           onScroll={onScroll}
-          onWheel={onWheel}
           onClick={onPageClick}
         />
         {error ? (
           <div className={styles.overlay}>
-            <div className={styles.error}>{error}</div>
+            <div className={styles.error} role="alert">
+              <span>Could not display PDF: {error}</span>
+              <button className={styles.btn} onClick={() => setRetry(n => n + 1)}>Reload preview</button>
+            </div>
           </div>
         ) : !bytes ? (
           <div className={styles.overlay}>
-            <div className={styles.empty}>Your typeset document will appear here.</div>
+            <div className={styles.empty} role="status">
+              {compiling ? 'Compiling LaTeX…' : compileStatus === 'error'
+                ? `Compilation failed: ${compileError ?? 'See problems for details.'}`
+                : 'Compile your LaTeX document to show the preview.'}
+            </div>
           </div>
         ) : null}
       </div>

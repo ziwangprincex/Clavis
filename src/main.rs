@@ -9,6 +9,9 @@ mod bib;
 mod bibliography_export;
 mod cwl;
 mod document_tools;
+mod document_io;
+mod local_history;
+mod templates;
 mod git_inspect;
 mod latex;
 mod project_config;
@@ -18,6 +21,8 @@ mod submission_bundle;
 mod submission_check;
 mod tasks;
 mod typst_service;
+mod typst_preview;
+mod typst_packages;
 mod typst_sig;
 mod typst_world;
 mod workspace_search;
@@ -31,13 +36,6 @@ use tauri::Manager;
 type AppState = typst_service::TypstCompiler;
 
 #[derive(Serialize)]
-struct TypstResult {
-    ok: bool,
-    svg: Option<String>,
-    error: Option<String>,
-}
-
-#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TypstPdfResult {
     ok: bool,
@@ -47,14 +45,16 @@ struct TypstPdfResult {
 
 #[tauri::command]
 async fn compile_typst(
-    state: tauri::State<'_, Arc<AppState>>,
-    source: String,
-    doc_path: Option<String>,
-) -> Result<TypstResult, String> {
-    Ok(match state.inner().clone().svg(source, doc_path).await {
-        Ok(svg) => TypstResult { ok: true, svg: Some(svg), error: None },
-        Err(msg) => TypstResult { ok: false, svg: None, error: Some(msg) },
-    })
+    state: tauri::State<'_, Arc<AppState>>, source: String, doc_path: Option<String>,
+    snapshot: Option<typst_preview::TypstSnapshot>,
+) -> Result<typst_preview::TypstPreview, String> {
+    state.inner().clone().preview(source, doc_path, snapshot.unwrap_or_default()).await
+}
+
+#[tauri::command]
+async fn render_formula(state: tauri::State<'_, Arc<AppState>>, source: String) -> Result<Option<String>, String> {
+    if source.len() > 4000 { return Err("Formula is too large for inline preview".into()); }
+    state.inner().clone().formula(source).await
 }
 
 #[tauri::command]
@@ -62,8 +62,9 @@ async fn compile_typst_pdf(
     state: tauri::State<'_, Arc<AppState>>,
     source: String,
     doc_path: Option<String>,
+    snapshot: Option<typst_preview::TypstSnapshot>,
 ) -> Result<TypstPdfResult, String> {
-    Ok(match state.inner().clone().pdf(source, doc_path).await {
+    Ok(match state.inner().clone().export(source, doc_path, snapshot.unwrap_or_default()).await {
         Ok(bytes) => {
             let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
             TypstPdfResult { ok: true, pdf_base64: Some(b64), error: None }
@@ -301,7 +302,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             compile_typst,
+            render_formula,
             compile_typst_pdf,
+            typst_packages::download_typst_package,
             list_typst_fonts,
             typst_sig::list_typst_signatures,
             scan_folder,
@@ -309,8 +312,16 @@ fn main() {
             save_binary_file,
             read_text_file,
             write_text_file,
+            document_io::read_document,
+            document_io::probe_documents,
+            document_io::save_document,
+            local_history::checkpoint_document,
+            local_history::list_document_versions,
+            local_history::read_document_version,
+            templates::create_template,
             path_exists,
             latex::compile::compile_latex,
+            latex::workdir::cancel_latex_compile,
             latex::synctex::synctex_forward,
             latex::synctex::synctex_backward,
             latex::workdir::cleanup_workdir,

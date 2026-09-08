@@ -14,6 +14,7 @@
 //! crates modules are re-exported below.
 
 pub(crate) mod compile;
+pub(crate) mod cache;
 pub(crate) mod diagnostics;
 pub(crate) mod distro;
 pub(crate) mod engine;

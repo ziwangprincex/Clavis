@@ -1,4 +1,5 @@
 .root {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -27,7 +28,11 @@
   --border-strong: rgba(0, 0, 0, 0.18);
   --text: #1c1c1c;
   --text-muted: rgba(0, 0, 0, 0.55);
-  --text-dim: rgba(0, 0, 0, 0.30);
+  --text-dim: rgba(0, 0, 0, 0.46);
+  --accent: #536b86;
+  --selection: #dce4ed;
+  --error: #a33d39;
+  color-scheme: light;
 }
 
 .preview {
@@ -178,3 +183,35 @@
 @media (max-width: 850px) {
   .preview { padding: 32px 20px; }
 }
+
+.previewStatus {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 6px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.previewStatus button, .diagnostics button { font: inherit; color: inherit; cursor: pointer; }
+.previewStatus button { border: 0; border-radius: 5px; padding: 4px 8px; background: var(--panel-soft); }
+.previewStatus button:hover:not(:disabled) { background: var(--tint-accent); color: var(--accent); }
+.previewStatus button:disabled { opacity: 0.5; cursor: default; }
+.typeset { background: var(--preview-desk); overflow-anchor: none; }
+.pages { padding: 24px; width: 100%; max-width: 960px; margin: 0 auto; }
+.typstPage {
+  width: 100%; margin-bottom: 20px; background: white;
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1000px;
+}
+.typstPage > svg { display: block; width: 100%; height: auto; }
+.diagnostics { padding: 10px 18px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.diagnostic { display: flex; flex-direction: column; text-align: left; width: 100%; border: 0; background: transparent; padding: 8px 0; }
+.diagnostic span { color: var(--text-muted); }
+.diagnostic strong { font-weight: 500; }

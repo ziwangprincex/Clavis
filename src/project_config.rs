@@ -158,6 +158,8 @@ fn contains_parent_or_absolute(path: &str) -> bool {
 
 pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
     let mut issues = Vec::new();
+    if config.latex.engine.as_deref().is_some_and(|engine| !matches!(engine, "pdflatex" | "xelatex" | "lualatex")) { issues.push("latex.engine must be pdflatex, xelatex, or lualatex".into()); }
+    if config.latex.bibliography.as_deref().is_some_and(|engine| !matches!(engine, "auto" | "bibtex" | "biber" | "none")) { issues.push("latex.bibliography must be auto, bibtex, biber, or none".into()); }
     if let Some(main) = config.project.main.as_deref() {
         if main.trim().is_empty() {
             issues.push("project.main must not be empty".to_string());

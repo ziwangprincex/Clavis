@@ -97,6 +97,6 @@ code {
 /* Increased contrast: give surfaces a defined, contrasting border. */
 @media (prefers-contrast: more) {
   :root {
-    --border: var(--border-strong);
+    --border: var(--border-strong) !important;
   }
 }

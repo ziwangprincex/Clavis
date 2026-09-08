@@ -14,7 +14,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '../store';
-import { BUILTIN_THEMES, type ThemeSpec } from '../editor/controller';
+import { BUILTIN_THEMES, type ThemeSpec } from './themes';
+import { accentTokens, chromeTokens } from './chromeTokens';
 
 /** Theme id used when `editor_theme` is 'auto' and the OS is in dark/light. */
 const AUTO_DARK = 'ink';
@@ -23,7 +24,7 @@ const AUTO_LIGHT = 'paper';
 /** Resolve the effective theme id, expanding the 'auto' sentinel. */
 export function resolveThemeId(editorTheme: string, osDark: boolean): string {
   if (editorTheme === 'auto') return osDark ? AUTO_DARK : AUTO_LIGHT;
-  return editorTheme in BUILTIN_THEMES ? editorTheme : AUTO_DARK;
+  return Object.hasOwn(BUILTIN_THEMES, editorTheme) ? editorTheme : AUTO_DARK;
 }
 
 /** Resolve the full ThemeSpec, applying the user's per-key color overrides. */
@@ -46,87 +47,21 @@ export function resolveThemeSpec(
   };
 }
 
-// ---- small color helpers (all inputs are #rgb / #rrggbb hex) ----
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  let h = hex.trim().replace('#', '');
-  if (h.length === 3) h = h.split('').map(c => c + c).join('');
-  if (h.length < 6) return null;
-  const n = parseInt(h.slice(0, 6), 16);
-  if (Number.isNaN(n)) return null;
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-/** `hex` at the given alpha as an rgba() string; falls back to `hex` verbatim. */
-function withAlpha(hex: string, a: number): string {
-  const c = hexToRgb(hex);
-  return c ? `rgba(${c.r}, ${c.g}, ${c.b}, ${a})` : hex;
-}
-
-/** Blend `hex` toward `toward` by `t` (0..1), returning a solid #rrggbb. */
-function mix(hex: string, toward: string, t: number): string {
-  const a = hexToRgb(hex);
-  const b = hexToRgb(toward);
-  if (!a || !b) return hex;
-  const ch = (x: number, y: number) => Math.round(x + (y - x) * t);
-  const to2 = (v: number) => v.toString(16).padStart(2, '0');
-  return `#${to2(ch(a.r, b.r))}${to2(ch(a.g, b.g))}${to2(ch(a.b, b.b))}`;
-}
-
-/** Apply an accent + a matching hover shade to :root. */
+/** Keep filled buttons and selected-row tints in the same accent family. */
 export function setAccent(root: HTMLElement, accent: string, dark: boolean): void {
-  root.style.setProperty('--accent', accent);
-  root.style.setProperty('--accent-hover', mix(accent, dark ? '#ffffff' : '#000000', 0.22));
+  for (const [key, value] of Object.entries(accentTokens(accent, dark))) {
+    root.style.setProperty(key, value);
+  }
 }
 
-/**
- * Derive the chrome CSS custom properties from a ThemeSpec and set them inline
- * on :root (inline styles win over the [data-theme] rules in tokens.css, so the
- * theme always drives the actual colors). Every surface is built from the
- * editor's *base* background (`bg`) so the toolbar/sidebar/preview stay the same
- * color family as the editor — panels get only a barely-there lift to separate
- * them. (We deliberately do NOT use `activeBg` here: in many themes that's the
- * much-lighter active-line/selection shade, e.g. Dracula #44475a vs bg #282a36,
- * which made the chrome look like a different color from the editor.)
- * Text/border shades come from the foreground so contrast tracks the theme.
- *
- * `--panel` and `--panel-solid` are intentionally the SAME opaque color. The
- * original design made `--panel` translucent to pair with `backdrop-filter` on
- * the toolbar, but that never did anything: in this layout the chrome bars are
- * `flex: none` siblings stacked ABOVE the editor/preview, never overlaying them,
- * so there is nothing behind them to blur. Rather than keep a frosted-glass
- * token that only costs compositing layers, the chrome commits to flat opaque
- * surfaces. The only real blurs left are the modal backdrops
- * (CommandPalette / SettingsDialog), which genuinely overlay content and use
- * `--bg-overlay`. Do not reintroduce translucency here without also making a
- * bar actually overlap scrollable content.
- */
+/** Apply exactly the same palette used by the Appearance samples. */
 export function applyChromeTokens(spec: ThemeSpec): void {
   const root = document.documentElement;
-  const { bg, fg, selection, dark } = spec;
-
-  const panel = mix(bg, fg, dark ? 0.022 : 0.026);
-
-  root.style.setProperty('--bg', bg);
-  root.style.setProperty('--bg-elevated', mix(bg, fg, 0.07));
-  root.style.setProperty('--bg-overlay', dark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.25)');
-
-  root.style.setProperty('--panel', panel);
-  root.style.setProperty('--panel-solid', panel);
-  root.style.setProperty('--panel-soft', withAlpha(fg, 0.05));
-
-  root.style.setProperty('--border', withAlpha(fg, 0.08));
-  root.style.setProperty('--border-strong', withAlpha(fg, 0.22));
-
-  root.style.setProperty('--text', fg);
-  root.style.setProperty('--text-muted', withAlpha(fg, 0.68));
-  root.style.setProperty('--text-dim', withAlpha(fg, 0.35));
-
-  root.style.setProperty('--selection', selection);
-
-  setAccent(root, spec.accent, dark);
-  root.style.setProperty('color-scheme', dark ? 'dark' : 'light');
-  root.setAttribute('data-theme', dark ? 'dark' : 'light');
+  for (const [key, value] of Object.entries(chromeTokens(spec))) {
+    root.style.setProperty(key, value);
+  }
+  root.style.setProperty('color-scheme', spec.dark ? 'dark' : 'light');
+  root.setAttribute('data-theme', spec.dark ? 'dark' : 'light');
 }
 
 /** Track the OS dark-mode preference, but only subscribe while `active`. */

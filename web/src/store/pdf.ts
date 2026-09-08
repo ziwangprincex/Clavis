@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import type { ProjectFile } from './project';
 
 interface PdfStore {
+  stale: boolean;
+  sourceContent: string;
   sourceRoot: string | null;
   sourceFiles: ProjectFile[];
   ownerTabId: string | null;
@@ -32,6 +34,8 @@ interface PdfStore {
 }
 
 export const usePdfStore = create<PdfStore>(set => ({
+  stale: false,
+  sourceContent: '',
   sourceRoot: null,
   sourceFiles: [],
   ownerTabId: null,

@@ -3,7 +3,6 @@ import { normalizePath } from './projectPaths';
 import { detectDocumentLanguage, documentTitle } from './documentIdentity';
 
 export const SESSION_VERSION = 2;
-export const MAX_RESTORED_TABS = 50;
 const SUPPORTED_SESSION_VERSIONS = new Set([1, SESSION_VERSION]);
 
 export interface PersistedTab {
@@ -12,6 +11,9 @@ export interface PersistedTab {
   lang: Tab['lang'];
   content: string;
   isDirty: boolean;
+  diskRevision?: string;
+  projectRoot?: string | null;
+  latexEngineOverride?: string;
 }
 
 interface PersistedSession {
@@ -59,6 +61,9 @@ function readTab(value: unknown): PersistedTab | null {
       lang: detectDocumentLanguage(filePath),
       content,
       isDirty,
+      ...(typeof value.diskRevision === "string" && /^(?:missing|sha256:[a-f0-9]{64})$/.test(value.diskRevision) ? { diskRevision: value.diskRevision } : {}),
+      ...(typeof value.projectRoot === 'string' && /^(?:\/|[a-z]:[\\/])/i.test(value.projectRoot) ? { projectRoot: value.projectRoot } : {}),
+      ...(typeof value.latexEngineOverride === 'string' && ['pdflatex', 'xelatex', 'lualatex'].includes(value.latexEngineOverride) ? { latexEngineOverride: value.latexEngineOverride } : {}),
     };
   }
   return { title, filePath: null, lang, content, isDirty };
@@ -94,26 +99,9 @@ function deduplicateTabs(values: unknown[]): Candidate[] {
   return candidates;
 }
 
-function capCandidates(candidates: Candidate[], activeCandidate: number): Candidate[] {
-  if (candidates.length <= MAX_RESTORED_TABS) return candidates;
-
-  const selected = new Set<number>();
-  if (activeCandidate >= 0) selected.add(activeCandidate);
-
-  for (let index = candidates.length - 1; index >= 0 && selected.size < MAX_RESTORED_TABS; index--) {
-    if (candidates[index].tab.isDirty) selected.add(index);
-  }
-  for (let index = candidates.length - 1; index >= 0 && selected.size < MAX_RESTORED_TABS; index--) {
-    selected.add(index);
-  }
-
-  return [...selected]
-    .sort((a, b) => a - b)
-    .map(index => candidates[index]);
-}
-
 /**
- * Decode, validate, migrate, deduplicate, and cap a Session Snapshot.
+ * Decode, validate, migrate, and deduplicate a Session Snapshot.
+ * Never cap recovery: even a clean scratch tab has no other on-disk copy.
  * A damaged Document is skipped; damage only rejects the whole snapshot when
  * no recoverable Documents remain.
  */
@@ -147,16 +135,9 @@ export function decodeSessionSnapshot(raw: string): RestoredSession | null {
   );
   if (activeCandidate < 0) activeCandidate = 0;
 
-  const capped = capCandidates(candidates, activeCandidate);
-  const activeSourceIndexes = candidates[activeCandidate].sourceIndexes;
-  let restoredActiveIndex = capped.findIndex(candidate =>
-    candidate.sourceIndexes.some(index => activeSourceIndexes.includes(index)),
-  );
-  if (restoredActiveIndex < 0) restoredActiveIndex = 0;
-
   return {
-    activeIndex: restoredActiveIndex,
-    tabs: capped.map(candidate => candidate.tab),
+    activeIndex: activeCandidate,
+    tabs: candidates.map(candidate => candidate.tab),
   };
 }
 
@@ -172,6 +153,9 @@ export function encodeSessionSnapshot(tabs: Tab[], activeTabId: string | null): 
       lang: tab.lang,
       content: tab.content,
       isDirty: tab.isDirty,
+      ...(tab.filePath && tab.diskRevision ? { diskRevision: tab.diskRevision } : {}),
+      ...(tab.projectRoot ? { projectRoot: tab.projectRoot } : {}),
+      ...(tab.latexEngineOverride ? { latexEngineOverride: tab.latexEngineOverride } : {}),
     })),
   };
   return JSON.stringify(snapshot);

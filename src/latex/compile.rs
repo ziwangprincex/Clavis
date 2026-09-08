@@ -22,26 +22,25 @@ pub async fn compile_latex(
     window: tauri::Window,
     state: tauri::State<'_, LatexState>,
 ) -> Result<CompileResult, String> {
-    // Reuse existing workdir if token provided & still alive.
-    let (workdir_arc, token) = match opts
-        .workdir_token
-        .as_deref()
-        .and_then(|t| state.get(t).map(|d| (t.to_string(), d)))
-    {
-        Some((tok, arc)) => (arc, tok),
-        None => {
-            let dir = TempDir::new().map_err(|e| format!("tempdir: {e}"))?;
-            let token = uuid::Uuid::new_v4().to_string();
-            state.insert(token.clone(), dir);
-            // re-fetch the Arc we just inserted
-            let arc = state.get(&token).ok_or_else(|| "workdir vanished".to_string())?;
-            (arc, token)
-        }
-    };
+    let request_id = opts.request_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let cancel = state.cancellations.lock().entry(request_id.clone()).or_default().clone();
+    let _guard = super::workdir::CompileGuard { id: request_id, state: &state };
+    if cancel.load(std::sync::atomic::Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
+    let trusted_root = if opts.full_build {
+        Some(crate::project_config::trusted_workspace_root(opts.workspace_root.as_deref().ok_or("Full build requires a trusted workspace")?)?)
+    } else { None };
+    let previous = opts.cache_token.as_deref().or(opts.workdir_token.as_deref()).and_then(|token| state.get(token));
+    let dir = TempDir::new().map_err(|e| format!("tempdir: {e}"))?;
+    let token = uuid::Uuid::new_v4().to_string();
+    state.insert(token.clone(), dir);
+    let workdir_arc = state.get(&token).ok_or("workdir vanished")?;
     let workdir = workdir_arc.path().to_path_buf();
+    let cleanup_token = token.clone();
+    let result = async {
     // A reused directory can contain a PDF from a previous invocation.
     // Invalidate it before any operation that can fail (including resolution).
     clear_pdf(&workdir)?;
+    super::cache::prepare(&opts, previous.as_ref().map(|p| p.path()), &workdir)?;
 
     // Write project files first (auxiliary files). Skip any whose rel_path equals MAIN_TEX
     // (main.tex is always written from `source`).
@@ -114,7 +113,7 @@ pub async fn compile_latex(
     std::fs::write(&tex_path, opts.source.as_bytes())
         .map_err(|e| format!("write main.tex: {e}"))?;
 
-    let engine_path = match resolve_engine(&opts.engine, opts.custom_path.as_deref()) {
+    let engine_path = match resolve_engine(if opts.full_build { "latexmk" } else { &opts.engine }, if opts.full_build { None } else { opts.custom_path.as_deref() }) {
         Ok(p) => p,
         Err(e) => {
             return Ok(CompileResult {
@@ -139,7 +138,7 @@ pub async fn compile_latex(
     // Diagnostics harvested from bibtex/biber output (kept across runs).
     let mut bib_diags: Vec<LatexDiag> = Vec::new();
     let mut runs: u32 = 0;
-    let max_runs = opts.max_runs.max(1).min(8);
+    let max_runs = if opts.full_build { 1 } else { opts.max_runs.max(1).min(8) };
     let mut font_dirs: Vec<PathBuf> = Vec::new();
     for pf in &opts.project_files {
         if !pf.binary_base64.is_some() { continue; }
@@ -179,6 +178,7 @@ pub async fn compile_latex(
     let mut success = false;
 
     while runs < max_runs {
+        if cancel.load(std::sync::atomic::Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
         if started.elapsed() > TOTAL_COMPILE_TIMEOUT {
             log_full.push_str("\n[clavis] total compile timeout exceeded\n");
             success = false;
@@ -186,7 +186,7 @@ pub async fn compile_latex(
         }
         clear_pdf(&workdir)?;
         runs += 1;
-        let args: Vec<&str> = vec![
+        let mut args: Vec<&str> = vec![
             "-interaction=nonstopmode",
             "-halt-on-error",
             // Security: never let an untrusted .tex run external commands via
@@ -200,7 +200,12 @@ pub async fn compile_latex(
             &outdir_arg,
             MAIN_TEX,
         ];
-        let (code, out) = match run_streaming(&engine_path, &args, &workdir, &font_dirs, &window, runs).await {
+        let full_args;
+        if opts.full_build {
+            full_args = full_build_args(&opts, trusted_root.as_deref())?;
+            args = full_args.iter().map(String::as_str).collect();
+        }
+        let (code, out) = match run_streaming(&engine_path, &args, &workdir, &font_dirs, &window, runs, &cancel).await {
             Ok(r) => r,
             Err(e) => {
                 clear_pdf(&workdir)?;
@@ -234,7 +239,7 @@ pub async fn compile_latex(
                             vec!["main".to_string()]
                         };
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
-                        match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs).await {
+                        match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs, &cancel).await {
                             Ok((bib_code, bo)) => {
                                 if bib_code != 0 {
                                     bib_diags.push(LatexDiag { line: None, file: None, message: format!("{bib_name} exited with code {bib_code}"), kind: "error", package: None });
@@ -290,6 +295,30 @@ pub async fn compile_latex(
         runs,
         workdir_token: Some(token),
     })
+    }.await;
+    if result.is_err() { state.remove(&cleanup_token); }
+    result
+}
+
+fn full_build_args(opts: &CompileOptions, root: Option<&Path>) -> Result<Vec<String>, String> {
+    if opts.custom_path.as_ref().is_some_and(|path| !path.trim().is_empty()) {
+        return Err("latexmk full build uses distribution engines; remove the custom engine path or define a trusted project task".into());
+    }
+    let mode = match opts.engine.as_str() {
+        "pdflatex" => "-pdf", "xelatex" => "-xelatex", "lualatex" => "-lualatex",
+        _ => return Err("Unsupported latexmk engine".into()),
+    };
+    let mut args = vec!["-norc".into(), mode.into(), "-interaction=nonstopmode".into(), "-halt-on-error".into(), "-file-line-error".into(), "-synctex=1".into(), "-latexoption=-no-shell-escape".into()];
+    if let Some(root) = root {
+        let rc = root.join(".latexmkrc");
+        if rc.is_file() {
+            let rc = std::fs::canonicalize(rc).map_err(|e| e.to_string())?;
+            if !rc.starts_with(root) { return Err("latexmk configuration is outside the workspace".into()); }
+            args.extend(["-r".into(), rc.to_string_lossy().into_owned()]);
+        }
+    }
+    args.push(MAIN_TEX.into());
+    Ok(args)
 }
 
 fn clear_pdf(workdir: &Path) -> Result<(), String> {
@@ -339,4 +368,20 @@ mod tests {
             assert!(!run_succeeded(0, dir.path()));
         }
     }
+    #[test]
+    #[ignore = "requires installed latexmk and pdflatex"]
+    fn real_latexmk_builds_document_and_index() {
+        let program = resolve_engine("latexmk", None).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(MAIN_TEX), r"\documentclass{article}
+\usepackage{makeidx}\makeindex
+\begin{document}Hello\index{hello}\printindex\end{document}").unwrap();
+        let opts: CompileOptions = serde_json::from_value(serde_json::json!({ "source": "", "engine": "pdflatex", "fullBuild": true })).unwrap();
+        let args = full_build_args(&opts, None).unwrap();
+        let output = std::process::Command::new(program).args(args).current_dir(dir.path()).env("PATH", super::super::engine::enriched_path()).output().unwrap();
+        assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+        assert!(dir.path().join("main.ind").exists());
+        assert!(read_pdf(dir.path()).is_some());
+    }
+
 }

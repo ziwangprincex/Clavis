@@ -56,7 +56,9 @@ export async function openFileByPath(path: string): Promise<boolean> {
     return true;
   }
   try {
-    const content = await fs.readTextFile(path);
+    const disk = await fs.readDocument(path);
+    if (disk.content === null) throw new Error("Document no longer exists");
+    const content = disk.content;
     const detectedLang = detectDocumentLanguage(path);
     useTabsStore.getState().addTab({
       id: newTabId(),
@@ -65,6 +67,8 @@ export async function openFileByPath(path: string): Promise<boolean> {
       lang: detectedLang,
       content,
       isDirty: false,
+      diskRevision: disk.revision,
+      diskStamp: disk.stamp,
     });
     void pushRecent(path);
 

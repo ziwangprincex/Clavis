@@ -4,7 +4,7 @@
  * `applyChromeTokens()` in web/src/theme/appTheme.ts, which derives the whole
  * chrome palette from the selected editor theme. Inline styles beat these
  * rules, so editing a color here usually has no visible effect — change
- * appTheme.ts instead. What lives here is the pre-hydration fallback plus the
+ * theme/chromeTokens.ts instead. What lives here is the pre-hydration fallback plus the
  * tokens appTheme.ts does NOT set (fonts, radii, shadows, motion, tints).
  *
  * - Light & dark variants are both defined; switch via [data-theme="light"]
@@ -17,13 +17,13 @@
 
 :root,
 :root[data-theme='dark'] {
-  --bg: #1e1e1e;
-  --bg-elevated: #2a2a2a;
+  --bg: #20242b;
+  --bg-elevated: #2c3037;
   --bg-overlay: rgba(0, 0, 0, 0.55);
 
   /* Toolbar / titlebar / status-bar surface — flat and opaque. */
-  --panel: #28282a;
-  --panel-solid: #28282a;
+  --panel: #252930;
+  --panel-solid: #252930;
   --panel-soft: rgba(255, 255, 255, 0.05);
 
   /* Subtle separators (NSColor.separator equivalent) */
@@ -35,15 +35,18 @@
   --text-muted: rgba(235, 235, 245, 0.60);
   --text-dim: rgba(235, 235, 245, 0.30);
 
-  /* Accents (Apple system colors) */
-  --accent: #0a84ff; /* systemBlue dark */
-  --accent-hover: #409cff;
+  /* Writing palette fallback; runtime derives matching control colors. */
+  --accent: #a7bcd4;
+  --on-accent: #17191c;
+  --on-accent-hover: #17191c;
+  --preview-desk: #23272e;
+  --accent-hover: #b2c4d9;
   --error: #ff453a;
   --warning: #ffd60a;
   --ok: #30d158;
 
   /* Selection */
-  --selection: rgba(10, 132, 255, 0.32);
+  --selection: #39495e;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro',
@@ -84,12 +87,12 @@
 }
 
 :root[data-theme='light'] {
-  --bg: #ffffff;
-  --bg-elevated: #f5f5f7;
+  --bg: #faf9f6;
+  --bg-elevated: #fefdfc;
   --bg-overlay: rgba(0, 0, 0, 0.20);
 
-  --panel: #f6f6f8;
-  --panel-solid: #f6f6f8;
+  --panel: #f2f2ef;
+  --panel-solid: #f2f2ef;
   --panel-soft: rgba(0, 0, 0, 0.04);
 
   --border: rgba(0, 0, 0, 0.10);
@@ -99,13 +102,16 @@
   --text-muted: rgba(60, 60, 67, 0.60);
   --text-dim: rgba(60, 60, 67, 0.30);
 
-  --accent: #007aff; /* systemBlue light */
-  --accent-hover: #0064d2;
+  --accent: #536b86;
+  --on-accent: #ffffff;
+  --on-accent-hover: #ffffff;
+  --preview-desk: #efeeec;
+  --accent-hover: #495e76;
   --error: #ff3b30;
   --warning: #ff9500;
   --ok: #34c759;
 
-  --selection: rgba(0, 122, 255, 0.20);
+  --selection: #dce4ed;
 
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);

@@ -1,5 +1,73 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. Authorized v1.3.0 release preparation - 2026-09-08
+
+The owner requested pushing/releasing according to HANDOFF and RELEASING. This authorizes this release's source commit, new tag, CI draft/publication and Homebrew distribution, not unrelated remote changes. The full accumulated writer/typesetting/theme work and the six audit fixes are included. Use **1.3.0**, a new feature version, with reviewed notes in `docs/releases/v1.3.0.md`; do not move existing tags.
+
+Remote checks supersede the old authentication blocker below: **v1.2.0 is published**, its annotated tag resolves to aa38d78, and origin/main matches local 49389b6. Existing GitHub CLI authorization now includes workflow scope. No credentials, keys, workflow permissions or global Git configuration need changing. The five untracked one-off tools (`check-workspace-layout.mjs`, `check-writing-ui.mjs`, `local-*-update.py`) must remain local, as must ignored target outputs. Production updater feature/public key remain unchanged.
+
+Fresh pre-release checks: **634 frontend tests, 141 Rust tests (three optional ignored), eight release-guard tests**, TypeScript, production frontend and Rust all-target checks pass. Prior local macOS app/signature and real PDF extraction checks are recorded below. Native GUI acceptance, live package downloads and actual installed-app upgrading remain unverified. Candidate documents below describe earlier passes; their local-only/version statements are historical, not a reason to omit their code from this authorized release.
+
+Publication is not yet claimed: push the new tag, wait for CI and all three platform builds, validate complete assets/manifest and updater signatures with the unchanged public key, then publish. Verify public latest.json and Homebrew version/DMG checksum, and append the actual outcome here. No Chrome, Gongfeng/MCP, Apple notarization, Authenticode or updater-key rotation.
+
+## 0. Six audit fixes - 2026-09-08
+
+All six authorized audit findings are fixed locally: session restoration no longer truncates after 50 tabs; copied mains follow their Save As path without redirecting other chapters; LaTeX auto-compile observes path/root/engine; PDF find indexes all page text independently of virtualized surfaces; Typst recompilation preserves search selection without jumping; cancelled PDF text extraction/rendering restarts at an unchanged scale without repainting an already sharp canvas. No added dependency, version bump, remote operation or developer credential work. Full behavior and boundaries: `docs/BUG_FIXES_20260908.md`.
+
+634 frontend tests and 141 Rust tests pass (three optional Rust tests ignored). Real pdflatex/PDF.js verifies a remote match on page 11 of 12 without rendering any canvas. Production frontend and local app build passed; `codesign --verify --deep --strict` passed, and Cargo.toml/Cargo.lock match their pre-build checksums. This is not native GUI acceptance. Artifacts/logs: `target/bug-fixes/`; app: `target/release/bundle/macos/Clavis.app`. Candidate remains local and ad-hoc signed. Previously discarded/overwritten session contents cannot be recovered by removing the limit now.
+
+## 0. LaTeX initial preview fix - 2026-09-08
+
+Removed the first-LaTeX auto-compile skip: first open/restore now compiles after the existing debounce while preview is visible. PDF canvas presentation no longer waits for the optional selection/search text layer. Raster/worker failures are surfaced with reload, and empty preview states distinguish compiling, failed compilation and uncompiled input. No new dependencies, compiler configuration or release changes.
+
+605 frontend tests and 141 Rust tests passed (three optional Rust tests ignored). The user's exact hello article compiles; real PDF.js/Skia rendering verified the word and its body-region pixels. The isolated native WKWebView probe timed out with desktop-service connection errors, so native GUI acceptance is still pending and the exact user-window failure is not claimed reproduced. Details: `docs/LATEX_PREVIEW_FIX.md`; artifacts and build log: `target/latex-preview-check/`.
+
+## 0. Preview zoom candidate - 2026-09-08
+
+PDF zoom now retains page geometry/wrappers and scales existing canvas/text surfaces immediately; nearby pages repaint after 140 ms idle. Old render tasks are cancelled. Shared native wheel/WebKit pinch input is frame-batched, proportional and pointer-anchored. Typst uses the same input/anchor path with a consistent fit-width baseline. Search repaint does not navigate; explicit match navigation still does. PDF SyncTeX no longer adds an extra 96/72 coordinate conversion. No dependency or new panel.
+
+594 frontend tests and 141 Rust tests passed (three optional Rust tests ignored). The 300-page renderer regression asserts zero page fetches/raster calls during 30 consecutive scale updates, followed by two nearby repaints; this is mocked workload validation, not measured WKWebView frame rate. Local app build and codesign verification passed; Cargo inputs match pre-build checksums. No Chrome, remote operation or release. Native pinch/selection/visual acceptance remains pending. See `docs/PREVIEW_ZOOM.md`; app: `target/release/bundle/macos/Clavis.app`; log: `target/preview-zoom/build.log`.
+
+## 0. Completion presentation fix - 2026-09-08
+
+Fixed the actual source of uppercase completion text: bare `li span` / `li` selectors in SubmissionCheckDialog.module.css leaked globally. Every dialog tag selector is now scoped to a local class. Do not lowercase completion data or mask the leak with overriding uppercase resets: LaTeX commands, reference/citation keys and file paths are case-sensitive.
+
+The shared completion popup now has a compact rounded surface, no icon placeholders, a monospaced primary label, smaller non-italic right-aligned detail, restrained matched-text weight and theme-tinted selection. Width and height are bounded; long labels/details truncate. Completion sources, ranking, insertion and keyboard mappings are unchanged; no new dependency or UI framework.
+
+Verification: 571 frontend tests, typecheck, production bundle and 141 Rust tests passed (three optional tests ignored). New regressions check dialog CSS scope and displayed/inserted casing. Production CSS was separately checked for bare list-item rules. Local macOS app packaging and codesign verification passed; Cargo inputs match the pre-build checksums. No Chrome, remote operations, version bump or release. Native visual acceptance remains pending. Application: `target/release/bundle/macos/Clavis.app`; build log: `target/completion-refresh/build.log`.
+
+## 0. Complete writer candidate - 2026-09-08
+
+The owner authorized the rest of the pure-writer roadmap and requested simpler, maintainable code. All six areas now have local implementations: save safety, project/dependency-scoped and incremental performance, Typst reading/search/navigation, shared diagnostic guidance, opt-in single-line inline math, offline templates and bounded local history independent of Git. No new permanent panel, plugin marketplace, terminal, production dependency, remote operation or release change. Entrypoints and exact limits: `docs/WRITER_FEATURES.md`; current status: `docs/WRITER_ROADMAP.md`. The sections below are historical passes, not current incomplete status.
+
+565 frontend tests and 141 Rust tests pass (three optional real-tool/benchmark tests ignored by default). The real pdflatex starter and 20/100/300-page debug benchmark were run separately. The 100-page edit measurement improved from 6619 ms to 169 ms; the 300-page case from 35180 ms to 5809 ms. These are synthetic/debug timings, not native UI frame-rate acceptance. An actual two-page unchanged SVG response shrank from 29990 to 1093 bytes; text and source positions still refresh.
+
+Implementation boundaries: single-line inline math excludes cursor/selection lines and does not inherit custom macros; reader text alignment/copy needs native visual acceptance; whole-document search spans text runs/lines but not page boundaries; history is path-keyed, bounded to 50 versions/document and 256 MiB globally. History restore changes the buffer and leaves save-conflict checks active. Avoid adding speculative compatibility layers to these focused modules.
+
+Production build initially exposed an old test-only gate on `compile_to_svg`; removed because the isolated formula renderer now uses it in production. The packaging script restores Cargo inputs on failures and success. Full packaging completed successfully, codesign verification passes and Cargo inputs match their backups exactly. Download archives and precise boundaries are recorded in WRITER_FEATURES. Use `CARGO_HOME=target/writer-safety/cargo-home` (absolute path preferred); the global Cargo/npm caches are not writable. Temporary formatter tools stay under ignored target and are not production dependencies.
+
+## 0. Pure writer / save protection candidate - 2026-09-08
+
+The owner approved a pure writer tool and the ordered roadmap in `docs/WRITER_ROADMAP.md`: save protection, long-document performance, Typst reader, guided diagnostics, inline formulas, templates/local timeline. Do not add a plugin marketplace, terminal or large AI sidebar. Only the first roadmap item is implemented in this pass; do not report the rest as finished.
+
+Save/open/session restoration now carry a disk-content revision. Manual/automatic/Save As writes share a guarded queue and native double-checked temporary-file replacement. External changes auto-reload only clean known-baseline buffers; conflicts and deletions pause autosave for the affected document and expose an on-demand comparison/merge dialog with scratch recovery copies. See `docs/SAVE_PROTECTION.md` for entrypoints, UTF-8/32 MiB limits, residual cross-process race and non-timeline recovery limits.
+
+Validation: 544 frontend tests, TypeScript checks, production frontend build and 133 Rust tests pass (one optional real-tool test ignored). Seven native disk tests plus 33 frontend save/sync/UI tests cover the new path. The global Cargo registry cache was missing/unwritable; locked dependencies were restored under `target/writer-safety/cargo-home`. Use the environment documented in SAVE_PROTECTION for reproducible local builds; no system permission changes, remote repository operations or release metadata changes were made. Native visual acceptance remains pending.
+
+## 0. Local theme refresh candidate - 2026-09-08
+
+The owner requested a more polished theme. Revised Paper/Ink, added Mist/Dusk, unified syntax/chrome/control colors and added visual palette choices in Appearance. Existing classic choices and custom settings are preserved; no pane geometry or compilation workflow change. See `docs/THEME_REFRESH.md` for entrypoints and visual acceptance boundaries. Fresh validation: 519 frontend tests, typecheck, production build and 126 Rust tests pass (one optional tool integration test ignored). This is local only, with no remote or Chrome operations; version/release metadata remains unchanged.
+
+## 0. Local LaTeX / Typst functionality candidate - 2026-09-08
+
+The owner authorized implementation of the proposed language/workflow improvements. This pass is local only: no remote lookup, commit, push, release metadata update or Apple developer credential operation. Publication entries below are historical; their remote state was not rechecked in this task.
+
+Implemented shared project/main/engine resolution, session-persisted explicit overrides, Typst dirty-buffer preview/export snapshots, versioned offline package resolution and explicit download, paged source-mapped preview, structured diagnostics and last-good rendering, LaTeX auxiliary-only reuse into fresh workdirs, quick/clean/latexmk builds and process-tree cancellation, formula/reference hover, folding and syntax-filtered prose spelling. See `docs/TYPESETTING_WORKFLOW.md` for all entrypoints, security boundaries and limitations.
+
+Validation before packaging: 506 frontend tests and typecheck passed; 126 Rust tests passed with one optional real-tool test ignored in the default suite; that real latexmk test was separately run and passed, producing a PDF and index. Live registry downloads, arbitrary custom rc/glossary workflows and native GUI feel are not claimed validated. App packaging status is recorded in the workflow document after completion. This candidate retains version 1.2.0 but must not replace or retag an existing release.
+
+The pre-existing five untracked local scripts were untouched. One-off scripts created for this pass are archived under ignored `target/writing-implementation/`, not intended as shipped project tools. Cargo input changes add only direct declarations for already-resolved reqwest/flate2/tar dependencies; keep production updater features and public key unchanged.
+
 ## 0. v1.2.0 publication blocked on authentication - 2026-09-08
 
 Release commit **aa38d78** and annotated tag **v1.2.0** exist locally. No remote

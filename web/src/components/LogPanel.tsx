@@ -1,7 +1,11 @@
 import { useCompileStore } from '../store';
 import styles from './LogPanel.module.css';
+import { guidance } from '../compile/guidance';
 
 export interface LogPanelProps {
+  onEnvironment?: () => void;
+  onSettings?: () => void;
+  onFullBuild?: () => void;
   /** Jump to a diagnostic's location. `file` is the project-relative source file
    *  the engine reported (or undefined → the active/root file). */
   onJumpTo?: (file: string | undefined, line: number) => void;
@@ -9,7 +13,7 @@ export interface LogPanelProps {
   onInstallPackage?: (pkg: string) => void;
 }
 
-export function LogPanel({ onJumpTo, onInstallPackage }: LogPanelProps) {
+export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings, onFullBuild }: LogPanelProps) {
   const { errors, logLines, logTail } = useCompileStore();
 
   return (
@@ -39,7 +43,15 @@ export function LogPanel({ onJumpTo, onInstallPackage }: LogPanelProps) {
                 <span className={styles.muted}>--</span>
               )}
               <span className={styles.kindLabel}>{err.kind || 'error'}</span>
-              <span className={styles.message}>{err.message}</span>
+              <span className={styles.message}>{err.message}<small style={{ display: 'block', marginTop: 5, color: 'var(--text-muted)' }}>{guidance('latex', err.message).explanation}</small>
+                <button className={styles.guide} onClick={() => {
+                  const action = guidance('latex', err.message).action;
+                  if (action === 'environment') onEnvironment?.();
+                  else if (action === 'engine') onSettings?.();
+                  else if (action === 'full-build') onFullBuild?.();
+                  else if (err.line) onJumpTo?.(err.file, err.line);
+                }} disabled={guidance('latex', err.message).action === 'source' && !err.line}>{guidance('latex', err.message).label}</button>
+              </span>
               {err.kind === 'missing-file' && err.package && (
                 <button
                   className={styles.installBtn}

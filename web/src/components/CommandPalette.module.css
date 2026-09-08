@@ -79,12 +79,12 @@
 }
 
 .item.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--tint-accent);
+  color: var(--text);
 }
 
 .item.active .shortcut {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-muted);
 }
 
 .name {

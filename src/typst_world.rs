@@ -106,6 +106,9 @@ fn project_file_id(path: &str) -> Result<FileId, String> {
 
 pub struct SimpleWorld {
     main_id: FileId,
+    overlays: HashMap<FileId, String>,
+    accessed: std::sync::Mutex<std::collections::HashSet<FileId>>,
+    pub missing_packages: std::sync::Mutex<Vec<String>>,
     main_source: Source,
     /// Absolute, canonicalized project root. On-disk file access (`#image`,
     /// `#include`, data files) is confined to this directory. `None` means the
@@ -122,6 +125,9 @@ impl SimpleWorld {
         let main_id = project_file_id("/main.typ")?;
         Ok(Self {
             main_id,
+            overlays: HashMap::new(),
+            accessed: Default::default(),
+            missing_packages: std::sync::Mutex::new(Vec::new()),
             main_source: Source::new(main_id, String::new()),
             root: None,
             file_cache: std::sync::Mutex::new(HashMap::new()),
@@ -130,7 +136,8 @@ impl SimpleWorld {
     }
 
     pub fn set_source(&mut self, text: String) {
-        self.main_source = Source::new(self.main_id, text);
+        if self.main_source.id() == self.main_id { self.main_source.replace(&text); }
+        else { self.main_source = Source::new(self.main_id, text); }
         // Drop per-compile caches: on-disk files may have changed between edits.
         self.file_cache.lock().unwrap().clear();
         self.source_cache.lock().unwrap().clear();
@@ -140,6 +147,10 @@ impl SimpleWorld {
     /// parent directory becomes the root within which `#image` / `#include`
     /// may resolve. Passing `None` (unsaved buffer) disables file access.
     pub fn set_root_from_doc(&mut self, doc_path: Option<&str>) {
+        self.overlays.clear();
+        self.accessed.lock().unwrap().clear();
+        self.missing_packages.lock().unwrap().clear();
+        self.main_id = project_file_id("/main.typ").unwrap();
         self.root = doc_path.and_then(|p| {
             let parent = Path::new(p).parent()?;
             // Canonicalize so the containment check below compares real paths
@@ -150,14 +161,63 @@ impl SimpleWorld {
         self.source_cache.lock().unwrap().clear();
     }
 
+    pub fn configure(&mut self, source: String, doc_path: Option<&str>, snapshot: &crate::typst_preview::TypstSnapshot) -> Result<(), String> {
+        self.set_root_from_doc(doc_path);
+        if let Some(doc) = doc_path {
+            let path = std::fs::canonicalize(doc).map_err(|e| format!("main document: {e}"))?;
+            if let Some(root) = snapshot.root.as_deref() {
+                let root = std::fs::canonicalize(root).map_err(|e| format!("project root: {e}"))?;
+                if !path.starts_with(&root) { return Err("main document is outside project root".into()); }
+                self.root = Some(root);
+            }
+            let root = self.root.as_ref().ok_or("missing project root")?;
+            let relative = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            self.main_id = project_file_id(&relative.to_string_lossy().replace('\\', "/"))?;
+            if snapshot.documents.len() > 500 { return Err("too many open documents".into()); }
+            let mut bytes = source.len();
+            for document in &snapshot.documents {
+                bytes += document.content.len();
+                if bytes > 64 * 1024 * 1024 { return Err("open document snapshot exceeds 64 MiB".into()); }
+                let path = std::fs::canonicalize(&document.path).map_err(|e| format!("open document {}: {e}", document.path))?;
+                if let Ok(relative) = path.strip_prefix(root) {
+                    let id = project_file_id(&relative.to_string_lossy().replace('\\', "/"))?;
+                    self.overlays.insert(id, document.content.clone());
+                }
+            }
+        }
+        self.set_source(source);
+        Ok(())
+    }
+
+    pub fn dependencies(&self) -> Vec<String> {
+        let mut paths: Vec<_> = self.accessed.lock().unwrap().iter().filter_map(|id| self.source_path(*id)).collect();
+        paths.sort(); paths.dedup(); paths
+    }
+
+    pub fn source_path(&self, id: FileId) -> Option<String> {
+        if !matches!(id.root(), VirtualRoot::Project) { return None; }
+        self.root.as_ref().and_then(|root| id.vpath().realize(root).ok())
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+    }
+
     /// Resolve a Typst `FileId` to an absolute path *inside* the project root.
     /// Returns `AccessDenied`/`NotFound` rather than escaping the root.
     fn resolve_in_root(&self, id: FileId) -> FileResult<PathBuf> {
         let vpath = id.vpath();
-        let root = self
-            .root
-            .as_ref()
-            .ok_or_else(|| FileError::NotFound(PathBuf::from(vpath.get_without_slash())))?;
+        let package_root;
+        let root = match id.root() {
+            VirtualRoot::Project => self.root.as_ref()
+                .ok_or_else(|| FileError::NotFound(PathBuf::from(vpath.get_without_slash())))?,
+            VirtualRoot::Package(spec) => {
+                package_root = crate::typst_packages::find_package(spec).ok_or_else(|| {
+                    let mut missing = self.missing_packages.lock().unwrap();
+                    let name = spec.to_string();
+                    if !missing.contains(&name) { missing.push(name); }
+                    FileError::Other(Some(format!("Package {spec} is not cached. Download it from the preview diagnostics, or install it in your local Typst package directory.").into()))
+                })?;
+                &package_root
+            }
+        };
         // `VirtualPath` is normalized at construction, and `realize` maps it
         // underneath the supplied root without allowing `..` escapes.
         let resolved = vpath.realize(root).map_err(FileError::from)?;
@@ -203,9 +263,11 @@ impl World for SimpleWorld {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
+        self.accessed.lock().unwrap().insert(id);
         if id == self.main_id {
             return Ok(self.main_source.clone());
         }
+        if let Some(text) = self.overlays.get(&id) { return Ok(Source::new(id, text.clone())); }
         if let Some(cached) = self.source_cache.lock().unwrap().get(&id) {
             return cached.clone();
         }
@@ -219,6 +281,9 @@ impl World for SimpleWorld {
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
+        self.accessed.lock().unwrap().insert(id);
+        if id == self.main_id { return Ok(Bytes::new(self.main_source.text().to_string())); }
+        if let Some(text) = self.overlays.get(&id) { return Ok(Bytes::new(text.clone())); }
         if let Some(cached) = self.file_cache.lock().unwrap().get(&id) {
             return cached.clone();
         }
@@ -249,7 +314,7 @@ fn compile_paged(world: &SimpleWorld) -> Result<PagedDocument, String> {
 }
 
 /// Compile the world's main source to a single merged SVG string.
-/// On failure, returns a human-readable error message.
+/// Used by isolated formula rendering as well as the compile tests.
 pub fn compile_to_svg(world: &SimpleWorld) -> Result<String, String> {
     let document = compile_paged(world)?;
     Ok(typst_svg::svg_merged(

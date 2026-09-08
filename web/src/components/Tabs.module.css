@@ -24,7 +24,7 @@
   white-space: nowrap;
 }
 .tab:hover { color: var(--text); }
-.tab.active { color: var(--text); border-bottom-color: var(--border-strong); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .langTag { font-size: 0.8em; color: var(--text-muted); }
 .title { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .dirty { color: var(--accent); flex: none; }

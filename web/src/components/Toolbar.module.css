@@ -32,16 +32,16 @@
 }
 .iconBtn { width: 32px; padding: 0; }
 .iconBtn:hover, .textBtn:hover, .pressed { background: var(--panel-soft); color: var(--text); }
-.primaryBtn { background: var(--panel-soft); color: var(--accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
+.primaryBtn { background: var(--tint-accent); color: var(--accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
 .primaryBtn:hover:not(:disabled) { background: var(--selection); }
 .iconBtn:active, .textBtn:active, .primaryBtn:active { background: var(--border); }
 .iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
 .layoutSwitch { display: flex; padding: 3px; border-radius: 8px; gap: 1px; background: var(--panel-soft); }
 .layoutSwitch button { border: 0; border-radius: 5px; padding: 4px 12px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; cursor: pointer; transition: color 160ms var(--ease), background-color 160ms var(--ease); }
 .layoutSwitch button:hover { color: var(--text); }
-.layoutSwitch .selectedLayout { color: var(--text); background: var(--bg); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.layoutSwitch .selectedLayout { color: var(--text); background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
 .disclosure { position: relative; }
-.popover { position: absolute; top: calc(100% + 10px); right: 0; width: 290px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); overflow-y: auto; z-index: 100; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-md); animation: reveal 140ms var(--ease); transform-origin: top right; }
+.popover { position: absolute; top: calc(100% + 10px); right: 0; width: 290px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); overflow-y: auto; z-index: 100; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-md); animation: reveal 140ms var(--ease); transform-origin: top right; }
 @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
 .menuHeading { padding: 12px 10px 6px; color: var(--text-muted); font-size: 0.82em; font-weight: 550; }
 .menuHeading:first-child { padding-top: 5px; }

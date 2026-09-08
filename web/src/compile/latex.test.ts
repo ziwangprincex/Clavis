@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipc, events, type CompileResult } from '../api/tauri';
 import { useTabsStore, useSettingsStore, defaultSettings, useProjectStore, useCompileStore, usePdfStore } from '../store';
-import { runLatexCompile } from './latex';
+import { runLatexCompile, stopLatexCompile } from './latex';
 import { belongsToPdf, latexRoot } from './target';
 
 vi.mock('../api/tauri', () => ({
-  ipc: { collectLatexSnapshot: vi.fn(), compileLatex: vi.fn(), cleanupWorkdir: vi.fn().mockResolvedValue(undefined) },
+  dialogConfirm: vi.fn(),
+  ipc: { cancelLatexCompile: vi.fn().mockResolvedValue(undefined), collectLatexSnapshot: vi.fn(), compileLatex: vi.fn(), cleanupWorkdir: vi.fn().mockResolvedValue(undefined) },
   events: { onLatexLog: vi.fn(), onLatexRunStart: vi.fn() },
 }));
 const result: CompileResult = { ok: true, errors: [], pdfBase64: 'JVBERi0=', logTail: '', runs: 1, workdirToken: 'new-token' };
@@ -25,6 +26,7 @@ beforeEach(() => {
     { id: 'main', title: 'paper.tex', filePath: '/p/paper.tex', lang: 'latex', content: 'main buffer', isDirty: true },
     { id: 'chapter', title: 'chapter.tex', filePath: '/p/chapter.tex', lang: 'latex', content: 'chapter buffer', isDirty: true },
   ] });
+  useProjectStore.getState().reset();
   useProjectStore.setState({ rootAbs: '/p/paper.tex', files });
   useSettingsStore.setState({ settings: defaultSettings });
   usePdfStore.setState({ bytes: null, workdirToken: null, sourceRoot: null, sourceFiles: [], ownerTabId: null });
@@ -46,10 +48,10 @@ describe('LaTeX compile snapshot', () => {
     expect(usePdfStore.getState().sourceRoot).toBe('/p/paper.tex');
     expect(useTabsStore.getState().tabs.every(tab => tab.isDirty)).toBe(true);
   });
-  it('uses a fresh snapshot directory and releases the previous one', async () => {
+  it('uses a fresh directory with auxiliary-only cache and releases the previous one', async () => {
     useTabsStore.getState().patchTab('main', { projectRoot: '/p/paper.tex', latexWorkdirToken: 'old-token' });
     await runLatexCompile();
-    expect(ipc.compileLatex).toHaveBeenCalledWith(expect.objectContaining({ workdirToken: null }));
+    expect(ipc.compileLatex).toHaveBeenCalledWith(expect.objectContaining({ workdirToken: null, cacheToken: 'old-token' }));
     expect(ipc.cleanupWorkdir).toHaveBeenCalledWith('old-token');
   });
   it('does not compile an unrelated document with a previous project main', () => {
@@ -67,7 +69,7 @@ describe('LaTeX compile snapshot', () => {
     expect(ipc.collectLatexSnapshot).not.toHaveBeenCalled();
     expect(ipc.compileLatex).toHaveBeenCalledWith(expect.objectContaining({ source: 'chapter buffer', projectFiles: [] }));
   });
-  it('clears a previous PDF on failure even when the backend supplies old bytes', async () => {
+  it('does not preserve a previous PDF without matching source ownership', async () => {
     usePdfStore.setState({ bytes: new Uint8Array([1]), workdirToken: 'old' });
     vi.mocked(ipc.compileLatex).mockResolvedValue({ ...result, ok: false });
     await runLatexCompile();
@@ -112,4 +114,33 @@ describe('LaTeX compile snapshot', () => {
     expect(ipc.compileLatex).toHaveBeenCalledTimes(2);
     expect(ipc.collectLatexSnapshot).toHaveBeenLastCalledWith('/p/paper.tex', expect.arrayContaining([{ path: '/p/chapter.tex', content: 'newest buffer' }]));
   });
+  it('keeps the matching previous render on failure but disables export and SyncTeX', async () => {
+    const previous = new Uint8Array([1, 2]);
+    usePdfStore.setState({ bytes: previous, sourceRoot: '/p/paper.tex', sourceFiles: files, ownerTabId: 'main', workdirToken: 'old' });
+    vi.mocked(ipc.compileLatex).mockResolvedValue({ ...result, ok: false });
+    await runLatexCompile();
+    expect(usePdfStore.getState().bytes).toBe(previous);
+    expect(usePdfStore.getState().workdirToken).toBeNull();
+    expect(usePdfStore.getState().stale).toBe(true);
+  });
+  it('quick compile uses one pass; clean compile does not restore cache', async () => {
+    await runLatexCompile('quick');
+    expect(ipc.compileLatex).toHaveBeenLastCalledWith(expect.objectContaining({ maxRuns: 1, autoRerun: false }));
+    await runLatexCompile('clean');
+    expect(ipc.compileLatex).toHaveBeenLastCalledWith(expect.objectContaining({ cacheToken: null }));
+  });
+  it('stop targets the active native request and drops queued reruns', async () => {
+    let release!: (r: CompileResult) => void;
+    vi.mocked(ipc.compileLatex).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const running = runLatexCompile();
+    await vi.waitFor(() => expect(ipc.compileLatex).toHaveBeenCalledTimes(1));
+    await runLatexCompile();
+    await stopLatexCompile();
+    expect(ipc.cancelLatexCompile).toHaveBeenCalledWith(expect.stringContaining('compile-'));
+    release(result);
+    await running;
+    expect(ipc.compileLatex).toHaveBeenCalledTimes(1);
+    expect(usePdfStore.getState().workdirToken).toBeNull();
+  });
+
 });

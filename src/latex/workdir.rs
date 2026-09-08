@@ -11,6 +11,7 @@ use super::MAIN_PDF;
 #[derive(Default)]
 pub struct LatexState {
     pub workdirs: Mutex<HashMap<String, Arc<TempDir>>>,
+    pub cancellations: Mutex<HashMap<String, Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 impl LatexState {
@@ -24,8 +25,22 @@ impl LatexState {
         self.workdirs.lock().remove(token);
     }
     pub fn clear(&self) {
+        for flag in self.cancellations.lock().values() { flag.store(true, std::sync::atomic::Ordering::SeqCst); }
         self.workdirs.lock().clear();
     }
+}
+
+pub struct CompileGuard<'a> { pub id: String, pub state: &'a LatexState }
+impl Drop for CompileGuard<'_> {
+    fn drop(&mut self) { self.state.cancellations.lock().remove(&self.id); }
+}
+#[tauri::command]
+pub fn cancel_latex_compile(request_id: String, state: tauri::State<'_, LatexState>) -> Result<(), String> {
+    if request_id.len() > 100 { return Err("invalid request ID".into()); }
+    let mut registry = state.cancellations.lock();
+    if registry.len() >= 100 && !registry.contains_key(&request_id) { return Err("too many pending cancellations".into()); }
+    registry.entry(request_id).or_default().store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 #[tauri::command]
