@@ -1,5 +1,9 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. README cleanup - 2026-09-08
+
+The owner approved pushing the shortened English and Chinese READMEs. They retain the core features, installation requirements, common shortcuts and development commands. Local documentation links and whitespace checks pass. This is a documentation-only push, not a release: Marker UI and CI runner repairs remain local and are not included in this commit. No version, tag or updater changes.
+
 ## 0. Authorized v1.3.0 release preparation - 2026-09-08
 
 The owner requested pushing/releasing according to HANDOFF and RELEASING. This authorizes this release's source commit, new tag, CI draft/publication and Homebrew distribution, not unrelated remote changes. The full accumulated writer/typesetting/theme work and the six audit fixes are included. Use **1.3.0**, a new feature version, with reviewed notes in `docs/releases/v1.3.0.md`; do not move existing tags.
