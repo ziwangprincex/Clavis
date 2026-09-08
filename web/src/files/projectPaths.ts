@@ -49,8 +49,8 @@ function normalizeRel(p: string): string {
  * or "main.tex") to an absolute on-disk path, by matching it against the
  * project's collected files.
  *
- * Returns null when there is no active project, the file is the root/main.tex,
- * or no match is found — callers then fall back to scrolling the active editor.
+ * Returns the project root for main.tex, even when a chapter is active.
+ * Returns null when there is no active project or no matching source file.
  */
 export function resolveSyncTexFile(
   relPath: string | undefined,
@@ -59,8 +59,8 @@ export function resolveSyncTexFile(
 ): string | null {
   if (!relPath || !rootAbs) return null;
   const want = normalizeRel(relPath);
-  // "main.tex" (or empty) means the root — the active tab already holds it.
-  if (want === '' || want === 'main.tex') return null;
+  // The active editor may be a chapter, so root diagnostics must open root.
+  if (want === '' || want === 'main.tex') return rootAbs;
   const hit = files.find(f => normalizeRel(f.relPath) === want);
   return hit ? hit.absPath : null;
 }

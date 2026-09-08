@@ -5,11 +5,9 @@
   min-height: 0;
   background: var(--bg);
   color: var(--text);
-  /* Softer than --border: the editor/preview seam is the most-looked-at edge in
-   * the window, and a hard rule there splits the two halves instead of letting
-   * them read as one document surface. */
-  border-left: 1px solid var(--panel-soft);
+  /* The splitter owns the single separator between the two surfaces. */
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 /* Paper mode: force a light, sharable-document surface regardless of the
@@ -33,12 +31,12 @@
 }
 
 .preview {
-  padding: 48px 32px;
+  padding: 52px clamp(24px, 4vw, 64px) 120px;
   max-width: 880px;
   width: 100%;
   margin: 0 auto;
   color: var(--text);
-  line-height: 1.7;
+  line-height: 1.85;
 }
 
 /* Reading measure. Expressed in `em` so the column tracks `preview_font_size`
@@ -55,11 +53,11 @@
  * count depends on the chosen font — but they scale correctly, which the
  * pixel version did not. */
 .widthNarrow {
-  max-width: 34em;
+  max-width: calc(34em + 96px);
 }
 
 .widthMedium {
-  max-width: 42em;
+  max-width: calc(42em + 96px);
 }
 
 /* Vertical rhythm: headings sit close to the text they introduce and far from
@@ -77,8 +75,9 @@
 /* No underline rule: that is a GitHub-README convention, not a book-page one,
  * and it fights the narrow measure by drawing a hard horizontal edge. */
 .markdown :global(h1) {
-  font-size: 2em;
-  letter-spacing: -0.01em;
+  font-size: 2.25em;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', Georgia, serif;
+  letter-spacing: -0.035em;
 }
 
 .markdown :global(h2) {
@@ -174,4 +173,8 @@
   font-family: var(--font-mono);
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+@media (max-width: 850px) {
+  .preview { padding: 32px 20px; }
 }

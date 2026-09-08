@@ -1,6 +1,6 @@
-/* Transparent 7px hit strip with a 1px hairline centered inside it.
- * The hit area doesn't shift layout when accented (::before is absolutely
- * positioned), so hover/drag feels crisp. */
+/* Side-by-side panes meet at a 1px hairline. The transparent ::after
+ * hit area overlaps their edges instead of reserving a blank layout strip.
+ * The stacked log-panel divider retains its existing 7px height. */
 
 .splitter,
 .splitterVertical {
@@ -12,6 +12,7 @@
 }
 
 .splitter {
+  flex-basis: 1px;
   cursor: col-resize;
 }
 
@@ -31,8 +32,15 @@
 .splitter::before {
   top: 0;
   bottom: 0;
-  left: 3px;
+  left: 0;
   width: 1px;
+}
+
+.splitter::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+  cursor: inherit;
 }
 
 .splitterVertical::before {

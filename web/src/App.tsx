@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm, fs } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
@@ -28,6 +28,7 @@ import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile } from './compile/latex';
+import { belongsToPdf } from './compile/target';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
 import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile, resolveTypstTarget } from './files/projectPaths';
@@ -77,6 +78,8 @@ export function App() {
   const taskStatus = useTaskStore(s => s.status);
   const taskPanelOpen = taskStatus !== 'idle';
 
+  const [focusMode, setFocusMode] = useState(false);
+  const layout = focusMode ? 'editor' : settings.editor_layout;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
@@ -114,7 +117,7 @@ export function App() {
     startLogDrag,
     dragLog,
     endLogDrag,
-  } = usePaneLayout(settings);
+  } = usePaneLayout(settings, layout);
 
   // Apply UI theme / fonts / accent / color overrides to :root.
   useAppTheme(settings);
@@ -274,18 +277,7 @@ export function App() {
 
   async function compileNow() {
     if (!hasTauri()) return;
-    setStatus('Compiling…', 'info');
-    const r = await runLatexCompile();
-    if (!r) {
-      setStatus('Ready', 'info');
-      return;
-    }
-    if (r.ok) {
-      setStatus(`Rendered (${r.runs} run${r.runs === 1 ? '' : 's'})`, 'ok');
-    } else {
-      const n = (r.errors ?? []).length;
-      setStatus(`Compile failed (${n} ${n === 1 ? 'issue' : 'issues'})`, 'error');
-    }
+    await runLatexCompile();
   }
 
   // Auto-compile: re-run when active LaTeX tab content changes (debounced).
@@ -293,13 +285,13 @@ export function App() {
   // tabs are inserted at boot — only edits / tab switches should trigger.
   const autoCompileSkipFirstRef = useRef(true);
   useEffect(() => {
-    if (!autoCompile) return;
     if (lang !== 'latex') return;
     if (!activeTab) return;
-    if (autoCompileSkipFirstRef.current) {
-      autoCompileSkipFirstRef.current = false;
-      return;
-    }
+    const skipInitial = autoCompileSkipFirstRef.current;
+    autoCompileSkipFirstRef.current = false;
+    // Observe the initial document even when hidden so the first reveal
+    // compiles its newest contents instead of consuming the startup skip.
+    if (!autoCompile || layout === 'editor' || skipInitial) return;
     if (autoCompileTimerRef.current) {
       clearTimeout(autoCompileTimerRef.current);
     }
@@ -313,7 +305,7 @@ export function App() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCompile, lang, activeTab?.content, activeTab?.id]);
+  }, [autoCompile, lang, activeTab?.content, activeTab?.id, layout]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => refreshWriting(), 700);
@@ -336,17 +328,23 @@ export function App() {
 
   async function exportLatexPdf() {
     const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
-    if (!tab?.latexWorkdirToken) {
+    const pdf = usePdfStore.getState();
+    if (!tab || !pdf.bytes || !pdf.workdirToken || !belongsToPdf(tab, pdf)) {
       setStatus('No compiled PDF yet', 'error');
       return;
     }
     try {
       const target = await dialogSave({
-        defaultPath: tab.filePath ? tab.filePath.replace(/\.tex$/i, '.pdf') : undefined,
+        defaultPath: pdf.sourceRoot ? pdf.sourceRoot.replace(/\.tex$/i, '.pdf') : undefined,
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (typeof target === 'string') {
-        await ipc.exportLatexPdf(tab.latexWorkdirToken, target);
+        const latest = usePdfStore.getState();
+        if (latest.workdirToken !== pdf.workdirToken || latest.bytes !== pdf.bytes) {
+          setStatus('Preview changed during export. Please export again after compilation finishes.', 'error');
+          return;
+        }
+        await ipc.exportLatexPdf(pdf.workdirToken!, target);
         setStatus('PDF exported', 'ok');
       }
     } catch (e) {
@@ -475,6 +473,9 @@ export function App() {
   useEffect(() => {
     const reg = useCommandsStore.getState().register;
     const offs = [
+      reg({ id: 'view.focus', name: 'Toggle focus mode', shortcut: fmtShortcut('Ctrl+Shift+Enter'), run: () => setFocusMode(value => !value) }),
+      reg({ id: 'view.sidebar', name: 'Toggle sidebar', run: () => { setFocusMode(false); void patchAndSave({ sidebar_visible: !useSettingsStore.getState().settings.sidebar_visible }); } }),
+      ...(['editor', 'split', 'preview'] as const).map(layout => reg({ id: `view.${layout}`, name: layout === 'editor' ? 'Editor only' : layout === 'preview' ? 'Preview only' : 'Split view', run: () => { setFocusMode(false); void patchAndSave({ editor_layout: layout }); } })),
       reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
       reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
       reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
@@ -659,6 +660,20 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus]);
 
+  // Focus is temporary: leaving it restores the user's exact pane preferences.
+  useEffect(() => {
+    function onFocusKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
+        event.preventDefault();
+        setFocusMode(value => !value);
+      } else if (event.key === 'Escape' && !event.defaultPrevented && !paletteOpen && !settingsOpen) {
+        setFocusMode(false);
+      }
+    }
+    window.addEventListener('keydown', onFocusKey);
+    return () => window.removeEventListener('keydown', onFocusKey);
+  }, [paletteOpen, settingsOpen]);
+
   // Global keyboard shortcuts.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -702,9 +717,15 @@ export function App() {
   }, [lang]);
 
   return (
-    <div className={styles.app}>
-      <TitleBar />
+    <div className={`${styles.app} ${focusMode ? styles.focusMode : ''}`} data-layout={layout}>
+      <TitleBar>
       <Toolbar
+        focusMode={focusMode}
+        onToggleFocus={() => setFocusMode(value => !value)}
+        layout={layout}
+        onLayoutChange={next => { setFocusMode(false); void patchAndSave({ editor_layout: next }); }}
+        sidebarVisible={!focusMode && settings.sidebar_visible}
+        onToggleSidebar={() => { setFocusMode(false); void patchAndSave({ sidebar_visible: focusMode || !settings.sidebar_visible }); }}
         lang={lang}
         onLangChange={setLang}
         latexEngine={settings.latex_engine}
@@ -724,9 +745,11 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenCommandPalette={() => setPaletteOpen(true)}
       />
+      </TitleBar>
 
       <div className={styles.main} ref={mainRef}>
         <Sidebar
+          hidden={focusMode || !settings.sidebar_visible}
           width={sidebarWidth || undefined}
           outline={
             <OutlineSection
@@ -802,14 +825,17 @@ export function App() {
             />
           ) : null}
         />
-        <Splitter onDragStart={startSidebarDrag} onDrag={dragSidebar} onDragEnd={endSidebarDrag} />
+        {!focusMode && settings.sidebar_visible && (
+          <Splitter onDragStart={startSidebarDrag} onDrag={dragSidebar} onDragEnd={endSidebarDrag} />
+        )}
 
         <div className={styles.workArea} ref={workAreaRef}>
-          <Tabs />
+          <div className={styles.tabStrip} hidden={focusMode}><Tabs /></div>
           <div className={styles.editorRow} ref={editorRowRef}>
             <div
-              className={styles.editorPane}
-              style={editorRatio ? { flex: `${editorRatio} 1 0%` } : undefined}
+              className={`${styles.editorPane} ${layout === 'preview' ? styles.hiddenPane : ''}`}
+              aria-hidden={layout === 'preview'}
+              style={layout === 'split' && editorRatio ? { flex: `${editorRatio} 1 0%` } : undefined}
             >
               <Suspense fallback={<div className={styles.lazyFallback}>Loading editor…</div>}>
                 <ErrorBoundary>
@@ -848,15 +874,17 @@ export function App() {
                 </ErrorBoundary>
               </Suspense>
             </div>
-            <Splitter onDragStart={startEditorDrag} onDrag={dragEditor} onDragEnd={endEditorDrag} />
+            {layout === 'split' && <Splitter onDragStart={startEditorDrag} onDrag={dragEditor} onDragEnd={endEditorDrag} />}
             <div
-              className={styles.previewPane}
-              style={editorRatio ? { flex: `${1 - editorRatio} 1 0%` } : undefined}
+              className={`${styles.previewPane} ${layout === 'editor' ? styles.hiddenPane : ''}`}
+              aria-hidden={layout === 'editor'}
+              style={layout === 'split' && editorRatio ? { flex: `${1 - editorRatio} 1 0%` } : undefined}
             >
               <Suspense fallback={<div className={styles.lazyFallback}>Loading preview…</div>}>
                 <ErrorBoundary>
                   {lang === 'latex' ? (
                     <PdfViewer
+                      visible={layout !== 'editor'}
                       onSyncTexBackward={(page, x, y) =>
                         syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
                           void openFileAndScrollToLine(absPath, line, l =>
@@ -866,13 +894,13 @@ export function App() {
                       }
                     />
                   ) : (
-                    <PreviewPane />
+                    <PreviewPane visible={layout !== 'editor'} />
                   )}
                 </ErrorBoundary>
               </Suspense>
             </div>
           </div>
-          {(taskPanelOpen || (lang === 'latex' && settings.problems_panel_open)) && (
+          {!focusMode && (taskPanelOpen || (lang === 'latex' && settings.problems_panel_open)) && (
             <>
               <Splitter
                 orientation="vertical"
@@ -905,9 +933,10 @@ export function App() {
       </div>
 
       <StatusBar
-        onToggleProblems={() =>
-          void patchAndSave({ problems_panel_open: !settings.problems_panel_open })
-        }
+        onToggleProblems={() => {
+          setFocusMode(false);
+          void patchAndSave({ problems_panel_open: !settings.problems_panel_open });
+        }}
       />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

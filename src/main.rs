@@ -17,21 +17,18 @@ mod settings;
 mod submission_bundle;
 mod submission_check;
 mod tasks;
+mod typst_service;
 mod typst_sig;
 mod typst_world;
 mod workspace_search;
 mod zotero;
 
 use base64::Engine as _;
-use parking_lot::Mutex;
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::Manager;
 
-#[derive(Default)]
-struct AppState {
-    world: Mutex<Option<typst_world::SimpleWorld>>,
-}
+type AppState = typst_service::TypstCompiler;
 
 #[derive(Serialize)]
 struct TypstResult {
@@ -49,54 +46,30 @@ struct TypstPdfResult {
 }
 
 #[tauri::command]
-fn compile_typst(
+async fn compile_typst(
     state: tauri::State<'_, Arc<AppState>>,
     source: String,
     doc_path: Option<String>,
-) -> TypstResult {
-    let mut guard = state.world.lock();
-    if guard.is_none() {
-        match typst_world::SimpleWorld::new() {
-            Ok(w) => *guard = Some(w),
-            Err(e) => {
-                return TypstResult { ok: false, svg: None, error: Some(format!("init: {e}")) };
-            }
-        }
-    }
-    let world = guard.as_mut().unwrap();
-    world.set_root_from_doc(doc_path.as_deref());
-    world.set_source(source);
-
-    match typst_world::compile_to_svg(world) {
+) -> Result<TypstResult, String> {
+    Ok(match state.inner().clone().svg(source, doc_path).await {
         Ok(svg) => TypstResult { ok: true, svg: Some(svg), error: None },
         Err(msg) => TypstResult { ok: false, svg: None, error: Some(msg) },
-    }
+    })
 }
 
 #[tauri::command]
-fn compile_typst_pdf(
+async fn compile_typst_pdf(
     state: tauri::State<'_, Arc<AppState>>,
     source: String,
     doc_path: Option<String>,
-) -> TypstPdfResult {
-    let mut guard = state.world.lock();
-    if guard.is_none() {
-        match typst_world::SimpleWorld::new() {
-            Ok(w) => *guard = Some(w),
-            Err(e) => return TypstPdfResult { ok: false, pdf_base64: None, error: Some(format!("init: {e}")) },
-        }
-    }
-    let world = guard.as_mut().unwrap();
-    world.set_root_from_doc(doc_path.as_deref());
-    world.set_source(source);
-
-    match typst_world::compile_to_pdf(world) {
+) -> Result<TypstPdfResult, String> {
+    Ok(match state.inner().clone().pdf(source, doc_path).await {
         Ok(bytes) => {
             let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
             TypstPdfResult { ok: true, pdf_base64: Some(b64), error: None }
         }
         Err(msg) => TypstPdfResult { ok: false, pdf_base64: None, error: Some(msg) },
-    }
+    })
 }
 
 #[tauri::command]
@@ -344,6 +317,7 @@ fn main() {
             latex::workdir::export_latex_pdf,
             latex::workdir::read_latex_log,
             latex::project::collect_project_files,
+            latex::project::collect_latex_snapshot,
             latex::distro::detect_distro,
             latex::distro::install_package,
             latex::parse_bib,

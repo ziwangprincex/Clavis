@@ -9,7 +9,7 @@
 // component renders only the brand + drag region with no buttons — the existing
 // `.is-mac { padding-left: 84px }` in Toolbar.module.css moved here.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { hasTauri, appWindow } from '../api/tauri';
 import {
   IconWinClose,
@@ -21,15 +21,16 @@ import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
   title?: string;
+  children?: ReactNode;
 }
 
 function isMac(): boolean {
   return typeof document !== 'undefined' && document.body.classList.contains('is-mac');
 }
 
-export function TitleBar({ title = 'Clavis' }: TitleBarProps) {
+export function TitleBar({ title = 'Clavis', children }: TitleBarProps) {
   const [maximized, setMaximized] = useState(false);
-  const mac = isMac();
+  const mac = isMac() && hasTauri();
 
   // Refresh maximized state on mount and on native resize events.
   useEffect(() => {
@@ -69,9 +70,7 @@ export function TitleBar({ title = 'Clavis' }: TitleBarProps) {
       className={`${styles.titlebar} ${mac ? styles.mac : ''}`}
       data-tauri-drag-region
     >
-      <span className={styles.brand} data-tauri-drag-region>
-        {title}
-      </span>
+      {children ?? <span className={styles.brand} data-tauri-drag-region>{title}</span>}
 
       {/* Windows-style caption buttons on the right; hidden on macOS
        *  (traffic lights come from the native decorated window there). */}

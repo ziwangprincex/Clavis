@@ -7,6 +7,34 @@ for a newer **signed** build and can install it in-app (command palette →
 This doc is the release runbook. Steps 1–2 are one-time setup; steps 3+ repeat
 per release.
 
+## Current release preparation (2026-09-08)
+
+The owner explicitly authorized formal release on 2026-09-08. This release uses
+**1.2.0**, including the writing-continuity candidate and release guard fixes.
+Notes live in [v1.2.0.md](docs/releases/v1.2.0.md); native acceptance and actual
+in-app upgrade remain unverified, not implicitly marked passed by this approval.
+
+Authorization covers the release commit, new tag, GitHub draft/publication and
+Homebrew distribution update for this version. Future local work still does not
+imply permission to publish. Do not reuse or move an existing release tag.
+The draft must have successful CI, all three platform installers and signed
+updater packages with a complete manifest before publication. Each future tag
+must include its reviewed `docs/releases/<tag>.md` for the draft body.
+
+Local preparation (no commit required):
+
+```bash
+python3 -m unittest discover -s tools -p 'test_*.py'
+python3 tools/check_release.py
+python3 tools/check_handoff.py --working-tree
+bash build-macos.sh --app-only --skip-install
+```
+
+The local script snapshots and restores Cargo files because Tauri 1 can rewrite
+features/lock data when updater is disabled for a trial bundle. It does not
+modify the production public key. Do not edit Cargo inputs concurrently.
+
+
 ## Prerequisites
 
 - Rust toolchain + the Tauri CLI (`cargo install tauri-cli` or `npm --prefix web i`).
@@ -81,9 +109,12 @@ commands it prints.
    git push origin main
    git push origin v1.0.2
    ```
-4. The **Release** workflow first verifies that the tag matches all project
-   versions. It then builds Windows, macOS, and Linux, signs updater artifacts,
-   and creates one **draft** Release with the installers and `latest.json`.
+4. The **Release** workflow verifies that the tag matches all project versions
+   and runs the reusable CI workflow on that exact commit (frontend checks/tests,
+   production build, Rust checks/tests and release-guard tests). Only after both
+   pass does it create one **draft** Release and build/upload Windows, macOS and
+   Linux installers plus signed updater artifacts and `latest.json`. This gate
+   does not replace manual native acceptance or permission to publish.
 5. Review the draft Release and **publish** it. Only published, non-draft releases
    are visible through `/releases/latest/` and therefore to the in-app updater.
 
@@ -115,18 +146,14 @@ The private key used at build time (env var `TAURI_PRIVATE_KEY`, or a local
 `~/.tauri/clavis.key`) is **not the mate** of the `tauri.updater.pubkey` currently
 in `tauri.conf.json`. Updates signed by this build will be rejected at runtime.
 
-This happens when `pubkey` is rotated but the signing machine / GitHub Secret
-still holds the old private key (or vice-versa). The public and private key are a
-**pair** — you cannot fix it by editing one; regenerate and set both together:
+This happens when the public key and signing secret are not a matching pair.
+First restore the private key matching the public key deployed in existing apps,
+or revert an accidental public-key change. **Do not regenerate or rotate keys as
+routine troubleshooting**: installed apps trust their embedded key, so a new key
+pair can break their update path. Rotation needs an explicit migration plan.
 
-```bash
-npm --prefix web exec tauri signer generate -- -w "$HOME/.tauri/clavis.key"
-```
-
-Then paste the new `clavis.key.pub` contents into `tauri.conf.json → tauri.updater.pubkey`
-(the whole line, no trailing characters — a stray `%` from a terminal copy will
-corrupt it), and update the `TAURI_PRIVATE_KEY` / `TAURI_KEY_PASSWORD` GitHub
-Secrets from the new `clavis.key`. Local builds read the key from the env var:
+For an approved formal signing build, provide the existing matching key through
+the environment (local app-only candidates do not need it):
 
 ```bash
 export TAURI_PRIVATE_KEY="$(cat "$HOME/.tauri/clavis.key")"

@@ -1,112 +1,86 @@
-# macOS Build Instructions
+# macOS local builds
 
-This document explains how to build Clavis as a `.dmg` installer on **macOS Apple Silicon (M1/M2/M3/M4)**.
+Build on macOS with Xcode Command Line Tools, Rust 1.92+, Node.js 20+ and npm.
+The host architecture determines the app architecture; this machine produces
+Apple Silicon (arm64) builds. MacTeX is needed to use LaTeX, not to build Clavis.
 
-## Prerequisites
+## One command
 
-Install once on the Mac:
-
-1. **Xcode Command Line Tools** (~3 GB)
-   ```
-   xcode-select --install
-   ```
-
-2. **Rust toolchain**
-   ```
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   source $HOME/.cargo/env
-   ```
-
-3. **Node.js 18+ and npm** (the frontend is a Vite + React + TypeScript project)
-   ```
-   brew install node
-   ```
-   Or download an installer from https://nodejs.org/.
-
-4. **Homebrew + librsvg** (for icon generation)
-   ```
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   brew install librsvg
-   ```
-
-5. **MacTeX** (only required to *use* Clavis for LaTeX — not for building)
-   ```
-   brew install --cask mactex
-   ```
-
-## Build
-
-From the project directory:
+From the repository root:
 
 ```bash
-chmod +x build-macos.sh
-./build-macos.sh
+bash build-macos.sh
 ```
 
-The script will:
+The script installs the locked frontend dependencies, validates release metadata,
+runs frontend typechecking/tests, builds frontend assets, runs `cargo test --locked`,
+then builds an ad-hoc signed app and DMG. It uses the Tauri CLI already pinned in
+`web/package-lock.json`; no global `cargo install` is necessary.
 
-1. Verify Rust + Node + Xcode are installed
-2. Install web dependencies (`npm ci` if `web/package-lock.json` is present, else `npm install`)
-3. Install `tauri-cli` if missing
-4. Generate `icons/icon.icns` from `icons/icon.png` (if needed)
-5. Run `cargo tauri build` — this triggers the configured `beforeBuildCommand`
-   (`npm --prefix web run build`) to produce the static frontend at
-   `web/dist/`, then bundles it into the Rust binary and produces the `.dmg`
-6. Print the path to the resulting `.dmg`
+For a local app-only candidate using already-installed dependencies:
 
-First build takes **5–15 minutes** depending on machine speed (compiles the entire Rust dependency tree and the Tauri runtime). Subsequent builds are seconds.
-
-> **Note**: The shipped `.dmg` is fully self-contained. Node and npm are only used at build time to compile the frontend; they are **not** required on the end user's machine.
-
-## Output
-
-```
-target/release/bundle/dmg/Clavis_1.0.0_aarch64.dmg
+```bash
+bash build-macos.sh --app-only --skip-install
 ```
 
-## Install on the Mac
+The wrapper also works when invoked by absolute path from another directory.
+`--skip-install` assumes the installed dependencies match the lockfile; omit it
+on a fresh checkout or after dependencies change. Build/test hooks fetch the
+pinned CWL resource only if the matching local resource stamp is absent.
 
-1. Double-click the `.dmg`
-2. Drag `Clavis.app` to the **Applications** folder
-3. **First launch**: right-click `Clavis.app` in Finder → **Open** → confirm
-   (Required because the app is unsigned. macOS will remember the choice; future launches work normally.)
+## Build entry points
 
-If you double-click instead of right-click → Open, macOS will refuse with "Clavis cannot be opened because the developer cannot be verified." You'd then need to go to **System Settings → Privacy & Security → "Open Anyway"**.
+The root `package.json` forwards build/dev/test/typecheck to `web`. Tauri's hooks
+explicitly use the repository root; do not restore temporary empty build-hook
+overrides. The actual frontend dependencies remain in `web/package-lock.json`.
+
+```bash
+npm --prefix web ci
+npm run typecheck
+npm test
+npm run build
+cargo test --locked
+bash build-macos.sh --app-only --skip-install
+```
+
+The last command is a local app-only build. The standard script disables the
+updater **only in the generated local bundle**, leaving production configuration
+and public keys unchanged. Tauri may temporarily rewrite Cargo features/lock
+data; the script backs up and restores the exact inputs in finally. Do not
+edit Cargo inputs concurrently with a build. Local builds need no private keys and do not
+publish updates. Formal releases use the tag workflow described in RELEASING.md.
+
+## Outputs
+
+- App: `target/release/bundle/macos/Clavis.app`
+- DMG: `target/release/bundle/dmg/Clavis_<version>_<architecture>.dmg`
+- Hand-delivered candidate ZIPs: `target/local-builds/`
+
+The application is self-contained; users do not need Node.js or Rust. This build
+is **ad-hoc signed, not Apple-notarized**. Internet-downloaded copies may trigger
+Gatekeeper. Verify the source before using macOS Privacy & Security to allow a
+blocked app; never disable Gatekeeper globally.
+
+## Verification boundary
+
+Automated tests cover logic and React lifecycle behavior without a browser. They
+do not certify native input latency, scrolling, PDF paint quality, or visual
+appearance. Use the native app and the checklist in docs/RELEASE_CANDIDATE.md.
+No Chrome preview is part of this project's local verification workflow.
 
 ## Troubleshooting
 
-### "Failed to execute beforeBuildCommand"
-The frontend build (`npm --prefix web run build`) failed. Run it manually to see the underlying error:
-```
-cd web && npm install && npm run build
-```
-Common causes: stale `node_modules` after pulling — delete `web/node_modules` and re-run `npm install`.
+- Frontend failure: run `npm run typecheck` and `npm run build` separately.
+- Missing frontend dependencies: run `npm --prefix web ci`.
+- Missing command line tools: run `xcode-select --install` yourself.
+- npm cache permissions: use a project-local cache such as
+  `npm --prefix web ci --cache "$PWD/target/npm-cache"`; do not change system
+  permissions merely to build the app.
+- DMG bundling failure: retry `--app-only`; a ZIP of the `.app` is sufficient for
+  local acceptance testing, but does not replace formal release installers.
+- LaTeX engine missing: install MacTeX or configure the engine path in Settings.
+  The app discovers `/Library/TeX/texbin`, installed TeX Live year directories,
+  `/opt/homebrew/bin`, and `/usr/local/bin`.
 
-### "npm: command not found"
-Install Node.js 18+ — see prerequisites above.
-
-### Icon generation fails with "rsvg-convert not found"
-```
-brew install librsvg
-```
-
-### "linker `cc` not found"
-```
-xcode-select --install
-```
-
-### Build succeeds but `.dmg` is missing
-Check `target/release/bundle/`. Tauri may produce only `.app` if dmg packaging fails. You can ship the `.app` directly (zip it: `zip -r Clavis.zip Clavis.app`).
-
-### LaTeX engine not found at runtime
-The app searches PATH plus these macOS fallback locations:
-- `/Library/TeX/texbin` (MacTeX default)
-- `/usr/local/texlive/{2024,2025,2026}/bin/universal-darwin`
-- `/opt/homebrew/bin`
-- `/usr/local/bin`
-
-If MacTeX is installed elsewhere, use **Settings → LaTeX engines → Custom path**.
-
-## Cross-platform note
-
-You **cannot** build a macOS `.dmg` on Windows or Linux. Tauri (and Apple's tooling) require running on macOS for code-signing-compatible bundle creation, even when not signing.
+macOS app signing/bundling requires a macOS host; Windows/Linux cannot build this
+app bundle. Windows and Linux release builds remain a separate CI responsibility.

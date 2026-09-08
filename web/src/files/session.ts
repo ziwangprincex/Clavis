@@ -65,17 +65,15 @@ export function flushSessionSave(): void {
 }
 
 /** Write all dirty, file-backed Documents to disk. Scratch Documents are skipped. */
-async function autosaveDirtyTabs(): Promise<void> {
+export async function autosaveDirtyTabs(): Promise<void> {
   if (!hasTauri()) return;
-  const { fs } = await import('../api/tauri');
-  const store = useTabsStore.getState();
-  for (const tab of store.tabs) {
+  const { saveTabToDisk } = await import('./save');
+  for (const tab of useTabsStore.getState().tabs) {
     if (!tab.isDirty || !tab.filePath) continue;
     try {
-      await fs.writeTextFile(tab.filePath, tab.content);
-      store.patchTab(tab.id, { isDirty: false });
+      await saveTabToDisk(tab.id, { automatic: true });
     } catch {
-      // Leave dirty; the user can still save manually.
+      // Leave dirty; the shared save path surfaces the failure.
     }
   }
 }

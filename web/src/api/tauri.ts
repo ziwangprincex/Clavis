@@ -735,6 +735,8 @@ export const ipc = {
     invoke<string>('read_latex_log', { workdirToken }),
   collectProjectFiles: (root: string) =>
     invoke<CollectResult>('collect_project_files', { root }),
+  collectLatexSnapshot: (root: string, documents: Array<{ path: string; content: string }>) =>
+    invoke<CollectResult>('collect_latex_snapshot', { root, documents }),
   detectDistro: (enginePath?: string) =>
     invoke<DistroInfo>('detect_distro', { enginePath }),
   installPackage: (manager: string, name: string) =>
@@ -752,8 +754,8 @@ export const ipc = {
     invoke<string[]>('list_cwl_packages'),
   cleanupWorkdir: (workdirToken: string) =>
     invoke<void>('cleanup_workdir', { workdirToken }),
-  synctexForward: (workdirToken: string, line: number, column: number) =>
-    invoke<SyncTexHit>('synctex_forward', { workdirToken, line, column }),
+  synctexForward: (workdirToken: string, line: number, column: number, inputFile = 'main.tex') =>
+    invoke<SyncTexHit>('synctex_forward', { workdirToken, line, column, inputFile }),
   synctexBackward: (workdirToken: string, page: number, x: number, y: number) =>
     invoke<SyncTexEdit>('synctex_backward', { workdirToken, page, x, y }),
 

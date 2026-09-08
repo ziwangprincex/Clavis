@@ -21,11 +21,9 @@
 //    pre-drag) value — visibly yanking the splitter back. It now seeds only
 //    once, on first load, and never fights the user afterwards.
 
-import { useEffect, useRef, useState } from 'react';
-import { useSettingsStore, type Settings } from '../store';
-
-/** Smallest usable width for the editor or the preview pane, in px. */
-const MIN_PANE_PX = 220;
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSettingsStore, type Settings, type EditorLayout } from '../store';
+import { constrainSidebarWidth, constrainEditorRatio, MIN_PANE_PX } from './paneConstraints';
 
 export interface PaneLayout {
   mainRef: React.RefObject<HTMLDivElement>;
@@ -46,13 +44,28 @@ export interface PaneLayout {
   endLogDrag: () => void;
 }
 
-export function usePaneLayout(settings: Settings): PaneLayout {
+export function usePaneLayout(settings: Settings, layout: EditorLayout = settings.editor_layout): PaneLayout {
+  const loaded = useSettingsStore(s => s.loaded);
+  const [mainWidth, setMainWidth] = useState(0);
+  const [rowWidth, setRowWidth] = useState(0);
   const mainRef = useRef<HTMLDivElement>(null);
   const workAreaRef = useRef<HTMLDivElement>(null);
   // The row that actually contains editor | splitter | preview. Measuring the
   // outer .workArea instead made the clamp wrong, because that column also
   // holds the tab bar and the problems panel.
   const editorRowRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      setMainWidth(mainRef.current?.getBoundingClientRect().width ?? 0);
+      setRowWidth(editorRowRef.current?.getBoundingClientRect().width ?? 0);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (mainRef.current) observer.observe(mainRef.current);
+    if (editorRowRef.current) observer.observe(editorRowRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Pane sizes (live state, drives render). 0 = "use the CSS default".
   const [sidebarWidth, setSidebarWidth] = useState<number>(0);
@@ -81,13 +94,13 @@ export function usePaneLayout(settings: Settings): PaneLayout {
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
-    if (!useSettingsStore.getState().loaded) return;
+    if (!loaded) return;
     seededRef.current = true;
     if (settings.pane_sidebar_width >= 200) applySidebarWidth(settings.pane_sidebar_width);
     if (settings.pane_editor_ratio > 0) applyEditorRatio(settings.pane_editor_ratio);
     if (settings.pane_log_height > 60) applyLogHeight(settings.pane_log_height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.pane_sidebar_width, settings.pane_editor_ratio, settings.pane_log_height]);
+  }, [loaded, settings.pane_sidebar_width, settings.pane_editor_ratio, settings.pane_log_height]);
 
   function startSidebarDrag() {
     /* nothing — width state already current */
@@ -95,11 +108,8 @@ export function usePaneLayout(settings: Settings): PaneLayout {
   function dragSidebar(clientX: number) {
     const main = mainRef.current;
     if (!main) return;
-    const left = main.getBoundingClientRect().left;
-    // Lower bound matches the sidebar's CSS `min-width: 200px` — using 160 here
-    // (as we did previously) created a 160-200px dead zone where the pixel
-    // width persisted but the visible width didn't change.
-    applySidebarWidth(Math.max(200, Math.min(640, clientX - left)));
+    const rect = main.getBoundingClientRect();
+    applySidebarWidth(constrainSidebarWidth(Math.max(200, clientX - rect.left), rect.width, layout));
   }
   function endSidebarDrag() {
     void useSettingsStore
@@ -145,8 +155,8 @@ export function usePaneLayout(settings: Settings): PaneLayout {
     mainRef,
     workAreaRef,
     editorRowRef,
-    sidebarWidth,
-    editorRatio,
+    sidebarWidth: constrainSidebarWidth(sidebarWidth, mainWidth, layout),
+    editorRatio: constrainEditorRatio(editorRatio, rowWidth),
     logHeight,
     startSidebarDrag,
     dragSidebar,

@@ -1,11 +1,10 @@
 import { defineConfig } from 'vitest/config';
 
-// Unit tests target pure logic (outline parsing, store reducers, session
-// snapshotting) — no DOM required, so the fast `node` environment is enough.
-// Component/DOM tests would need environment: 'jsdom' and can be added later.
+// Pure logic and react-test-renderer lifecycle tests run without a browser/DOM.
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });

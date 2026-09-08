@@ -1,70 +1,15 @@
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.main {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.workArea {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.editorRow {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-/* The editor/preview split is driven by flex-grow ratios set inline (see
- * usePaneLayout.ts): `flex: <ratio> 1 0%` on each pane, so the two always
- * divide the row proportionally and keep rebalancing when the window resizes.
- * `min-width: 0` is deliberate — a hard min here can overflow the row, since
- * the sidebar is `flex-shrink: 0` and may be up to 640px wide in a 720px-min
- * window. Usability floors are enforced by MIN_PANE_PX during the drag. */
-.editorPane {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.previewPane {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.lazyFallback {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  background: var(--bg);
-}
-
-.logArea {
-  height: 220px;
-  min-height: 0;
-  flex: 0 0 auto;
-  overflow: hidden;
-}
-
-.app kbd {
-  display: inline-block;
-  background: var(--panel-solid);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 1px 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
+.app { display: flex; flex-direction: column; height: 100%; background: var(--bg); }
+.main { display: flex; flex: 1; min-height: 0; }
+.workArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.editorRow { flex: 1; display: flex; min-height: 0; }
+.editorPane { flex: 1.12; min-width: 0; display: flex; flex-direction: column; }
+.previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hiddenPane { display: none; }
+.tabStrip { flex: none; min-width: 0; }
+.tabStrip[hidden] { display: none; }
+.lazyFallback { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: var(--bg); }
+.logArea { height: 220px; min-height: 0; flex: 0 0 auto; overflow: hidden; }
+.app kbd { display: inline-block; background: var(--panel-solid); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: var(--font-sans); font-size: 11px; }
+.focusMode { --editor-inline-padding: clamp(12px, calc((100% - 800px) / 2), 420px); }
+.focusMode :global(.cm-activeLine), .focusMode :global(.cm-activeLineGutter) { background: transparent; }
+.focusMode :global(.cm-gutters) { opacity: 0.45; }

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   build:
@@ -30,10 +31,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: Test release guards
+        run: python -m unittest discover -s tools -p "test_*.py"
+
       - name: Validate release metadata
         run: python tools/check_release.py
 
       - name: Require HANDOFF for repository changes
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python tools/check_handoff.py --base "$BASE_SHA"
@@ -63,7 +68,7 @@ jobs:
           npm run build
 
       - name: Rust check
-        run: cargo check --all-targets
+        run: cargo check --locked --all-targets
 
       - name: Rust tests
-        run: cargo test
+        run: cargo test --locked

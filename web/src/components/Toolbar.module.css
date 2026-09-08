@@ -1,246 +1,58 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  height: 36px;
-  flex: 0 0 36px;
-  background: var(--panel-solid);
-  /* Softer than --border: the toolbar sits directly above the writing surface,
-   * and a hard rule there reads as a seam between chrome and content. */
-  border-bottom: 1px solid var(--panel-soft);
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  height: 60px;
+  padding: 0 20px;
+  background: var(--bg);
   user-select: none;
 }
-
-.spacer {
-  flex: 1;
-  align-self: stretch;
-}
-
-.group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  margin: 0 4px;
-}
-
-/* ---- Segmented control (language switcher) ---- */
-
-.segmented {
-  display: flex;
-  align-items: center;
-  background: var(--panel-soft);
-  border-radius: 7px;
-  padding: 2px;
-  gap: 1px;
-}
-
-.segment {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  padding: 3px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease);
-}
-
-.segment:hover {
-  color: var(--text);
-}
-
-.segmentActive {
-  background: var(--bg-elevated);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-}
-
-:root[data-theme='light'] .segmentActive,
-:global([data-theme='light']) .segmentActive {
-  background: #ffffff;
-}
-
-/* ---- Buttons ---- */
-
-.iconBtn {
+.identity { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 4px; }
+.documentName { font-size: 0.96em; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.015em; }
+.dirty { width: 5px; height: 5px; background: var(--text-muted); border-radius: 50%; flex: none; }
+.actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.iconBtn, .textBtn, .primaryBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 24px;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.94em;
+  color: var(--text-muted);
   background: transparent;
-  color: var(--text-muted);
-  border: none;
-  border-radius: 6px;
   cursor: pointer;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
-    transform var(--dur-fast) var(--ease);
-}
-
-.iconBtn:hover {
-  background: var(--panel-soft);
-  color: var(--text);
-}
-
-/* Instant, physical press feedback (Apple §1 — respond on pointer-down). */
-.iconBtn:active {
-  background: var(--border);
-  transform: scale(0.92);
-}
-
-.primaryBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: background-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
-}
-
-.primaryBtn:hover {
-  background: var(--accent-hover);
-}
-
-.primaryBtn:active {
-  transform: scale(0.97);
-}
-
-/* ---- Compact select ---- */
-
-.select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--panel-soft);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 22px 3px 9px;
-  font-size: 12px;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 7px center;
-}
-
-.select:hover {
-  border-color: var(--border-strong);
-}
-
-/* ---- macOS toggle switch ---- */
-
-.switchWrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.switch {
-  position: relative;
-  width: 30px;
-  height: 18px;
-  border-radius: 9px;
-  background: var(--border-strong);
-  transition: background-color var(--dur) var(--ease);
-  flex: none;
-}
-
-.switch:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.switchOn {
-  background: var(--accent);
-}
-
-.knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  transition: transform var(--dur) var(--ease);
-}
-
-.switchOn .knob {
-  transform: translateX(12px);
-}
-
-.switchLabel {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* ---- Status capsule (still rendered here today; the status bar in Stage C
- *      will absorb this eventually — leaving in place until then) ---- */
-
-.statusCapsule {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: var(--panel-soft);
-  max-width: 320px;
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  flex: none;
-  transition: background-color var(--dur) var(--ease);
-}
-
-.statusCapsule.ok .statusDot {
-  background: var(--ok);
-}
-
-.statusCapsule.error .statusDot {
-  background: var(--error);
-}
-
-.statusText {
-  font-size: 11px;
-  color: var(--text-muted);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: background-color 160ms var(--ease), color 160ms var(--ease);
 }
-
-.statusCapsule.ok .statusText {
-  color: var(--ok);
-}
-
-.statusCapsule.error .statusText {
-  color: var(--error);
-}
-
-.statusMeta {
-  font-size: 10px;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-}
+.iconBtn { width: 32px; padding: 0; }
+.iconBtn:hover, .textBtn:hover, .pressed { background: var(--panel-soft); color: var(--text); }
+.primaryBtn { background: var(--panel-soft); color: var(--accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
+.primaryBtn:hover:not(:disabled) { background: var(--selection); }
+.iconBtn:active, .textBtn:active, .primaryBtn:active { background: var(--border); }
+.iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
+.layoutSwitch { display: flex; padding: 3px; border-radius: 8px; gap: 1px; background: var(--panel-soft); }
+.layoutSwitch button { border: 0; border-radius: 5px; padding: 4px 12px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; cursor: pointer; transition: color 160ms var(--ease), background-color 160ms var(--ease); }
+.layoutSwitch button:hover { color: var(--text); }
+.layoutSwitch .selectedLayout { color: var(--text); background: var(--bg); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.disclosure { position: relative; }
+.popover { position: absolute; top: calc(100% + 10px); right: 0; width: 290px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); overflow-y: auto; z-index: 100; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-md); animation: reveal 140ms var(--ease); transform-origin: top right; }
+@keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+.menuHeading { padding: 12px 10px 6px; color: var(--text-muted); font-size: 0.82em; font-weight: 550; }
+.menuHeading:first-child { padding-top: 5px; }
+.menuHeading:not(:first-child) { border-top: 1px solid var(--border); margin-top: 6px; }
+.menuItem, .optionRow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; color: var(--text); font: inherit; text-align: left; }
+.menuItem { border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.menuItem:hover, .menuItem:focus-visible { background: var(--panel-soft); }
+.menuItem svg { color: var(--text-muted); flex: none; }
+.menuItem kbd { margin-left: auto; }
+.optionRow { justify-content: space-between; }
+.optionRow select { min-height: 28px; max-width: 140px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel-solid); color: var(--text); font: inherit; font-size: 0.95em; }
+.optionRow input { accent-color: var(--accent); width: 16px; height: 16px; }
+@media (max-width: 1000px) { .optionalAction { display: none; } .toolbar { padding-inline: 12px; } .actions { gap: 4px; } }
+@media (max-width: 760px) { .toolbar { gap: 6px; } .layoutSwitch button { padding-inline: 8px; } .actionLabel { display: none; } .primaryBtn { min-width: 32px; padding-inline: 8px; } }

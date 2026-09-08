@@ -26,9 +26,8 @@ export function Tabs({ onCloseTab }: TabsProps) {
   const setActive = useTabsStore(s => s.setActive);
   const closeTab = useTabsStore(s => s.closeTab);
 
-  if (tabs.length === 0) {
-    return <div className={styles.empty}>No open documents</div>;
-  }
+  // The unified toolbar already names the sole document.
+  if (tabs.length < 2) return null;
 
   function onClose(e: React.MouseEvent, id: string) {
     e.stopPropagation();

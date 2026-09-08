@@ -29,8 +29,8 @@ describe('resolveSyncTexFile', () => {
     );
   });
 
-  it('returns null for main.tex / empty (root is already active)', () => {
-    expect(resolveSyncTexFile('main.tex', FILES, '/proj/main.tex')).toBeNull();
+  it('opens the root for main.tex when a chapter may be active', () => {
+    expect(resolveSyncTexFile('main.tex', FILES, '/proj/main.tex')).toBe('/proj/main.tex');
     expect(resolveSyncTexFile('', FILES, '/proj/main.tex')).toBeNull();
   });
 

@@ -4,7 +4,11 @@
 import { create } from 'zustand';
 import { ipc } from '../api/tauri';
 
+export type EditorLayout = 'editor' | 'split' | 'preview';
+
 export interface Settings {
+  editor_layout: EditorLayout;
+  sidebar_visible: boolean;
   latex_engine: string;
   bib_engine: 'auto' | 'bibtex' | 'biber' | 'none' | string;
   auto_rerun: boolean;
@@ -80,6 +84,8 @@ export interface Settings {
 }
 
 export const defaultSettings: Settings = {
+  editor_layout: 'editor',
+  sidebar_visible: false,
   latex_engine: 'pdflatex',
   bib_engine: 'auto',
   auto_rerun: true,
@@ -89,8 +95,8 @@ export const defaultSettings: Settings = {
   pdf_bg_color: '',
   editor_font_family:
     '"Maple Mono NF", "Maple Mono NF CN", "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", Consolas, Menlo, monospace',
-  editor_font_size: 14,
-  editor_line_height: 1.7,
+  editor_font_size: 15,
+  editor_line_height: 1.85,
   editor_theme: 'auto',
   editor_theme_overrides: {},
   editor_spellcheck: false,
@@ -110,10 +116,10 @@ export const defaultSettings: Settings = {
   ui_accent_color: '',
   preview_font_family:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
-  preview_font_size: 14,
+  preview_font_size: 16,
   ui_color_overrides: {},
-  problems_panel_open: true,
-  preview_paper: 'light',
+  problems_panel_open: false,
+  preview_paper: 'match',
   preview_reading_width: 'narrow',
   cwl_enabled: true,
   cwl_show_unusual: false,
@@ -152,6 +158,12 @@ export function migrateSettings(s: Settings): Settings {
     migrated = { ...migrated, preview_reading_width: defaultSettings.preview_reading_width };
   }
 
+  if (!['editor', 'split', 'preview'].includes(migrated.editor_layout)) {
+    migrated = { ...migrated, editor_layout: 'split' };
+  }
+  if (typeof migrated.sidebar_visible !== 'boolean') {
+    migrated = { ...migrated, sidebar_visible: true };
+  }
   return migrated;
 }
 

@@ -1,130 +1,113 @@
-// Compile orchestrator — runs `compile_latex` over IPC, streams logs into the
-// compile store, and drops the resulting PDF bytes into the pdf store.
-//
-// Decoupled from React: callers (Toolbar / shortcut handlers / commands) just
-// call runLatexCompile() with the active tab and current settings.
-
-import { ipc, events, type CompileResult, type LatexLogPayload, type LatexRunStartPayload } from '../api/tauri';
-import {
-  useCompileStore,
-  usePdfStore,
-  useTabsStore,
-  useSettingsStore,
-  useProjectStore,
-} from '../store';
+import { ipc, events, type CompileResult } from '../api/tauri';
+import { useCompileStore, usePdfStore, useTabsStore, useSettingsStore, useProjectStore } from '../store';
+import { setStatus } from '../store/status';
+import { pathsEqual } from '../files/projectPaths';
+import { belongsToPdf, latexRoot } from './target';
 
 function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return Uint8Array.from(atob(b64), char => char.charCodeAt(0));
 }
 
 let inFlight = false;
 let pendingRerun = false;
 
 export async function runLatexCompile(): Promise<CompileResult | null> {
-  // Coalesce: if a compile is already running, mark that a fresh run is wanted
-  // and return. When the current run finishes, it re-invokes itself once with
-  // the latest content. This turns "typed while compiling → dropped" into
-  // "typed while compiling → one more compile with the newest text".
   if (inFlight) {
     pendingRerun = true;
     return null;
   }
+  const state = useTabsStore.getState();
+  const tab = state.tabs.find(t => t.id === state.activeTabId);
+  if (!tab || tab.lang !== 'latex') return null;
   inFlight = true;
-
-  const tabs = useTabsStore.getState();
+  const root = latexRoot(tab, useProjectStore.getState());
   const settings = useSettingsStore.getState().settings;
-  const project = useProjectStore.getState();
-  const compileStore = useCompileStore.getState();
-  const pdfStore = usePdfStore.getState();
-
-  const tab = tabs.tabs.find(t => t.id === tabs.activeTabId);
-  if (!tab || tab.lang !== 'latex') {
-    inFlight = false;
-    pendingRerun = false;
-    return null;
-  }
-
-  compileStore.clearLog();
-  compileStore.setStatus('compiling');
-
-  // Wire streaming log + run-start events.
-  const offLog = await events.onLatexLog((p: LatexLogPayload) => {
-    useCompileStore.getState().appendLog(p);
-  });
-  const offRun = await events.onLatexRunStart((p: LatexRunStartPayload) => {
-    useCompileStore.getState().appendLog({
-      run: p.run,
-      stream: 'info',
-      text: `\n--- run ${p.run}: ${p.command} ---\n`,
-    });
-  });
-
-  // Build project_files from useProjectStore (excluding the root which goes
-  // via `source`).
-  const projectFiles = project.rootAbs
-    ? project.files
-        .filter(f => f.absPath !== project.rootAbs)
-        .map(f => ({
-          relPath: f.relPath,
-          content: f.content,
-          binaryBase64: f.binaryBase64 ?? null,
-        }))
-    : [];
+  const off: Array<() => void> = [];
+  useCompileStore.getState().clearLog();
+  useCompileStore.getState().setStatus('compiling');
+  setStatus('Compiling…');
+  // Keep the previous page visible while updating, but invalidate export/SyncTeX.
+  // The viewer labels it as updating; failure explicitly clears it below.
+  usePdfStore.setState({ workdirToken: null });
 
   try {
+    off.push(await events.onLatexLog(payload => useCompileStore.getState().appendLog(payload)));
+    off.push(await events.onLatexRunStart(payload => useCompileStore.getState().appendLog({
+      run: payload.run, stream: 'info', text: `\n--- run ${payload.run}: ${payload.command} ---\n`,
+    })));
+
+    const collected = root ? await ipc.collectLatexSnapshot(root, state.tabs
+      .filter(t => t.filePath)
+      .map(t => ({ path: t.filePath!, content: t.content }))) : null;
+    const rootFile = collected?.files.find(file => pathsEqual(file.absPath, root));
+    if (root && !rootFile) throw new Error('Project main document was not found in the compile snapshot.');
+    const source = rootFile?.content ?? tab.content;
+    const files = collected?.files ?? [];
+    const sourceRoot = rootFile?.absPath ?? root;
+    const context = { sourceRoot, sourceFiles: files, ownerTabId: tab.id };
+    const owner = state.tabs.find(t => root && pathsEqual(t.filePath, root)) ?? tab;
+    // Workdirs are owned by the main document, not whichever chapter is active.
+    const token = owner.latexWorkdirToken;
+    if (collected && sourceRoot && latexRoot(tab, useProjectStore.getState()) === root) {
+      useProjectStore.getState().setProject({
+        rootAbs: sourceRoot, rootBasename: collected.rootRel, activeAbs: tab.filePath,
+        files, warnings: collected.warnings,
+      });
+    }
     const result = await ipc.compileLatex({
-      source: tab.content,
+      source,
       engine: settings.latex_engine,
       customPath: settings.latex_custom_paths[settings.latex_engine],
       bibEngine: settings.bib_engine as 'auto' | 'bibtex' | 'biber' | 'none',
       autoRerun: settings.auto_rerun,
       maxRuns: settings.max_runs,
       synctex: true,
-      workdirToken: tab.latexWorkdirToken ?? null,
-      projectFiles,
+      // Compile each source snapshot in a fresh directory. A removed include
+      // must never be satisfied by an older project's materialized source.
+      workdirToken: null,
+      projectFiles: files.filter(file => !pathsEqual(file.absPath, sourceRoot)).map(file => ({
+        relPath: file.relPath, content: file.content, binaryBase64: file.binaryBase64 ?? null,
+      })),
     });
-
-    // Persist diagnostics.
-    useCompileStore.getState().setErrors(result.errors ?? []);
-    useCompileStore.getState().setLogTail(result.logTail ?? '');
-    useCompileStore.getState().setRuns(result.runs);
-    useCompileStore.getState().setStatus(result.ok ? 'ok' : 'error');
-
-    // Cleanup an old workdir if Rust handed back a different token.
-    if (tab.latexWorkdirToken && result.workdirToken && tab.latexWorkdirToken !== result.workdirToken) {
-      ipc.cleanupWorkdir(tab.latexWorkdirToken).catch(() => {});
-    }
-
-    // Save the new token on the tab.
+    if (token && token !== result.workdirToken) void ipc.cleanupWorkdir(token).catch(() => {});
+    const ownerStillOpen = useTabsStore.getState().tabs.some(t => t.id === owner.id);
     if (result.workdirToken) {
-      useTabsStore.getState().patchTab(tab.id, { latexWorkdirToken: result.workdirToken });
-      pdfStore.setWorkdirToken(result.workdirToken);
+      if (ownerStillOpen) {
+        useTabsStore.getState().patchTab(owner.id, { latexWorkdirToken: result.workdirToken, projectRoot: root });
+      } else {
+        void ipc.cleanupWorkdir(result.workdirToken).catch(() => {});
+      }
     }
-
-    // Decode PDF bytes if present.
-    if (result.ok && result.pdfBase64) {
-      pdfStore.setBytes(base64ToBytes(result.pdfBase64));
+    const current = useTabsStore.getState();
+    const visible = belongsToPdf(current.tabs.find(t => t.id === current.activeTabId), context);
+    if (!visible) {
+      usePdfStore.setState({ bytes: null, workdirToken: null });
+      useCompileStore.getState().setStatus('idle');
+      setStatus('Ready');
+      return result;
     }
-
+    useCompileStore.setState({
+      errors: result.errors ?? [], logTail: result.logTail ?? '', runs: result.runs,
+      status: result.ok ? 'ok' : 'error',
+    });
+    usePdfStore.setState({
+      ...context,
+      bytes: result.ok && result.pdfBase64 ? base64ToBytes(result.pdfBase64) : null,
+      workdirToken: result.ok && ownerStillOpen ? result.workdirToken : null,
+    });
+    setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · see problems', result.ok ? 'ok' : 'error');
     return result;
-  } catch (e) {
+  } catch (error) {
+    usePdfStore.setState({ bytes: null, workdirToken: null });
     useCompileStore.getState().setStatus('error');
-    useCompileStore.getState().setErrors([
-      { line: null, message: String(e), kind: 'error' },
-    ]);
+    useCompileStore.getState().setErrors([{ line: null, message: String(error), kind: 'error' }]);
+    setStatus('Compile failed · see problems', 'error');
     return null;
   } finally {
-    offLog();
-    offRun();
+    for (const dispose of off) { try { dispose(); } catch { /* Always release the compile guard. */ } }
     inFlight = false;
-    // If new content arrived mid-flight, run once more with the latest text.
     if (pendingRerun) {
       pendingRerun = false;
-      // Fire-and-forget: caller of the outer invocation already received its
-      // result; this second run pushes the fresh PDF into the store when done.
       void runLatexCompile();
     }
   }

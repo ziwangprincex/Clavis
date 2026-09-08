@@ -1,14 +1,14 @@
 {
   "build": {
-    "beforeBuildCommand": "npm run build",
-    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "." },
+    "beforeDevCommand": { "script": "npm run dev", "cwd": "." },
     "devPath": "http://localhost:5173",
     "distDir": "web/dist",
     "withGlobalTauri": true
   },
   "package": {
     "productName": "Clavis",
-    "version": "1.1.1"
+    "version": "1.2.0"
   },
   "tauri": {
     "allowlist": {

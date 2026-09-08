@@ -5,7 +5,7 @@
 //
 // Mirrors the textarea-shaped API in ui-legacy/editor.js, ported to TypeScript.
 
-import { EditorState, Compartment } from '@codemirror/state';
+import { EditorState, Compartment, Transaction, type StateEffect } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -13,6 +13,7 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   drawSelection,
+  placeholder,
 } from '@codemirror/view';
 import { history } from '@codemirror/commands';
 import {
@@ -86,6 +87,16 @@ export interface ThemeSpec {
 }
 
 export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
+  paper: {
+    label: 'Clavis Paper', dark: false,
+    bg: '#fcfbf8', fg: '#343530', gutterBg: '#fcfbf8', gutterFg: '#99998f',
+    activeBg: '#f5f4ef', cursor: '#526957', selection: '#dce5da', accent: '#526957',
+  },
+  ink: {
+    label: 'Clavis Ink', dark: true,
+    bg: '#232522', fg: '#d9dcd3', gutterBg: '#232522', gutterFg: '#83897f',
+    activeBg: '#2a2e28', cursor: '#a7baa0', selection: '#414f3e', accent: '#a7baa0',
+  },
   'vscode-dark': {
     label: 'VS Code Dark',
     dark: true,
@@ -214,10 +225,10 @@ function buildThemeExt(spec: ThemeSpec) {
         pointerEvents: 'none',
       },
       '.cm-selectionLayer .cm-selectionBackground': {
-        background: 'rgba(47, 128, 237, 0.46) !important',
+        background: `${withAlpha(spec.accent, 0.18)} !important`,
       },
       '&.cm-focused .cm-selectionLayer .cm-selectionBackground': {
-        background: 'rgba(47, 128, 237, 0.62) !important',
+        background: `${withAlpha(spec.accent, 0.26)} !important`,
       },
       '.cm-cursorLayer': { zIndex: '3 !important', pointerEvents: 'none' },
       '.cm-selectionMatch': { backgroundColor: withAlpha(spec.accent, 0.24) },
@@ -307,6 +318,22 @@ const lightHighlightStyle = HighlightStyle.define([
 ]);
 
 function buildHighlightExt(spec: ThemeSpec) {
+  if (spec.label === 'Clavis Paper' || spec.label === 'Clavis Ink') {
+    const accent = spec.dark ? '#a7baa0' : '#526957';
+    const secondary = spec.dark ? '#b8b0cc' : '#70627e';
+    return syntaxHighlighting(HighlightStyle.define([
+      { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: secondary },
+      { tag: [t.name, t.propertyName, t.macroName, t.typeName, t.tagName], color: accent },
+      { tag: [t.number, t.bool, t.atom, t.string], color: spec.dark ? '#c2b493' : '#816c49' },
+      { tag: [t.comment, t.meta], color: spec.dark ? '#90998b' : '#7b8175', fontStyle: 'italic' },
+      { tag: t.heading, color: spec.fg, fontWeight: '600' },
+      { tag: t.strong, fontWeight: '600' },
+      { tag: t.emphasis, fontStyle: 'italic' },
+      { tag: t.strikethrough, textDecoration: 'line-through' },
+      { tag: [t.link, t.url], color: accent, textDecoration: 'underline' },
+      { tag: t.invalid, color: spec.dark ? '#e7a49b' : '#a14035' },
+    ]), { fallback: true });
+  }
   return syntaxHighlighting(spec.dark ? darkHighlightStyle : lightHighlightStyle, {
     fallback: true,
   });
@@ -325,31 +352,12 @@ function buildFontExt(font: FontSpec) {
       fontSize: font.size + 'px',
       lineHeight: String(font.lineHeight),
     },
-    // Constrain the text column so long prose does not run the full width of a
-    // wide window. This MUST target `.cm-content`, not `.cm-scroller`:
-    // `.cm-gutters` and `.cm-content` are flex siblings inside the scroller, so
-    // capping the scroller would drag the line-number gutter inward with the
-    // text and interfere with its `overflow-x: auto`. Constraining the content
-    // alone leaves the gutter pinned to the left edge, where it belongs.
-    //
-    // `EditorView.lineWrapping` is enabled unconditionally below, so a narrow
-    // measure wraps rather than overflowing horizontally.
-    //
-    // Sized in `ch`, which for a monospace face is exactly one character wide,
-    // so the cap IS the character count and it scales with `editor_font_size`.
-    // NOT `rem`: this app sets `font-size: 13px` on `body`, not `html`, so `rem`
-    // would resolve against the browser's 16px default and ignore the user's
-    // font-size setting entirely.
-    //
-    // No centring: `.cm-content` is a `flex-grow: 2` child, so centring would
-    // need `justify-content` on the scroller, which would also push the gutter
-    // off the left edge. Padding plus a max-width gets the calm column without
-    // moving anything CodeMirror measures against.
+    // The scroller's horizontal padding centres the gutter + text together.
+    // CodeMirror still owns content measurement, wrapping and selection geometry.
     '.cm-content': {
-      maxWidth: '88ch',
-      paddingInlineStart: '4px',
-      paddingInlineEnd: '32px',
-      paddingBlock: '24px',
+      paddingInlineStart: '12px',
+      paddingInlineEnd: '8px',
+      paddingBlock: '52px 160px',
     },
   });
 }
@@ -388,6 +396,10 @@ export class EditorController {
   private signatureCompartment = new Compartment();
   private signatureThemeCompartment = new Compartment();
   private suppressEvents = false;
+  private activeDocumentId: string | null = null;
+  private documents = new Map<string, { state: EditorState; scroll: StateEffect<unknown> }>();
+  private tabSize = 2;
+  private indentWithSpaces = true;
   private currentLang: Lang;
   private themeSpec: ThemeSpec;
   private font: FontSpec;
@@ -407,11 +419,20 @@ export class EditorController {
     this.getCompletionWorkspaceCb = opts.getCompletionWorkspace;
     this.onOpenIncludeCb = opts.onOpenInclude;
 
-    const tabSize = opts.tabSize ?? 2;
-    const indentUnitStr = opts.indentWithSpaces === false ? '\t' : ' '.repeat(tabSize);
+    this.tabSize = opts.tabSize ?? 2;
+    this.indentWithSpaces = opts.indentWithSpaces !== false;
+    this.view = new EditorView({
+      state: this.createState(opts.initialDoc),
+      parent: opts.parent,
+    });
+  }
 
+  private createState(doc: string): EditorState {
+    const tabSize = this.tabSize;
+    const indentUnitStr = this.indentWithSpaces ? ' '.repeat(tabSize) : '\t';
     const exts = [
       lineNumbers(),
+      placeholder('Begin with a thought…'),
       highlightActiveLine(),
       highlightActiveLineGutter(),
       drawSelection(),
@@ -454,13 +475,46 @@ export class EditorController {
       }),
     ];
 
-    this.view = new EditorView({
-      state: EditorState.create({ doc: opts.initialDoc, extensions: exts }),
-      parent: opts.parent,
-    });
+    return EditorState.create({ doc, extensions: exts });
+  }
+
+  /** One view, independent undo/selection/scroll for each open document. */
+  switchDocument(id: string, content: string, lang: Lang) {
+    if (id === this.activeDocumentId) {
+      if (content !== this.value) this.value = content;
+      this.setLanguage(lang);
+      return;
+    }
+    if (this.activeDocumentId) {
+      this.documents.set(this.activeDocumentId, {
+        state: this.view.state,
+        scroll: this.view.scrollSnapshot(),
+      });
+    }
+    const cached = this.documents.get(id);
+    this.activeDocumentId = id;
+    this.currentLang = lang;
+    const reusable = cached?.state.doc.toString() === content ? cached : undefined;
+    this.view.setState(reusable?.state ?? this.createState(content));
+    // Cached states may predate a font/theme/indent preference change.
+    this.setLanguage(lang, true);
+    this.setFont(this.font);
+    this.setTheme(this.themeSpec);
+    this.setSpellcheck(this.spellcheck);
+    this.setIndent(this.tabSize, this.indentWithSpaces);
+    if (reusable) this.view.dispatch({ effects: reusable.scroll });
+    else this.view.scrollDOM.scrollTop = 0;
+    const selection = this.view.state.selection.main;
+    this.onCursorCb?.(selection.head, selection.from, selection.to);
+  }
+
+  retainDocuments(ids: readonly string[]) {
+    const keep = new Set(ids);
+    for (const id of this.documents.keys()) if (!keep.has(id)) this.documents.delete(id);
   }
 
   destroy() {
+    this.documents.clear();
     this.view.destroy();
   }
 
@@ -472,12 +526,17 @@ export class EditorController {
 
   set value(v: string) {
     this.suppressEvents = true;
-    this.view.dispatch({
-      changes: { from: 0, to: this.view.state.doc.length, insert: v },
-      selection: { anchor: 0 },
-      scrollIntoView: false,
-    });
-    this.suppressEvents = false;
+    const selection = this.view.state.selection.main;
+    try {
+      this.view.dispatch({
+        changes: { from: 0, to: this.view.state.doc.length, insert: v },
+        selection: { anchor: Math.min(selection.anchor, v.length), head: Math.min(selection.head, v.length) },
+        annotations: Transaction.addToHistory.of(false),
+        scrollIntoView: false,
+      });
+    } finally {
+      this.suppressEvents = false;
+    }
   }
 
   get cursor(): number {
@@ -501,7 +560,8 @@ export class EditorController {
     return inputLinkExtension(lang, this.getCompletionWorkspaceCb, (raw, kind, isImport) => this.onOpenIncludeCb?.(raw, kind, isImport));
   }
 
-  setLanguage(lang: Lang) {
+  setLanguage(lang: Lang, force = false) {
+    if (!force && this.currentLang === lang) return;
     this.currentLang = lang;
     this.view.dispatch({
       effects: [
@@ -552,6 +612,8 @@ export class EditorController {
   }
 
   setIndent(tabSize: number, withSpaces: boolean) {
+    this.tabSize = tabSize;
+    this.indentWithSpaces = withSpaces;
     const unit = withSpaces ? ' '.repeat(Math.max(1, tabSize)) : '\t';
     this.view.dispatch({
       effects: [

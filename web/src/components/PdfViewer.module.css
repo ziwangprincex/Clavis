@@ -2,8 +2,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg);
+  background: var(--panel-solid);
   position: relative;
+  min-width: 0;
 }
 
 /* Opaque, not frosted: this toolbar is a `flex: none` sibling ABOVE `.pages`,
@@ -14,9 +15,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 9px 12px;
   background: var(--panel-solid);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid transparent;
   flex: none;
 }
 
@@ -78,14 +79,33 @@
   background: var(--bg);
 }
 
+.updateNotice {
+  position: absolute;
+  z-index: 5;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
+}
+
 .pages {
   flex: 1;
   overflow: auto;
-  padding: 12px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 24px;
+  overscroll-behavior: contain;
 }
 
 .pages.invert canvas {
@@ -98,7 +118,9 @@
 
 .page {
   background: white;
-  box-shadow: 0 0 0 1px var(--border), var(--shadow-md);
+  box-shadow: 0 0 0 1px var(--border), 0 4px 18px rgb(0 0 0 / 6%);
+  margin-inline: auto;
+  flex: none;
   border-radius: 2px;
   position: relative;
   cursor: crosshair;

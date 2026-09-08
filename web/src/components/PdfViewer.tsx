@@ -12,19 +12,24 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
 import { ensurePdfjs } from '../pdf/pdfjs';
 import { IconSearch } from './icons';
-import { usePdfStore, useSettingsStore } from '../store';
+import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '../store';
 import { usePdfSearch } from '../hooks/usePdfSearch';
 import { fmtShortcut } from '../platform';
+import { belongsToPdf } from '../compile/target';
 // We import a minimal subset of pdfjs's textLayer CSS — see ../pdf/textLayer.css.
 import '../pdf/textLayer.css';
 import styles from './PdfViewer.module.css';
 
 export interface PdfViewerProps {
+  visible?: boolean;
   onSyncTexBackward?: (page: number, x: number, y: number) => void;
 }
 
-export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
-  const bytes = usePdfStore(s => s.bytes);
+export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps) {
+  const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
+  const pdf = usePdfStore();
+  const bytes = belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
+  const compiling = useCompileStore(s => s.status === 'compiling');
   const zoom = usePdfStore(s => s.zoom);
   const setZoom = usePdfStore(s => s.setZoom);
   const setNumPages = usePdfStore(s => s.setNumPages);
@@ -72,13 +77,18 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
   }, []);
 
   useEffect(() => {
+    if (!visible) return;
     let cancelled = false;
     async function load() {
       if (!bytes) {
-        if (docRef.current) {
-          await docRef.current.destroy().catch(() => {});
-          docRef.current = null;
-        }
+        ++renderSeqRef.current;
+        observerRef.current?.disconnect();
+        observerRef.current = null;
+        const previous = docRef.current;
+        docRef.current = null;
+        if (previous) await previous.destroy().catch(() => {});
+        if (cancelled) return;
+        setError(null);
         setNumPages(0);
         setCurrentPage(1);
         if (containerRef.current) containerRef.current.innerHTML = '';
@@ -92,12 +102,13 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           await newDoc.destroy().catch(() => {});
           return;
         }
-        if (docRef.current) {
-          await docRef.current.destroy().catch(() => {});
-        }
+        const previous = docRef.current;
+        ++renderSeqRef.current;
+        observerRef.current?.disconnect();
         docRef.current = newDoc;
+        if (previous) void previous.destroy().catch(() => {});
         setNumPages(newDoc.numPages);
-        setCurrentPage(1);
+        setCurrentPage(Math.min(usePdfStore.getState().currentPage, newDoc.numPages));
         setError(null);
         await renderAll();
       } catch (e) {
@@ -107,28 +118,38 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     void load();
     return () => {
       cancelled = true;
+      ++renderSeqRef.current;
+      observerRef.current?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bytes]);
+  }, [bytes, visible]);
 
   useEffect(() => {
-    if (!docRef.current) return;
+    if (!visible || !docRef.current) return;
     const raf = requestAnimationFrame(() => {
       void renderAll();
     });
     return () => cancelAnimationFrame(raf);
+    // Reopening is handled by the load effect; avoid repainting the old PDF
+    // concurrently with loading the latest bytes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom]);
 
   const renderAll = useCallback(async () => {
     const container = containerRef.current;
     const doc = docRef.current;
-    if (!container || !doc) return;
+    if (!visible || !container || !doc) return;
     const seq = ++renderSeqRef.current;
     // Preserve scroll so recompiles don't yank the user back to page 1.
     const savedScrollTop = container.scrollTop;
     const savedScrollLeft = container.scrollLeft;
-    container.innerHTML = '';
+    const previousPage = Array.from(container.children).find(element => {
+      const page = element as HTMLElement;
+      return page.offsetTop + page.offsetHeight > savedScrollTop;
+    }) as HTMLElement | undefined;
+    const anchorPage = Number(previousPage?.dataset.page ?? 1);
+    const anchorFraction = previousPage ? (savedScrollTop - previousPage.offsetTop) / previousPage.offsetHeight : 0;
+    const fragment = document.createDocumentFragment();
     const dpr = window.devicePixelRatio || 1;
     ensurePdfjs();
 
@@ -143,6 +164,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     for (let i = 1; i <= doc.numPages; i++) {
       if (seq !== renderSeqRef.current) return;
       const page = await doc.getPage(i);
+      if (seq !== renderSeqRef.current) return;
       const viewport = page.getViewport({ scale: zoom });
       const wrap = document.createElement('div');
       wrap.className = styles.page;
@@ -150,7 +172,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
       wrap.style.width = viewport.width + 'px';
       wrap.style.height = viewport.height + 'px';
       wrap.style.setProperty('--scale-factor', String(zoom));
-      container.appendChild(wrap);
+      fragment.appendChild(wrap);
       slots.set(wrap, { rendered: false, rendering: false });
       pages.push({ wrap, viewport, index: i });
     }
@@ -161,7 +183,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
       if (!slot || slot.rendered || slot.rendering) return;
       // doc is captured by closure but TS forgets the narrowing across the
       // async boundary; re-check explicitly.
-      const d = docRef.current;
+      const d = doc;
       if (!d) return;
       slot.rendering = true;
       try {
@@ -203,8 +225,8 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
         }
 
         slot.rendered = true;
-        // Re-apply highlights for this newly-painted page.
-        if (findQuery) applyHighlights();
+        // A detached staging page is highlighted after the atomic swap.
+        if (findQuery && wrap.isConnected) applyHighlights();
       } finally {
         slot.rendering = false;
       }
@@ -218,6 +240,21 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
       while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
       slot.rendered = false;
     }
+
+    // Keep the previous PDF visible until the replacement viewport is painted.
+    // Staging detached pages avoids both blank flashes and intermediate reflows.
+    const anchorIndex = Math.max(0, Math.min(anchorPage - 1, pages.length - 1));
+    const viewportPages = pages.slice(anchorIndex, anchorIndex + 2);
+    await Promise.all(viewportPages.map(page => paint(page.index, page.wrap, page.viewport)));
+    if (seq !== renderSeqRef.current) return;
+    observerRef.current?.disconnect();
+    container.replaceChildren(fragment);
+    const anchor = pages[anchorIndex]?.wrap;
+    const targetTop = anchor ? anchor.offsetTop + anchorFraction * anchor.offsetHeight : savedScrollTop;
+    container.scrollTop = Math.max(0, Math.min(targetTop, container.scrollHeight - container.clientHeight));
+    container.scrollLeft = savedScrollLeft;
+    setCurrentPage(anchorIndex + 1);
+    if (findQuery) applyHighlights();
 
     // Phase 2: observe & swap heavy DOM in/out as users scroll.
     // Margin of ~one viewport keeps adjacent pages ready, so quick scrolls
@@ -253,7 +290,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
     // Restore scroll now that layout is committed. Clamp so we don't overshoot
     // when a shorter document replaced a longer one.
     const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
-    container.scrollTop = Math.min(savedScrollTop, maxTop);
+    container.scrollTop = Math.max(0, Math.min(targetTop, maxTop));
     container.scrollLeft = savedScrollLeft;
     // Fast path: paint the page under the current scroll position immediately
     // rather than waiting for the observer's next microtask. Cuts perceived
@@ -267,7 +304,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
         break;
       }
     }
-  }, [zoom, findQuery, applyHighlights]);
+  }, [zoom, findQuery, applyHighlights, visible]);
 
   // Honor external scroll requests (forward SyncTeX: editor line → PDF spot).
   useEffect(() => {
@@ -341,6 +378,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           className={styles.btn}
           onClick={() => scrollToPage(Math.max(1, currentPage - 1))}
           disabled={!numPages || currentPage <= 1}
+          aria-label="Previous page"
         >
           ←
         </button>
@@ -351,15 +389,16 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           className={styles.btn}
           onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))}
           disabled={!numPages || currentPage >= numPages}
+          aria-label="Next page"
         >
           →
         </button>
         <span className={styles.divider} />
-        <button className={styles.btn} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
+        <button className={styles.btn} aria-label="Zoom out" onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
           −
         </button>
         <span className={styles.info}>{Math.round(zoom * 100)}%</span>
-        <button className={styles.btn} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
+        <button className={styles.btn} aria-label="Zoom in" onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
           +
         </button>
         <span className={styles.divider} />
@@ -368,6 +407,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           onClick={() => (findOpen ? closeFinder() : openFinder())}
           disabled={!bytes}
           title={`Find in PDF (${fmtShortcut('Ctrl+F')})`}
+          aria-label="Find in PDF"
         >
           <IconSearch size={13} />
         </button>
@@ -429,7 +469,8 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
         * empty state is showing — renderAll() writes into containerRef, and a
         * remount between a failed load and the next successful one would leave
         * the viewer permanently blank. Overlays sit on top instead. */}
-      <div className={styles.body}>
+      <div className={styles.body} aria-busy={compiling}>
+        {compiling && bytes && <div className={styles.updateNotice} role="status">Updating preview · showing last successful render</div>}
         <div
           ref={containerRef}
           className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
@@ -444,7 +485,7 @@ export function PdfViewer({ onSyncTexBackward }: PdfViewerProps) {
           </div>
         ) : !bytes ? (
           <div className={styles.overlay}>
-            <div className={styles.empty}>(no PDF — compile to render)</div>
+            <div className={styles.empty}>Your typeset document will appear here.</div>
           </div>
         ) : null}
       </div>

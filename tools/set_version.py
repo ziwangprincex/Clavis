@@ -15,7 +15,8 @@ def replace_once(path: Path, pattern: str, replacement: str) -> None:
     updated, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE | re.DOTALL)
     if count != 1:
         raise ValueError(f"expected exactly one version match in {path.name}; found {count}")
-    path.write_text(updated, encoding="utf-8", newline="\n")
+    with path.open("w", encoding="utf-8", newline="\n") as output:
+        output.write(updated)
 
 
 def main() -> int:

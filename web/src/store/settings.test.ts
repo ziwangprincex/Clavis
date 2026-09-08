@@ -47,3 +47,17 @@ describe('migrateSettings: preview reading width', () => {
     expect(migrateSettings(dirty).preview_reading_width).toBe('narrow');
   });
 });
+
+
+describe('workspace layout preferences', () => {
+  it('preserves the selected layout and hidden sidebar', () => {
+    const settings = migrateSettings({ ...defaultSettings, editor_layout: 'preview', sidebar_visible: false });
+    expect(settings.editor_layout).toBe('preview');
+    expect(settings.sidebar_visible).toBe(false);
+  });
+  it('falls back safely for corrupt layout values', () => {
+    const settings = migrateSettings({ ...defaultSettings, editor_layout: 'bad', sidebar_visible: null } as unknown as Settings);
+    expect(settings.editor_layout).toBe('split');
+    expect(settings.sidebar_visible).toBe(true);
+  });
+});

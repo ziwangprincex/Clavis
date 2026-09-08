@@ -1,6 +1,7 @@
 // File operations — open / save tabs via Tauri dialog + fs APIs.
 
-import { dialogOpen, dialogSave, fs, hasTauri, ipc } from '../api/tauri';
+import { dialogOpen, fs, hasTauri, ipc } from '../api/tauri';
+import { saveTabToDisk } from './save';
 import { pathsEqual } from './projectPaths';
 import { detectDocumentLanguage, documentTitle } from './documentIdentity';
 import {
@@ -97,31 +98,11 @@ export async function saveActiveTab(opts: { saveAs?: boolean } = {}): Promise<vo
   const state = useTabsStore.getState();
   const tab = state.tabs.find(t => t.id === state.activeTabId);
   if (!tab) return;
-  let target = tab.filePath;
-  if (!target || opts.saveAs) {
-    try {
-      const chosen = await dialogSave({
-        defaultPath: target ?? undefined,
-        filters: FILE_FILTERS,
-      });
-      if (typeof chosen !== 'string') return;
-      target = chosen;
-    } catch (e) {
-      console.error('save dialog failed', e);
-      return;
-    }
-  }
   try {
-    await fs.writeTextFile(target, tab.content);
-    state.patchTab(tab.id, {
-      filePath: target,
-      title: documentTitle(target),
-      lang: detectDocumentLanguage(target),
-      isDirty: false,
-    });
-    void pushRecent(target);
+    const target = await saveTabToDisk(tab.id, opts);
+    if (target) void pushRecent(target);
   } catch (e) {
-    console.error('write file failed', target, e);
+    console.error('save failed', e);
   }
 }
 

@@ -17,8 +17,8 @@ import { useSettingsStore } from '../store';
 import { BUILTIN_THEMES, type ThemeSpec } from '../editor/controller';
 
 /** Theme id used when `editor_theme` is 'auto' and the OS is in dark/light. */
-const AUTO_DARK = 'vscode-dark';
-const AUTO_LIGHT = 'vscode-light';
+const AUTO_DARK = 'ink';
+const AUTO_LIGHT = 'paper';
 
 /** Resolve the effective theme id, expanding the 'auto' sentinel. */
 export function resolveThemeId(editorTheme: string, osDark: boolean): string {
@@ -105,7 +105,7 @@ export function applyChromeTokens(spec: ThemeSpec): void {
   const root = document.documentElement;
   const { bg, fg, selection, dark } = spec;
 
-  const panel = mix(bg, fg, 0.035);
+  const panel = mix(bg, fg, dark ? 0.022 : 0.026);
 
   root.style.setProperty('--bg', bg);
   root.style.setProperty('--bg-elevated', mix(bg, fg, 0.07));
@@ -115,11 +115,11 @@ export function applyChromeTokens(spec: ThemeSpec): void {
   root.style.setProperty('--panel-solid', panel);
   root.style.setProperty('--panel-soft', withAlpha(fg, 0.05));
 
-  root.style.setProperty('--border', withAlpha(fg, 0.12));
+  root.style.setProperty('--border', withAlpha(fg, 0.08));
   root.style.setProperty('--border-strong', withAlpha(fg, 0.22));
 
   root.style.setProperty('--text', fg);
-  root.style.setProperty('--text-muted', withAlpha(fg, 0.62));
+  root.style.setProperty('--text-muted', withAlpha(fg, 0.68));
   root.style.setProperty('--text-dim', withAlpha(fg, 0.35));
 
   root.style.setProperty('--selection', selection);

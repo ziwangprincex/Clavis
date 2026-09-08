@@ -23,18 +23,26 @@ def changed_files(base: str, head: str) -> set[str]:
     return {line.replace("\\", "/") for line in output.splitlines() if line.strip()}
 
 
+def working_tree_files() -> set[str]:
+    tracked = git("diff", "--name-only", "HEAD")
+    untracked = git("ls-files", "--others", "--exclude-standard")
+    return {line.replace("\\", "/") for line in (tracked + "\n" + untracked).splitlines() if line.strip()}
+
+
 def requires_handoff(path: str) -> bool:
     return path not in EXEMPT_FILES
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--base")
+    group.add_argument("--working-tree", action="store_true", help="check local changes without committing")
     parser.add_argument("--head", default="HEAD")
     args = parser.parse_args()
 
     try:
-        changed = changed_files(args.base, args.head)
+        changed = working_tree_files() if args.working_tree else changed_files(args.base, args.head)
     except subprocess.CalledProcessError as exc:
         print(f"handoff guard failed to inspect git diff: {exc}", file=sys.stderr)
         return 1

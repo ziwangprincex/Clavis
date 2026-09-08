@@ -1,20 +1,22 @@
-// SyncTeX glue — forward (editor → PDF) and backward (PDF → editor) lookups
-// against the active workdir token.
-
 import { ipc } from '../api/tauri';
-import { useTabsStore, usePdfStore, useProjectStore } from '../store';
-import { resolveSyncTexFile } from '../files/projectPaths';
+import { useTabsStore, usePdfStore } from '../store';
+import { pathsEqual, resolveSyncTexFile } from '../files/projectPaths';
+import { belongsToPdf } from './target';
 
 export async function syncTexForwardFromEditor(line: number) {
   const state = useTabsStore.getState();
   const tab = state.tabs.find(t => t.id === state.activeTabId);
-  if (!tab?.latexWorkdirToken) return null;
+  const pdf = usePdfStore.getState();
+  if (!tab || !pdf.workdirToken || !belongsToPdf(tab, pdf)) return null;
+  const file = pdf.sourceFiles.find(f => pathsEqual(f.absPath, tab.filePath));
+  const inputFile = !pdf.sourceRoot || pathsEqual(pdf.sourceRoot, tab.filePath) ? 'main.tex' : file?.relPath;
+  if (!inputFile) return null;
   try {
-    const r = await ipc.synctexForward(tab.latexWorkdirToken, line, 0);
-    if (r?.page) usePdfStore.getState().requestScroll(r.page, r.y ?? null);
-    return r;
-  } catch (e) {
-    console.error('synctex forward failed', e);
+    const result = await ipc.synctexForward(pdf.workdirToken, line, 0, inputFile);
+    if (result?.page) usePdfStore.getState().requestScroll(result.page, result.y ?? null);
+    return result;
+  } catch (error) {
+    console.error('synctex forward failed', error);
     return null;
   }
 }
@@ -23,22 +25,17 @@ export async function syncTexBackwardFromPdf(
   page: number,
   x: number,
   y: number,
-  /**
-   * Open the target file (if it differs from the active editor) and scroll to
-   * `line`. `absPath` is null when SyncTeX pointed at the project root / main.tex
-   * or no project is active — the caller then just scrolls the active editor.
-   */
   openAndScroll: (absPath: string | null, line: number) => void,
 ): Promise<void> {
-  const token = usePdfStore.getState().workdirToken;
-  if (!token) return;
+  const pdf = usePdfStore.getState();
+  if (!pdf.workdirToken) return;
   try {
-    const r = await ipc.synctexBackward(token, page, x, y);
-    if (!r?.line) return;
-    const project = useProjectStore.getState();
-    const absPath = resolveSyncTexFile(r.inputFile, project.files, project.rootAbs);
-    openAndScroll(absPath, r.line);
-  } catch (e) {
-    console.error('synctex backward failed', e);
+    const result = await ipc.synctexBackward(pdf.workdirToken, page, x, y);
+    if (!result?.line) return;
+    const path = resolveSyncTexFile(result.inputFile, pdf.sourceFiles, pdf.sourceRoot);
+    if (pdf.sourceRoot && !path) return;
+    openAndScroll(path, result.line);
+  } catch (error) {
+    console.error('synctex backward failed', error);
   }
 }

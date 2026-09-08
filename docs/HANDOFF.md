@@ -1,4 +1,113 @@
-# Clavis - Handoff (updated 2026-08-28)
+# Clavis - Handoff (updated 2026-09-08)
+
+## 0. Authorized v1.2.0 release - 2026-09-08
+
+The owner explicitly requested publication. This supersedes the local-only
+restriction for this release commit/tag, GitHub publication and Homebrew update
+only. No Gongfeng, Chrome preview, key rotation or forced tag updates are used.
+The ordinary local-only boundary remains for unrelated and future changes.
+
+Version is now **1.2.0** in Cargo.toml, Cargo.lock and tauri.conf.json. All prior
+writing-continuity changes are included; one-off local-*-update.py and Chrome
+diagnostic scripts remain local and must not enter the release commit.
+
+Fresh checks: **491 frontend, 119 Rust, 8 Python guard tests**, frontend typecheck
+and production build, Rust all-target checks. Version preparation also fixes
+Python 3.9's missing Path.write_text(newline=...) support, with two regression
+tests. Release drafts read reviewed docs/releases/<tag>.md rather than a generic
+body. The updater public key and enabled production updater are unchanged.
+
+Release is being cut, not yet claimed published in this entry. Require successful
+tag CI, Windows x64/macOS arm64/Linux x64 installers, full latest.json and matching
+updater signatures before publishing. Verify the public latest endpoint and the
+Homebrew DMG checksum after publication; record the actual outcome in a new entry.
+
+Native GUI interaction acceptance and actual old-app-to-new-app updating remain
+unverified. Owner release authorization is not evidence that those checks passed.
+Apple notarization/Windows Authenticode remain out of scope, with first-install
+warnings documented in docs/releases/v1.2.0.md. Previous candidate entries below
+are historical, not current authorization or version state.
+
+## 0. Local writing-continuity candidate - 2026-09-07
+
+**Status: optimized and locally built; NOT formally released.** Version metadata
+remains 1.1.1 and local tag v1.1.1 already exists. Next version 1.2.0 is proposed
+only; do not reuse the old tag or bump/publish without acceptance. See
+`docs/RELEASE_CANDIDATE.md` for release notes, native acceptance and release gates.
+
+**Operating boundary:** local workspace only. No Gongfeng/remote repository
+operations, no commit/tag/push, no Chrome preview. Verify via local tests/builds;
+do not equate them with native GUI appearance or measured input latency.
+
+**Same-day work carried into this candidate:** quieter toolbar/status/Workspace
+views, per-document editor state and undo isolation, fixed sidebar/editor gaps,
+1px splitter with overlapping drag hit area, queued save snapshots, compiler
+snapshots including dirty buffers and binary resources, PDF source ownership,
+project-aware SyncTeX, session/autosave fixes and atomic PDF replacement. These
+preceded the optimization pass and are included in the local diff, not lost.
+
+**Optimization pass:**
+
+- Keep Sidebar mounted with explicit `hidden` CSS rather than conditionally
+  unmounting; preserve view/section/tree state without reserving blank width.
+- Constrain sidebar and split ratio to available window space. ResizeObserver
+  remeasures main/editor row; preferred values are separate from temporary clamps.
+  At 720px split layout leaves two 220px panes plus hairline dividers. Settings
+  initialization now also reacts to the loaded flag.
+- PreviewPane stops debounce and queued Typst work on hide/edit/tab change, keeps
+  the prior same-document surface while rendering, and suppresses stale results.
+  A tested latest-only scheduler permits one running plus one replaceable pending
+  request. Remove source-only cache because disk includes/images invalidate it.
+- Async Typst commands delegate SVG/PDF work to `spawn_blocking`; shared world
+  lock is taken inside the worker. Commands retain the existing JSON shape;
+  Tauri 1 borrowed State async handlers require a Result return type.
+- Hidden PDF defers loading/render scheduling; editor-only/focus mode pauses
+  automatic LaTeX compilation, not explicit compile/export. Already-running
+  native work is not hard-cancelled. Reopening refreshes current content.
+
+**Build and release preparation:**
+
+- Root package.json forwards to the web project; explicit root cwd in Tauri
+  hooks and web prebuild CWL preparation eliminate temporary build-hook bypasses.
+- `bash build-macos.sh --app-only --skip-install` runs local checks and packages
+  with the pinned npm Tauri CLI. No global CLI installation or private key needed.
+- Important Tauri gotcha: disabling updater during bundling rewrites Cargo.toml
+  features AND Cargo.lock. `tools/build-macos.mjs` saves exact inputs under
+  target/local-builds/build-inputs-* and restores them in finally, including on
+  ordinary build failure. A forced kill may require manual backup restoration.
+  The first trial build's automatic edits were backed up and restored; versions
+  and production updater configuration remain unchanged. Do not edit Cargo
+  inputs concurrently with the local build script.
+- Release workflow reuses CI on the tag commit and waits for tests before draft
+  creation. Main/PR handoff checks keep their existing scope. Homebrew generation
+  now emits `depends_on macos: ">= 11.0"`. These are local workflow edits only.
+- Release guard also validates build hooks/CWL preparation. Handoff guard gains
+  `--working-tree`, which includes tracked and untracked local changes without
+  needing a commit. Guard unit tests are included in CI.
+
+**Verification:** frontend typecheck and production build pass; 491 frontend
+(15 new), 119 Rust (4 new), and 6 Python guard tests pass. macOS arm64 app-only
+build via the unified entrypoint succeeds, ad-hoc signed and not notarized.
+Native GUI/scroll/latency acceptance, DMG, Windows/Linux and updater end-to-end
+are NOT verified by this pass. Existing Vite import-overlap and Rust block 0.1.6
+future-compatibility warnings remain non-fatal.
+
+**Files to carry forward:** all source/test/config/doc changes, including new
+root package.json, src/typst_service.rs, tools/build-macos.mjs,
+tools/test_release_guards.py, latestPreview*, paneConstraints*, previewLifecycle
+TSX tests and the earlier untracked save/compile snapshot modules. Do not commit
+target/ build products. Earlier one-off local-*-update.py and Chrome diagnostic
+scripts are not production inputs; leave them out of release commits.
+
+**Delivery:** app ZIP and full changed-source archive are listed in
+RELEASE_CANDIDATE.md. Final build log is target/local-builds/optimization-build.log.
+
+**Next:** native app acceptance using RELEASE_CANDIDATE checklist, approved
+version selection, final source review and fresh checks; only then request
+explicit authorization for commit/tag/push and remote draft/publish. Signing /
+notarization and updater end-to-end are still outstanding. Historical entries
+below are snapshots, not a current authoritative todo list.
+
 ## 0. Release preparation - 2026-08-28 (v1.1.1)
 
 macOS-native correctness audit and fixes on arm64 macOS 26.6 with MacTeX 2026.

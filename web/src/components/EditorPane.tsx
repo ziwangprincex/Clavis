@@ -109,7 +109,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
 
   const activeTabId = useTabsStore(s => s.activeTabId);
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
-  const patchTab = useTabsStore(s => s.patchTab);
+  const tabIds = useTabsStore(s => s.tabs.map(tab => tab.id).join('\0'));
 
   const settings = useSettingsStore(s => s.settings);
   // Single source of truth for colors, shared with the app chrome so the editor
@@ -180,9 +180,9 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
   // Tab switch: swap content + language without rebuilding the view.
   useEffect(() => {
     const ctrl = controllerRef.current;
-    if (!ctrl || !activeTab) return;
-    if (ctrl.value !== activeTab.content) ctrl.value = activeTab.content;
-    ctrl.setLanguage(activeTab.lang);
+    if (!ctrl) return;
+    ctrl.switchDocument(activeTab?.id ?? '__empty__', activeTab?.content ?? '', activeTab?.lang ?? 'markdown');
+    if (!activeTab) return;
     // Start reading this document's .cwl packages now. Completion never awaits
     // IPC, so warming the cache here keeps the first `\` from showing a
     // half-populated list.
@@ -229,9 +229,9 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     );
   }, [settings.editor_tab_size, settings.editor_indent_with_spaces]);
 
-  // Hide unused-warning lint error from patchTab destructure when controller
-  // hasn't pushed an update yet.
-  void patchTab;
+  useEffect(() => {
+    controllerRef.current?.retainDocuments(tabIds.split('\0'));
+  }, [tabIds]);
 
-  return <div ref={hostRef} className={styles.host} />;
+  return <div ref={hostRef} className={styles.host} data-language={activeTab?.lang ?? 'markdown'} aria-label="Document editor" />;
 }

@@ -1,114 +1,48 @@
 .bar {
   display: flex;
-  align-items: center;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--panel-soft);
+  align-items: stretch;
+  flex: none;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 4px 8px;
-  gap: 4px;
-  flex: none;
+  padding: 0 24px;
+  gap: 12px;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
 }
-
-.empty {
-  padding: 10px 14px;
-  color: var(--text-muted);
-  font-size: 11px;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
-}
-
-/* Pill-shaped tabs, macOS-toolbar flavoured: quiet at rest, soft fill on
- * hover, elevated card for the active document. */
 .tab {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 9px 7px 11px;
-  font-size: 12px;
-  border-radius: 7px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 4px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.95em;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  color: var(--text-muted);
-  background: transparent;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease);
 }
-
-.tab:hover {
-  background: var(--panel-soft);
-  color: var(--text);
-}
-
-.tab.active {
-  background: var(--bg);
-  color: var(--text);
-  box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border);
-}
-
-.langTag {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  padding: 2px 5px;
-  background: var(--panel-soft);
-  border-radius: 4px;
-  color: var(--text-dim);
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
-}
-
-.tab.active .langTag {
-  background: var(--accent);
-  color: #fff;
-}
-
-.title {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dirty {
-  color: var(--accent);
-  flex: none;
-}
-
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--border-strong); }
+.langTag { font-size: 0.8em; color: var(--text-muted); }
+.title { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.dirty { color: var(--accent); flex: none; }
 .close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
+  width: 24px;
+  height: 24px;
   padding: 0;
+  border: none;
   border-radius: 5px;
-  line-height: 1;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
   opacity: 0;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
-    opacity var(--dur) var(--ease);
 }
-
-/* Reveal the close button on hover, when the tab is active, or when it (or the
- * tab) receives keyboard focus — keeps the bar calm but the control reachable
- * and visible for keyboard users (Texifier/Safari behaviour). */
 .tab:hover .close,
 .tab.active .close,
-.tab:focus-within .close,
-.close:focus-visible {
-  opacity: 1;
-}
-
-.close:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-
-.close:hover {
-  background: var(--border);
-  color: var(--text);
-}
+.tab:focus-within .close { opacity: 1; }
+.close:hover { background: var(--panel-soft); color: var(--text); }

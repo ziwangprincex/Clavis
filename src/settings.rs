@@ -60,8 +60,8 @@ fn default_dark_mode() -> String { "off".to_string() }
 fn default_editor_font_family() -> String {
     "\"Maple Mono NF\", \"Maple Mono NF CN\", \"JetBrains Mono\", \"IBM Plex Mono\", \"Cascadia Code\", Consolas, Menlo, monospace".to_string()
 }
-fn default_editor_font_size() -> u32 { 14 }
-fn default_editor_line_height() -> f32 { 1.7 }
+fn default_editor_font_size() -> u32 { 15 }
+fn default_editor_line_height() -> f32 { 1.85 }
 fn default_editor_theme() -> String { "auto".to_string() }
 
 impl Default for Settings {
@@ -282,7 +282,8 @@ mod tests {
             settings.editor_font_family,
             "\"Maple Mono NF\", \"Maple Mono NF CN\", \"JetBrains Mono\", \"IBM Plex Mono\", \"Cascadia Code\", Consolas, Menlo, monospace"
         );
-        assert_eq!(settings.editor_line_height, 1.7);
+        assert_eq!(settings.editor_font_size, 15);
+        assert_eq!(settings.editor_line_height, 1.85);
     }
     /// A program that never exits must not hang the probe. Without the deadline
     /// this test blocks forever rather than failing.

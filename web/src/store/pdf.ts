@@ -3,8 +3,12 @@
 // lifecycle); we only track UI-level state here.
 
 import { create } from 'zustand';
+import type { ProjectFile } from './project';
 
 interface PdfStore {
+  sourceRoot: string | null;
+  sourceFiles: ProjectFile[];
+  ownerTabId: string | null;
   /** Current PDF bytes (base64-decoded). null when nothing is loaded. */
   bytes: Uint8Array | null;
   numPages: number;
@@ -28,6 +32,9 @@ interface PdfStore {
 }
 
 export const usePdfStore = create<PdfStore>(set => ({
+  sourceRoot: null,
+  sourceFiles: [],
+  ownerTabId: null,
   bytes: null,
   numPages: 0,
   currentPage: 1,

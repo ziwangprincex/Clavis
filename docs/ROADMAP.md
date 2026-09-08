@@ -1,6 +1,6 @@
 # Clavis — Future Improvements Roadmap
 
-Status: living backlog, last updated 2026-08-10. Priorities: **P0** = high
+Status: living backlog, last updated 2026-09-07. Priorities: **P0** = high
 leverage / low risk, **P1** = planned, **P2** = strategic or later. Completed
 items stay recorded with their verification evidence so they do not silently
 return as stale backlog.
@@ -10,6 +10,19 @@ writing editor, not a general IDE or application platform. New work must justify
 its writing value, binary/runtime cost, and interface cost. Avoid plugin hosts,
 embedded terminals, always-on language services, duplicated toolchains, and
 VS Code-style settings sprawl.
+
+---
+
+## Local candidate - 2026-09-07
+
+Writing-continuity optimizations are implemented locally: mounted-but-hidden
+Workspace state, responsive pane constraints, visibility-aware previews,
+latest-only Typst queue and background SVG/PDF execution. Automated coverage is
+491 frontend + 119 Rust + 6 release-guard tests; the macOS app is built locally.
+Update 2026-09-08: the owner authorized publishing 1.2.0, the version bump is
+applied, and fresh checks pass (491 frontend, 119 Rust, 8 Python guard tests).
+Native interaction acceptance remains unverified. See RELEASE_CANDIDATE.md and
+the newest HANDOFF entry for the actual remote publication status.
 
 ---
 

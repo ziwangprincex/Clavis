@@ -43,6 +43,24 @@ def tauri_version() -> str:
     return version
 
 
+def validate_build_entrypoints(root: Path) -> list[str]:
+    errors: list[str] = []
+    try:
+        config = json.loads((root / "tauri.conf.json").read_text(encoding="utf-8"))
+        package = json.loads((root / "package.json").read_text(encoding="utf-8"))
+        frontend = json.loads((root / "web/package.json").read_text(encoding="utf-8"))
+        for hook, command in (("beforeBuildCommand", "build"), ("beforeDevCommand", "dev")):
+            if config["build"].get(hook) != {"script": f"npm run {command}", "cwd": "."}:
+                errors.append(f"{hook} must use the explicit root npm entrypoint")
+            if package.get("scripts", {}).get(command) != f"npm --prefix web run {command}":
+                errors.append(f"root {command} must forward to web")
+        if frontend.get("scripts", {}).get("prebuild") != "npm run cwl":
+            errors.append("frontend prebuild must prepare the pinned CWL resources")
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        errors.append(f"invalid build entrypoints: {exc}")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", help="release tag, e.g. v1.0.2")
@@ -56,7 +74,7 @@ def main() -> int:
         print(f"release preflight failed: {exc}", file=sys.stderr)
         return 1
 
-    errors: list[str] = []
+    errors: list[str] = validate_build_entrypoints(ROOT)
     if not SEMVER.fullmatch(cargo):
         errors.append(f"Cargo.toml version is not SemVer: {cargo}")
     if not SEMVER.fullmatch(lock):

@@ -10,6 +10,7 @@ pub async fn synctex_forward(
     workdir_token: String,
     line: u32,
     column: u32,
+    input_file: Option<String>,
     state: tauri::State<'_, super::workdir::LatexState>,
 ) -> Result<SyncTexHit, String> {
     let dir = state.get(&workdir_token).ok_or_else(|| "unknown workdir".to_string())?;
@@ -17,7 +18,9 @@ pub async fn synctex_forward(
     let synctex = which::which("synctex").ok()
         .or_else(|| find_in_fallback_dirs("synctex"))
         .ok_or_else(|| "synctex not in PATH".to_string())?;
-    let i_arg = format!("{}:{}:{}", line, column, MAIN_TEX);
+    let input = input_file.as_deref().unwrap_or(MAIN_TEX);
+    if !super::project::is_safe_relpath(input) { return Err("unsafe SyncTeX input path".into()); }
+    let i_arg = format!("{}:{}:{}", line, column, input);
     let pdf = MAIN_PDF.to_string();
     let out = run_synctex(&synctex, &["view", "-i", &i_arg, "-o", &pdf], &workdir).await?;
 
@@ -71,7 +74,16 @@ pub async fn synctex_backward(
     if edit.is_none() {
         if let Some(e) = cur.take_edit() { edit = Some(e); }
     }
-    edit.ok_or_else(|| "no SyncTeX backward hit".to_string())
+    let mut edit = edit.ok_or_else(|| "no SyncTeX backward hit".to_string())?;
+    // CLI output may contain the absolute temporary-workdir path.
+    let input = std::path::Path::new(&edit.input_file);
+    if input.is_absolute() {
+        let canonical_base = std::fs::canonicalize(&workdir).unwrap_or_else(|_| workdir.clone());
+        let relative = input.strip_prefix(&workdir).or_else(|_| input.strip_prefix(&canonical_base))
+            .map_err(|_| "SyncTeX returned a file outside the compile directory".to_string())?;
+        edit.input_file = relative.to_string_lossy().replace('\\', "/");
+    }
+    Ok(edit)
 }
 
 #[derive(Default)]

@@ -1,0 +1,11 @@
+{
+  "name": "clavis-workspace",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix web run build",
+    "dev": "npm --prefix web run dev",
+    "test": "npm --prefix web test",
+    "typecheck": "npm --prefix web run typecheck",
+    "tauri": "node web/node_modules/@tauri-apps/cli/tauri.js"
+  }
+}

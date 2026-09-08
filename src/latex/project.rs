@@ -6,7 +6,8 @@
 //! Also hosts the path-safety helper and font helpers shared with `compile`.
 
 use base64::Engine as _;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
 
@@ -94,8 +95,25 @@ pub struct CollectResult {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SourceOverlay {
+    pub path: String,
+    pub content: String,
+}
+
 #[tauri::command]
 pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
+    collect_with_overlays(root, Vec::new())
+}
+
+/// Read a compile snapshot without saving editor buffers to the user's files.
+/// Dependency traversal must use the overlays too, including new unsaved inputs.
+#[tauri::command]
+pub fn collect_latex_snapshot(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
+    collect_with_overlays(root, documents)
+}
+
+fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
     let root_path = std::fs::canonicalize(&root).map_err(|e| format!("canonicalize root: {e}"))?;
     if !root_path.is_file() {
         return Err(format!("not a file: {}", root_path.display()));
@@ -103,13 +121,22 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
     let root_dir = root_path.parent().ok_or_else(|| "no parent dir".to_string())?.to_path_buf();
     let root_dir_canon = std::fs::canonicalize(&root_dir).map_err(|e| format!("canon dir: {e}"))?;
 
+    let overlays: HashMap<PathBuf, String> = documents.into_iter().filter_map(|doc| {
+        let path = std::fs::canonicalize(&doc.path).ok()?;
+        if !path.starts_with(&root_dir_canon) || !path.is_file() || doc.content.len() as u64 > MAX_FILE_BYTES {
+            return None;
+        }
+        Some((path, doc.content))
+    }).collect();
+
     let mut warnings = Vec::new();
     let mut visited: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
     let mut out: Vec<CollectedFile> = Vec::new();
 
     let root_basename = root_path.file_name().and_then(|s| s.to_str()).unwrap_or("main.tex").to_string();
 
-    fn read_text(p: &Path) -> Option<String> {
+    fn read_text(p: &Path, overlays: &HashMap<PathBuf, String>) -> Option<String> {
+        if let Some(content) = overlays.get(p) { return Some(content.clone()); }
         let meta = std::fs::metadata(p).ok()?;
         if meta.len() > MAX_FILE_BYTES { return None; }
         std::fs::read_to_string(p).ok()
@@ -140,6 +167,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
     fn add_file(
         canon: PathBuf,
         root_dir_canon: &Path,
+        overlays: &HashMap<PathBuf, String>,
         visited: &mut std::collections::HashSet<PathBuf>,
         out: &mut Vec<CollectedFile>,
         warnings: &mut Vec<String>,
@@ -152,7 +180,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
         let content = if binary_base64.is_some() {
             String::new()
         } else {
-            match read_text(&canon) {
+            match read_text(&canon, overlays) {
                 Some(c) => c,
                 None => {
                     warnings.push(format!("could not read or too large: {}", canon.display()));
@@ -172,7 +200,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
 
     // BFS
     let mut stack: Vec<(PathBuf, u32)> = vec![(root_path.clone(), 0)];
-    let root_content = match read_text(&root_path) {
+    let root_content = match read_text(&root_path, &overlays) {
         Some(c) => c,
         None => return Err("cannot read root file".into()),
     };
@@ -214,7 +242,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
             warnings.push(format!("max project files ({}) reached", MAX_PROJECT_FILES));
             break;
         }
-        let Some(text) = read_text(&path) else { continue };
+        let Some(text) = read_text(&path, &overlays) else { continue };
         let here = path.parent().unwrap_or(&root_dir).to_path_buf();
 
         let mut try_resolve = |raw: &str, hint: ResolveHint| {
@@ -252,7 +280,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
                     warnings.push(format!("rejected outside-root path: {}", canon.display()));
                     continue;
                 }
-                add_file(canon.clone(), &root_dir_canon, &mut visited, &mut out, &mut warnings);
+                add_file(canon.clone(), &root_dir_canon, &overlays, &mut visited, &mut out, &mut warnings);
                 if !visited.contains(&canon) {
                     return;
                 }
@@ -300,6 +328,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
     fn scan_resource_tree(
         dir: &Path,
         root_dir_canon: &Path,
+        overlays: &HashMap<PathBuf, String>,
         depth: u32,
         visited: &mut std::collections::HashSet<PathBuf>,
         out: &mut Vec<CollectedFile>,
@@ -316,7 +345,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
             let Ok(canon) = std::fs::canonicalize(&path) else { continue };
             if !canon.starts_with(root_dir_canon) { continue; }
             if canon.is_dir() {
-                scan_resource_tree(&canon, root_dir_canon, depth + 1, visited, out, warnings);
+                scan_resource_tree(&canon, root_dir_canon, overlays, depth + 1, visited, out, warnings);
                 continue;
             }
             if visited.contains(&canon) { continue; }
@@ -324,11 +353,11 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
             if !binary_ext(&ext) {
                 continue;
             }
-            add_file(canon, root_dir_canon, visited, out, warnings);
+            add_file(canon, root_dir_canon, overlays, visited, out, warnings);
         }
     }
 
-    scan_resource_tree(&root_dir_canon, &root_dir_canon, 0, &mut visited, &mut out, &mut warnings);
+    scan_resource_tree(&root_dir_canon, &root_dir_canon, &overlays, 0, &mut visited, &mut out, &mut warnings);
 
     Ok(CollectResult {
         root_rel: root_basename,
@@ -340,6 +369,26 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compile_snapshot_follows_unsaved_dependencies_without_writing_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let main = root.join("paper.tex");
+        let chapter = root.join("chapter.tex");
+        let extra = root.join("extra.tex");
+        std::fs::write(&main, "disk main").unwrap();
+        std::fs::write(&chapter, "disk chapter").unwrap();
+        std::fs::write(&extra, "newly referenced file").unwrap();
+        let collected = collect_latex_snapshot(main.to_string_lossy().into(), vec![
+            SourceOverlay { path: main.to_string_lossy().into(), content: "\\input{chapter}".into() },
+            SourceOverlay { path: chapter.to_string_lossy().into(), content: "unsaved chapter \\input{extra}".into() },
+        ]).unwrap();
+        assert!(collected.files.iter().any(|f| f.rel_path == "chapter.tex" && f.content.starts_with("unsaved chapter")));
+        assert!(collected.files.iter().any(|f| f.rel_path == "extra.tex"));
+        assert_eq!(std::fs::read_to_string(&main).unwrap(), "disk main");
+        assert_eq!(std::fs::read_to_string(&chapter).unwrap(), "disk chapter");
+    }
 
     #[test]
     fn is_safe_relpath_accepts_nested_relative() {

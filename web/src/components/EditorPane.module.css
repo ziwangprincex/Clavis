@@ -6,7 +6,20 @@
   flex-direction: column;
 }
 
-.host :global(.cm-editor) {
-  flex: 1;
-  height: 100%;
+.host :global(.cm-editor) { flex: 1; height: 100%; }
+.host :global(.cm-editor.cm-focused) { outline: none; }
+.host :global(.cm-scroller) {
+  padding-inline: var(--editor-inline-padding, 12px);
+  overscroll-behavior: contain;
+}
+.host :global(.cm-content) { min-width: 0; }
+.host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 10px; }
+.host :global(.cm-gutters) { user-select: none; }
+.host :global(.cm-activeLineGutter) { font-weight: 500; }
+.host[data-language='markdown'] :global(.cm-gutters) { display: none; }
+.host[data-language='markdown'] :global(.cm-activeLine) { background: transparent; }
+
+@media (max-width: 850px) {
+  .host :global(.cm-scroller) { padding-inline: 12px; }
+  .host :global(.cm-content) { padding-top: 36px; }
 }

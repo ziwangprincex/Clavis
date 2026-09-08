@@ -39,6 +39,9 @@ pub async fn compile_latex(
         }
     };
     let workdir = workdir_arc.path().to_path_buf();
+    // A reused directory can contain a PDF from a previous invocation.
+    // Invalidate it before any operation that can fail (including resolution).
+    clear_pdf(&workdir)?;
 
     // Write project files first (auxiliary files). Skip any whose rel_path equals MAIN_TEX
     // (main.tex is always written from `source`).
@@ -173,12 +176,15 @@ pub async fn compile_latex(
 
     let started = std::time::Instant::now();
     let mut bib_done = false;
+    let mut success = false;
 
     while runs < max_runs {
         if started.elapsed() > TOTAL_COMPILE_TIMEOUT {
             log_full.push_str("\n[clavis] total compile timeout exceeded\n");
+            success = false;
             break;
         }
+        clear_pdf(&workdir)?;
         runs += 1;
         let args: Vec<&str> = vec![
             "-interaction=nonstopmode",
@@ -197,6 +203,7 @@ pub async fn compile_latex(
         let (code, out) = match run_streaming(&engine_path, &args, &workdir, &font_dirs, &window, runs).await {
             Ok(r) => r,
             Err(e) => {
+                clear_pdf(&workdir)?;
                 log_full.push_str(&format!("\n[clavis] {}\n", e));
                 let _ = window.emit("latex-done", serde_json::json!({ "ok": false, "runs": runs }));
                 return Ok(CompileResult {
@@ -212,10 +219,11 @@ pub async fn compile_latex(
         log_full.push_str(&out);
         last_latex_out = out.clone();
 
-        let success = code == 0 && workdir.join(MAIN_PDF).exists();
+        success = run_succeeded(code, &workdir);
+        if !success { break; }
 
         // After first run, optionally invoke bibtex/biber once.
-        if runs == 1 && !bib_done {
+        if runs == 1 && !bib_done && runs < max_runs {
             if let Some(bib_name) = want_bib {
                 match resolve_engine(bib_name, None) {
                     Ok(bib_path) => {
@@ -227,7 +235,10 @@ pub async fn compile_latex(
                         };
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
                         match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs).await {
-                            Ok((_c, bo)) => {
+                            Ok((bib_code, bo)) => {
+                                if bib_code != 0 {
+                                    bib_diags.push(LatexDiag { line: None, file: None, message: format!("{bib_name} exited with code {bib_code}"), kind: "error", package: None });
+                                }
                                 // Harvest persistent diagnostics from bib runner output
                                 // (e.g. "I couldn't open database file ..."). LaTeX runs
                                 // after this won't reproduce them, so capture here.
@@ -238,48 +249,38 @@ pub async fn compile_latex(
                                 }
                                 log_full.push_str(&bo);
                             }
-                            Err(e) => log_full.push_str(&format!("\n[clavis] {bib_name} failed: {e}\n")),
+                            Err(e) => {
+                                log_full.push_str(&format!("\n[clavis] {bib_name} failed: {e}\n"));
+                                bib_diags.push(LatexDiag { line: None, file: None, message: e, kind: "error", package: None });
+                            }
                         }
                         bib_done = true;
                         continue; // force at least one more LaTeX run
                     }
                     Err(e) => {
                         log_full.push_str(&format!("\n[clavis] {bib_name} not available: {e}\n"));
+                        bib_diags.push(LatexDiag { line: None, file: None, message: e, kind: "error", package: None });
                         bib_done = true;
                     }
                 }
             }
         }
 
-        if !opts.auto_rerun {
-            // Single shot mode: stop after first run regardless of warnings.
-            let _ = window.emit("latex-done", serde_json::json!({ "ok": success, "runs": runs }));
-            let errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
-            let pdf = if success { read_pdf(&workdir) } else { None };
-            return Ok(CompileResult {
-                ok: success && pdf.is_some(),
-                pdf_base64: pdf,
-                errors,
-                log_tail: log_tail(&log_full),
-                runs,
-                workdir_token: Some(token),
-            });
-        }
-
-        if !success {
-            // No PDF: stop, surface errors.
-            break;
-        }
+        if !opts.auto_rerun { break; }
 
         if !rerun_signal(&out) {
             break;
         }
     }
 
-    let success = workdir.join(MAIN_PDF).exists();
+    success = success && !bib_diags.iter().any(|diag| diag.kind == "error");
+    if !success { clear_pdf(&workdir)?; }
     let _ = window.emit("latex-done", serde_json::json!({ "ok": success, "runs": runs }));
 
-    let errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
+    let mut errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
+    if !success && !errors.iter().any(|diag| diag.kind == "error") {
+        errors.push(LatexDiag { line: None, file: None, message: "LaTeX did not finish successfully with a new PDF. See the compile log.".to_string(), kind: "error", package: None });
+    }
     let pdf = if success { read_pdf(&workdir) } else { None };
     Ok(CompileResult {
         ok: success && pdf.is_some(),
@@ -291,7 +292,51 @@ pub async fn compile_latex(
     })
 }
 
+fn clear_pdf(workdir: &Path) -> Result<(), String> {
+    match std::fs::remove_file(workdir.join(MAIN_PDF)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("remove previous PDF: {e}")),
+    }
+}
+
+fn run_succeeded(code: i32, workdir: &Path) -> bool {
+    code == 0 && read_pdf(workdir).is_some()
+}
+
 fn read_pdf(workdir: &Path) -> Option<String> {
     let bytes = std::fs::read(workdir.join(MAIN_PDF)).ok()?;
+    if !bytes.starts_with(b"%PDF-") { return None; }
     Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_previous_pdf_cannot_count_as_a_new_run() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(MAIN_PDF), b"%PDF-1.4 previous").unwrap();
+        clear_pdf(dir.path()).unwrap();
+        assert!(!run_succeeded(0, dir.path()));
+        clear_pdf(dir.path()).unwrap();
+    }
+
+    #[test]
+    fn a_nonzero_exit_fails_even_if_a_pdf_was_written() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(MAIN_PDF), b"%PDF-1.4 partial").unwrap();
+        assert!(!run_succeeded(1, dir.path()));
+        assert!(run_succeeded(0, dir.path()));
+    }
+
+    #[test]
+    fn an_empty_or_invalid_pdf_is_not_success() {
+        let dir = tempfile::tempdir().unwrap();
+        for bytes in [b"".as_slice(), b"not a PDF".as_slice()] {
+            std::fs::write(dir.path().join(MAIN_PDF), bytes).unwrap();
+            assert!(!run_succeeded(0, dir.path()));
+        }
+    }
 }

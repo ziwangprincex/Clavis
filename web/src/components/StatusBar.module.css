@@ -1,17 +1,17 @@
 .bar {
   display: flex;
   align-items: center;
-  height: 24px;
-  flex: 0 0 24px;
-  padding: 0 10px;
-  background: var(--panel-solid);
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0 16px;
+  background: var(--bg);
   /* Softer rule: the status bar is ambient information and should not draw a
    * hard edge against the document. Text stays at --text-muted (0.60) rather
    * than --text-dim (0.30) — dim is the disabled/placeholder level, and the
    * bar carries real information (compile state, cursor position) that has to
    * remain legible. */
-  border-top: 1px solid var(--panel-soft);
-  font-size: 10.5px;
+  border-top: 1px solid transparent;
+  font-size: 0.88em;
   color: var(--text-muted);
   user-select: none;
   gap: 12px;
@@ -34,7 +34,7 @@
 }
 
 .status.ok .dot {
-  background: var(--ok);
+  background: var(--text-muted);
 }
 
 .status.error .dot {
@@ -42,7 +42,7 @@
 }
 
 .status.ok .statusText {
-  color: var(--ok);
+  color: var(--text-muted);
 }
 
 .status.error .statusText {
@@ -81,7 +81,7 @@
   border: none;
   background: transparent;
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: inherit;
   white-space: nowrap;
   border-radius: 3px;
 }
@@ -116,3 +116,13 @@ button.cell:hover {
   color: var(--warning);
   background: var(--tint-warning);
 }
+.message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 35%; }
+.statsDisclosure { position: relative; }
+.statsDisclosure summary { cursor: pointer; list-style: none; padding: 4px 8px; }
+.statsDisclosure summary::-webkit-details-marker { display: none; }
+.statsDisclosure summary:hover, .statsDisclosure[open] summary { background: var(--panel-soft); color: var(--text); }
+.statsPanel { position: absolute; right: 0; bottom: calc(100% + 10px); width: 300px; max-width: calc(100vw - 32px); padding: 18px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); color: var(--text); z-index: 50; font-size: 13px; }
+.statsPanel dl { display: grid; grid-template-columns: 1fr auto; gap: 10px 18px; margin: 16px 0 0; }
+.statsPanel dt { color: var(--text-muted); }
+.statsPanel dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 850px) { .message { display: none; } .bar { gap: 6px; padding: 0 10px; } .status { max-width: 55%; } }
