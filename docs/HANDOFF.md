@@ -1,5 +1,15 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. Authorized v1.3.1 recovery release - 2026-09-08
+
+The owner approved a fresh **1.3.1** release after confirming v1.3.0 never produced installers. Authorization includes this release commit/tag, GitHub draft/publication, signature verification and Homebrew distribution. Keep v1.3.0 unchanged. Remote main matches cad40f6 and its CI 34235294211 passed; latest published remains v1.2.0 before this operation.
+
+The release includes all source and tests already on main: the full writer/typesetting update, six audited fixes, completion/preview repairs, refined writing surfaces and Linux process-group cancellation repair. Version fields advance together to 1.3.1; notes are in docs/releases/v1.3.1.md. Production updater configuration/key and CI gates remain unchanged. Five untracked one-off tools and target artifacts remain local and are excluded from commits.
+
+Fresh local validation passed: **645 frontend tests, 142 Rust tests (three existing optional tests ignored), ten Python guard tests**, frontend typecheck/production build and Rust all-target check. The 1.3.1 local macOS app builds and passes codesign verification; Cargo input checksums match their pre-build snapshots. Evidence: target/release-1.3.1/local-build.log and rust-check.log.
+
+Remote release builds are pending at this preparation point. Require successful tag CI and all three platform builds, complete manifest/assets and cryptographic verification with the existing public key before publishing. Then verify the public latest endpoint and Homebrew version/DMG checksum, and record the outcome here. Native GUI and installed-app upgrade acceptance remain unverified. No credential changes, Gongfeng/MCP/Chrome or installation over the user app.
+
 ## 0. Complete source submission after README cleanup - 2026-09-08
 
 The owner clarified that the remaining implementation must be submitted too, and explicitly designated HANDOFF and RELEASING as the submission standard. This push includes the Marker-inspired writing surfaces, aligned native/frontend font defaults, Unix process-group cancellation repair, CI test-execution changes, regression tests and their supporting documents. Earlier local-only statements in the candidate documents describe their original preparation; this approval covers their source submission to main, not a new release. The five one-off untracked tools and ignored build products remain local.

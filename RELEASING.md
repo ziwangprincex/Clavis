@@ -9,22 +9,25 @@ per release.
 
 ## Current release preparation (2026-09-08)
 
-The owner explicitly authorized pushing and releasing the accumulated writer
-changes according to this runbook and HANDOFF. This release uses **1.3.0**:
-new writer/typesetting features, appearance updates and the six audited fixes.
-Notes live in [v1.3.0.md](docs/releases/v1.3.0.md). Native acceptance and an actual
-in-app upgrade remain unverified, not implicitly marked passed by this approval.
+The owner explicitly approved **1.3.1** after confirming that v1.3.0 failed its
+release CI before creating a draft or installers. Keep the existing v1.3.0 tag
+unchanged; retrying it would not include the repair. The repaired main commit
+cad40f6 passed GitHub CI 34235294211. The latest published release before this
+preparation is **v1.2.0**.
 
-Remote verification confirms **v1.2.0 is already published** and its tag resolves
-to aa38d78. The old HANDOFF authentication blocker is historical; do not repush,
-replace or move that tag. The newer feature set uses a fresh minor version.
+This release includes the full unpublished writer/typesetting features, preview
+and save-safety fixes, refined writing surfaces and Unix process-group
+cancellation repair. Notes live in [v1.3.1.md](docs/releases/v1.3.1.md). Native
+acceptance and an actual in-app upgrade remain unverified, not implicitly marked
+passed by this approval.
 
-Authorization covers the release commit, new v1.3.0 tag, GitHub draft/publication
+Authorization covers the release commit, new v1.3.1 tag, GitHub draft/publication
 and Homebrew distribution update for this version. Future local work still does
 not imply permission to publish. Do not reuse or move an existing release tag.
 The draft must have successful CI, all three platform installers and signed
 updater packages with a complete manifest before publication. Each future tag
-must include its reviewed `docs/releases/<tag>.md` for the draft body.
+must include its reviewed `docs/releases/<tag>.md` for the draft body. Record the
+actual publication and distribution results in HANDOFF after verification.
 
 Local preparation (no commit required):
 
