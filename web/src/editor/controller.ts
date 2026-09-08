@@ -105,7 +105,7 @@ function buildThemeExt(spec: ThemeSpec) {
       // Completion matches use weight rather than underlines or a size change.
       '.cm-tooltip': {
         backgroundColor: 'var(--bg-elevated)', color: spec.fg,
-        border: '1px solid var(--border)', borderRadius: '8px',
+        border: '1px solid var(--border)', borderRadius: '10px',
         boxShadow: 'var(--shadow-md)',
       },
       '.cm-panels': { backgroundColor: 'var(--panel-solid)', color: spec.fg },
@@ -119,7 +119,7 @@ function buildThemeExt(spec: ThemeSpec) {
         backgroundColor: 'var(--bg-elevated)',
         color: spec.fg,
         border: '1px solid var(--border)',
-        borderRadius: '8px',
+        borderRadius: '10px',
         boxShadow: 'var(--shadow-md)',
         overflow: 'hidden',
       },
@@ -127,7 +127,7 @@ function buildThemeExt(spec: ThemeSpec) {
         fontFamily: 'var(--font-sans)',
         fontSize: '13px',
         fontWeight: '400',
-        padding: '4px',
+        padding: '5px',
         minWidth: 'min(260px, 80vw)',
         maxWidth: 'min(480px, 80vw)',
         maxHeight: '264px',
@@ -136,9 +136,9 @@ function buildThemeExt(spec: ThemeSpec) {
         display: 'flex',
         alignItems: 'baseline',
         gap: '16px',
-        padding: '6px 9px',
-        lineHeight: '1.4',
-        borderRadius: '4px',
+        padding: '7px 10px',
+        lineHeight: '1.45',
+        borderRadius: '5px',
         color: spec.fg,
       },
       '.cm-completionIcon': { display: 'none' },
@@ -160,7 +160,7 @@ function buildThemeExt(spec: ThemeSpec) {
       '.cm-tooltip.cm-tooltip-autocomplete > ul > li:hover': {
         backgroundColor: 'var(--panel-soft)',
       },
-      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected=true]': {
         backgroundColor: 'var(--tint-accent)',
         color: spec.fg,
       },
@@ -263,9 +263,8 @@ function buildFontExt(font: FontSpec) {
     // The scroller's horizontal padding centres the gutter + text together.
     // CodeMirror still owns content measurement, wrapping and selection geometry.
     '.cm-content': {
-      paddingInlineStart: '12px',
+      paddingInlineStart: '8px',
       paddingInlineEnd: '8px',
-      paddingBlock: '52px 160px',
     },
   });
 }

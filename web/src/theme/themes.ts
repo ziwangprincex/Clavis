@@ -17,16 +17,16 @@ export interface ThemeSpec {
 
 export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
   paper: {
-    label: 'Clavis Paper', description: 'Warm paper · slate blue', dark: false,
-    bg: '#faf9f6', fg: '#30343b', gutterBg: '#faf9f6', gutterFg: '#858890',
-    activeBg: '#f1f1ee', cursor: '#536b86', selection: '#dce4ed', accent: '#536b86',
-    syntax: { keyword: '#75617c', name: '#49677f', literal: '#876444', comment: '#646a63' },
+    label: 'Clavis Paper', description: 'Warm ivory · botanical ink', dark: false,
+    bg: '#fbf9f5', fg: '#302e2a', gutterBg: '#fbf9f5', gutterFg: '#858174',
+    activeBg: '#f2efe8', cursor: '#52694f', selection: '#dfe6d8', accent: '#52694f',
+    syntax: { keyword: '#755970', name: '#49645e', literal: '#826046', comment: '#6c6b60' },
   },
   ink: {
-    label: 'Clavis Ink', description: 'Soft graphite · cool silver', dark: true,
-    bg: '#20242b', fg: '#d5d9e0', gutterBg: '#20242b', gutterFg: '#7e8794',
-    activeBg: '#292e36', cursor: '#a7bcd4', selection: '#39495e', accent: '#a7bcd4',
-    syntax: { keyword: '#c2b1ce', name: '#a7bcd4', literal: '#cbb592', comment: '#929f99' },
+    label: 'Clavis Ink', description: 'Olive charcoal · soft sage', dark: true,
+    bg: '#252724', fg: '#e1e2d9', gutterBg: '#252724', gutterFg: '#929688',
+    activeBg: '#2e312b', cursor: '#aec4a4', selection: '#424f3e', accent: '#aec4a4',
+    syntax: { keyword: '#c7acc2', name: '#abc3b7', literal: '#d2b798', comment: '#9fa595' },
   },
   mist: {
     label: 'Clavis Mist', description: 'Cool porcelain · muted teal', dark: false,

@@ -211,8 +211,9 @@ pub(crate) async fn run_streaming(
 
 async fn terminate(child: &mut tokio::process::Child) {
     if let Some(pid) = child.id() {
+        // End option parsing: procps 3.x can otherwise read a negative PGID as 0.
         #[cfg(unix)]
-        let _ = TokioCommand::new("kill").args(["-KILL", &format!("-{pid}")]).status().await;
+        let _ = TokioCommand::new("kill").args(["-KILL", "--", &format!("-{pid}")]).status().await;
         #[cfg(windows)]
         let _ = TokioCommand::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status().await;
     }
@@ -247,6 +248,33 @@ mod cancellation_tests {
         let started = std::time::Instant::now();
         terminate(&mut child).await;
         assert!(started.elapsed() < Duration::from_secs(3));
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn stop_closes_descendant_pipes_without_touching_another_group() {
+        use tokio::io::AsyncReadExt;
+
+        let mut other = TokioCommand::new("sleep").arg("30")
+            .process_group(0).kill_on_drop(true).spawn().unwrap();
+        let mut child = TokioCommand::new("sh")
+            .args(["-c", "sleep 30 & echo ready; wait"])
+            .stdout(std::process::Stdio::piped())
+            .process_group(0).kill_on_drop(true).spawn().unwrap();
+        let mut output = BufReader::new(child.stdout.take().unwrap());
+        let mut ready = String::new();
+        timeout(Duration::from_secs(3), output.read_line(&mut ready)).await.unwrap().unwrap();
+        assert_eq!(ready.trim(), "ready");
+
+        terminate(&mut child).await;
+        terminate(&mut child).await;
+        let eof = timeout(Duration::from_secs(3), output.read_to_end(&mut Vec::new())).await;
+        let other_alive = other.try_wait().unwrap().is_none();
+        let _ = other.kill().await;
+        let _ = other.wait().await;
+
+        assert!(matches!(eof, Ok(Ok(0))), "descendant must release the inherited pipe");
+        assert!(other_alive, "cancellation must not signal an unrelated process group");
         assert!(child.try_wait().unwrap().is_some());
     }
 }

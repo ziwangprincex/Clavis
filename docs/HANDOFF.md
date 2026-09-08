@@ -1,8 +1,26 @@
 # Clavis - Handoff (updated 2026-09-08)
 
+## 0. Complete source submission after README cleanup - 2026-09-08
+
+The owner clarified that the remaining implementation must be submitted too, and explicitly designated HANDOFF and RELEASING as the submission standard. This push includes the Marker-inspired writing surfaces, aligned native/frontend font defaults, Unix process-group cancellation repair, CI test-execution changes, regression tests and their supporting documents. Earlier local-only statements in the candidate documents describe their original preparation; this approval covers their source submission to main, not a new release. The five one-off untracked tools and ignored build products remain local.
+
+Fresh checks pass: **645 frontend tests, 142 Rust tests (three existing optional tests ignored), ten Python guard tests**, frontend typecheck/production build, Rust all-target check, release metadata and working-tree HANDOFF guards. These checks do not claim native visual acceptance or Linux CI success. Version remains 1.3.0; Cargo inputs, updater features and the production public key are unchanged. No app was installed or bundled again for this submission.
+
+Keep the documented CI/release distinction: every main push runs CI, including documentation-only pushes; no path filter or test bypass is added here. Only a new matching version tag starts release preparation. The README-only CI run 34233436584 is now cancelled; it was not a release build. Existing v1.3.0 remains on its original failed-release commit and must not be moved or rerun as though it contained this repair. Any follow-up release needs an approved fresh version/tag and all existing publication gates. Remote success is not claimed before the new push and its CI run complete.
+
 ## 0. README cleanup - 2026-09-08
 
 The owner approved pushing the shortened English and Chinese READMEs. They retain the core features, installation requirements, common shortcuts and development commands. Local documentation links and whitespace checks pass. This is a documentation-only push, not a release: Marker UI and CI runner repairs remain local and are not included in this commit. No version, tag or updater changes.
+
+## 0. Marker candidate continued / CI runner repair - 2026-09-08
+
+The previously disconnected Marker build actually finished successfully: the original local app signature and ZIP integrity pass and Cargo.toml/Cargo.lock exactly match their saved inputs. The layout/palette candidate is documented in `docs/MARKER_DESIGN.md`; it is not native visual acceptance or permission to publish the design. Existing user settings and installed applications remain untouched.
+
+GitHub read-only inspection confirms main CI 34211021508 and Release 34211022115 both failed on cbf3ae9 during Rust tests with the annotation **hosted runner lost communication**. Frontend and Rust check passed. Job logs are unavailable, not evidence of a failed assertion or proven OOM. Draft creation/platform builds were skipped and the latest published version is still v1.2.0. Do not move the existing v1.3.0 tag or claim it published.
+
+Found and fixed both Unix process-group kill calls missing `--`. procps 3.3.17 can misparse the negative operand via `atoi(argv[optind-1])` as target 0, signalling the caller's group. A no-signal parser probe reproduced target 0 versus the intended negative group. This strongly fits the new cancellation test and lost runner, but final Linux validation is pending. Added a pre-Rust static argument guard and real descendant/isolated-group regression. CI now separates test compilation from serial verbose test execution with a 15-minute execution cap; no test or release gate bypass. Evidence and recovery boundary: `docs/CI_RUNNER_FIX.md`.
+
+Fresh local verification: **645 frontend, 142 Rust (three existing optional ignored), ten Python guard tests**, TypeScript and Rust all-target checks pass. The updated macOS app build, `codesign --verify --deep --strict`, ZIP integrity and exact Cargo input checksums all pass. Candidate ZIP: `target/marker-study/Clavis-Marker-CI-Fix-macOS-arm64.zip`; log: `target/marker-study/macos-build-ci-fix.log`. Ad-hoc signed, not Apple-notarized; not installed or visually accepted. Version and production update key remain unchanged. No commit, push, tag, rerun or publication in this repair. A subsequent release needs explicit approval for its contents and a fresh version/tag, not a forced v1.3.0 retag. Keep the five old one-off untracked tools local.
 
 ## 0. Authorized v1.3.0 release preparation - 2026-09-08
 

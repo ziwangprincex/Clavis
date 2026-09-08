@@ -1,13 +1,13 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
 .sidebar[hidden] { display: none; }
-.heading { padding: 26px 22px 20px; font-size: 0.84em; font-weight: 550; letter-spacing: 0.04em; color: var(--text-muted); }
-.views { display: flex; margin: 0 14px 22px; padding: 3px; gap: 1px; background: var(--panel-soft); border-radius: 7px; }
-.view { flex: 1; min-width: 0; padding: 6px 2px; background: transparent; border: none; border-radius: 5px; color: var(--text-muted); font: inherit; font-size: 0.85em; cursor: pointer; transition: background-color 160ms var(--ease), color 160ms var(--ease); }
+.heading { padding: 25px 22px 16px; font: 500 1.65em/1.2 var(--font-literary); letter-spacing: -0.025em; color: var(--text); }
+.views { display: flex; margin: 0 18px 24px; gap: 6px; border-bottom: 1px solid var(--border); }
+.view { flex: 1; min-width: 0; padding: 8px 0; margin-bottom: -1px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text-muted); font: inherit; font-size: 0.85em; cursor: pointer; transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
 .view:hover { color: var(--text); }
-.view.selected { color: var(--text); background: var(--bg-elevated); box-shadow: var(--shadow-sm); font-weight: 500; }
+.view.selected { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .content { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 12px 24px; }
-.section + .section { margin-top: 22px; }
-.sectionHeader { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: none; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.86em; font-weight: 550; cursor: pointer; text-align: left; }
+.section + .section { margin-top: 24px; }
+.sectionHeader { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: none; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; font-weight: 550; cursor: pointer; text-align: left; }
 .sectionHeader:hover { background: var(--panel-soft); color: var(--text); }
 .sectionTitle { flex: 1; }
 .caret { flex: none; transform: rotate(-90deg); transition: transform 160ms var(--ease); }

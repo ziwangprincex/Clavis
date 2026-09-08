@@ -96,7 +96,7 @@ export const defaultSettings: Settings = {
   pdf_bg_color: '',
   editor_font_family:
     '"Maple Mono NF", "Maple Mono NF CN", "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", Consolas, Menlo, monospace',
-  editor_font_size: 15,
+  editor_font_size: 16,
   editor_line_height: 1.85,
   editor_theme: 'auto',
   editor_theme_overrides: {},
@@ -118,7 +118,7 @@ export const defaultSettings: Settings = {
   ui_accent_color: '',
   preview_font_family:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
-  preview_font_size: 16,
+  preview_font_size: 17,
   ui_color_overrides: {},
   problems_panel_open: false,
   preview_paper: 'match',

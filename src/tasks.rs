@@ -229,9 +229,9 @@ async fn terminate_process_tree(child: &mut Child) {
         }
         #[cfg(unix)]
         {
-            // Negative PID addresses the process group created above.
+            // Separate the negative PGID from options; procps 3.x can misread it as 0.
             let _ = Command::new("kill")
-                .args(["-TERM", &format!("-{pid}")])
+                .args(["-TERM", "--", &format!("-{pid}")])
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

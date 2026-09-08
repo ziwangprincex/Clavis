@@ -17,13 +17,13 @@
 
 :root,
 :root[data-theme='dark'] {
-  --bg: #20242b;
-  --bg-elevated: #2c3037;
+  --bg: #252724;
+  --bg-elevated: #31332f;
   --bg-overlay: rgba(0, 0, 0, 0.55);
 
   /* Toolbar / titlebar / status-bar surface — flat and opaque. */
-  --panel: #252930;
-  --panel-solid: #252930;
+  --panel: #2c2e2a;
+  --panel-solid: #2c2e2a;
   --panel-soft: rgba(255, 255, 255, 0.05);
 
   /* Subtle separators (NSColor.separator equivalent) */
@@ -36,17 +36,17 @@
   --text-dim: rgba(235, 235, 245, 0.30);
 
   /* Writing palette fallback; runtime derives matching control colors. */
-  --accent: #a7bcd4;
+  --accent: #aec4a4;
   --on-accent: #17191c;
   --on-accent-hover: #17191c;
-  --preview-desk: #23272e;
-  --accent-hover: #b2c4d9;
+  --preview-desk: #282a27;
+  --accent-hover: #b8cbaf;
   --error: #ff453a;
   --warning: #ffd60a;
   --ok: #30d158;
 
   /* Selection */
-  --selection: #39495e;
+  --selection: #424f3e;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro',
@@ -54,6 +54,9 @@
     'Microsoft YaHei', sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
     'SF Pro', 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  /* Editorial headings use installed faces only; no remote font dependency. */
+  --font-literary: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua',
+    'Songti SC', 'Noto Serif CJK SC', Georgia, serif;
   /* Mono stack. Maple Mono NF leads because it ships the Nerd Font glyph range
    * the status bar and log panel can draw on; the CN variant follows so a
    * machine with only that installed still gets the same metrics. 'SF Mono' and
@@ -87,12 +90,12 @@
 }
 
 :root[data-theme='light'] {
-  --bg: #faf9f6;
+  --bg: #fbf9f5;
   --bg-elevated: #fefdfc;
   --bg-overlay: rgba(0, 0, 0, 0.20);
 
-  --panel: #f2f2ef;
-  --panel-solid: #f2f2ef;
+  --panel: #f5f3ef;
+  --panel-solid: #f5f3ef;
   --panel-soft: rgba(0, 0, 0, 0.04);
 
   --border: rgba(0, 0, 0, 0.10);
@@ -102,16 +105,16 @@
   --text-muted: rgba(60, 60, 67, 0.60);
   --text-dim: rgba(60, 60, 67, 0.30);
 
-  --accent: #536b86;
+  --accent: #52694f;
   --on-accent: #ffffff;
   --on-accent-hover: #ffffff;
-  --preview-desk: #efeeec;
-  --accent-hover: #495e76;
+  --preview-desk: #f1efeb;
+  --accent-hover: #485c46;
   --error: #ff3b30;
   --warning: #ff9500;
   --ok: #34c759;
 
-  --selection: #dce4ed;
+  --selection: #dfe6d8;
 
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);

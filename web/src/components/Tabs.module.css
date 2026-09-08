@@ -5,23 +5,24 @@
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 0 24px;
-  gap: 12px;
+  padding: 0 28px;
+  gap: 22px;
   background: var(--bg);
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--border);
 }
 .tab {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 0 4px;
-  border-bottom: 2px solid transparent;
+  min-height: 40px;
+  padding: 0 2px;
+  border-bottom: 1px solid transparent;
   color: var(--text-muted);
-  font-size: 0.95em;
+  font-size: 0.94em;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  transition: color var(--dur) var(--ease);
 }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--text); border-bottom-color: var(--accent); }
@@ -46,3 +47,4 @@
 .tab.active .close,
 .tab:focus-within .close { opacity: 1; }
 .close:hover { background: var(--panel-soft); color: var(--text); }
+@media (max-width: 850px) { .bar { padding-inline: 16px; gap: 16px; } }

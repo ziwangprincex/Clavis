@@ -1,18 +1,18 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   flex: 1;
   height: 60px;
-  padding: 0 20px;
+  padding: 0 24px;
   background: var(--bg);
   user-select: none;
 }
 .identity { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 4px; }
-.documentName { font-size: 0.96em; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.015em; }
+.documentName { font-size: 1.08em; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.015em; }
 .dirty { width: 5px; height: 5px; background: var(--text-muted); border-radius: 50%; flex: none; }
-.actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.actions { display: flex; align-items: center; gap: 10px; flex: none; }
 .iconBtn, .textBtn, .primaryBtn {
   display: inline-flex;
   align-items: center;
@@ -32,14 +32,15 @@
 }
 .iconBtn { width: 32px; padding: 0; }
 .iconBtn:hover, .textBtn:hover, .pressed { background: var(--panel-soft); color: var(--text); }
-.primaryBtn { background: var(--tint-accent); color: var(--accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
-.primaryBtn:hover:not(:disabled) { background: var(--selection); }
-.iconBtn:active, .textBtn:active, .primaryBtn:active { background: var(--border); }
+.primaryBtn { background: var(--accent); color: var(--on-accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
+.primaryBtn:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
+.iconBtn:active, .textBtn:active { background: var(--border); }
+.primaryBtn:active:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
 .iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
-.layoutSwitch { display: flex; padding: 3px; border-radius: 8px; gap: 1px; background: var(--panel-soft); }
+.layoutSwitch { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 7px; gap: 1px; background: transparent; }
 .layoutSwitch button { border: 0; border-radius: 5px; padding: 4px 12px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; cursor: pointer; transition: color 160ms var(--ease), background-color 160ms var(--ease); }
 .layoutSwitch button:hover { color: var(--text); }
-.layoutSwitch .selectedLayout { color: var(--text); background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
+.layoutSwitch .selectedLayout { color: var(--accent); background: var(--tint-accent); }
 .disclosure { position: relative; }
 .popover { position: absolute; top: calc(100% + 10px); right: 0; width: 290px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); overflow-y: auto; z-index: 100; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-md); animation: reveal 140ms var(--ease); transform-origin: top right; }
 @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }

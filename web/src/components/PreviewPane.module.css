@@ -4,20 +4,16 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   background: var(--bg);
   color: var(--text);
   /* The splitter owns the single separator between the two surfaces. */
   overflow: auto;
   overscroll-behavior: contain;
+  container: reading-pane / inline-size;
 }
 
-/* Paper mode: force a light, sharable-document surface regardless of the
- * app theme. Useful when the editor is dark but the user wants to preview
- * how the finished document will read on paper / on the web.
- *
- * NOTE: keep `--panel-solid` in sync with `--panel` here — code/pre blocks
- * below use `--panel-solid`, and in `match` mode they must pick up the theme's
- * panel color rather than a stale light one. */
+/* The explicit paper option stays neutral white, independent of app theme. */
 .paperLight {
   --bg: #ffffff;
   --bg-elevated: #fafafa;
@@ -26,162 +22,115 @@
   --panel-soft: #ececec;
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.18);
-  --text: #1c1c1c;
-  --text-muted: rgba(0, 0, 0, 0.55);
-  --text-dim: rgba(0, 0, 0, 0.46);
-  --accent: #536b86;
-  --selection: #dce4ed;
+  --text: #302e2a;
+  --text-muted: #68655e;
+  --text-dim: #77736b;
+  --accent: #52694f;
+  --selection: #dfe6d8;
   --error: #a33d39;
   color-scheme: light;
 }
 
 .preview {
-  padding: 52px clamp(24px, 4vw, 64px) 120px;
-  max-width: 880px;
+  --reading-inset: 48px;
+  --reading-measure: 50em;
+  flex: none;
+  padding: 56px var(--reading-inset) 120px;
+  max-width: calc(var(--reading-measure) + 2 * var(--reading-inset));
   width: 100%;
   margin: 0 auto;
   color: var(--text);
-  line-height: 1.85;
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
 }
 
-/* Reading measure. Expressed in `em` so the column tracks `preview_font_size`
- * (10-32px, applied inline on this element) and the characters-per-line stays
- * roughly constant — a fixed pixel width would fall to ~30 characters at 32px
- * type, which defeats the point of choosing a measure at all.
- *
- * NOT `rem`: this app sets `font-size: 13px` on `body`, not `html`, so `rem`
- * resolves against the browser's 16px default and would ignore the setting.
- * `em` here is the element's own font size, which is exactly what we want.
- *
- * ~34em lands near 65 characters for a typical proportional face (average
- * glyph ~0.5em); ~42em lands near 80. Both are approximations — the exact
- * count depends on the chosen font — but they scale correctly, which the
- * pixel version did not. */
-.widthNarrow {
-  max-width: calc(34em + 96px);
-}
+/* em tracks the user's reading font size. Padding is counted separately so
+ * narrow/medium/wide remain ordered even when a split pane gets small. */
+.widthNarrow { --reading-measure: 34em; }
+.widthMedium { --reading-measure: 42em; }
 
-.widthMedium {
-  max-width: calc(42em + 96px);
-}
-
-/* Vertical rhythm: headings sit close to the text they introduce and far from
- * the text they follow, so a reader sees them as belonging to the section
- * below rather than floating between two paragraphs. */
 .markdown :global(h1),
 .markdown :global(h2),
-.markdown :global(h3) {
-  font-weight: 600;
-  margin-top: 1.8em;
-  margin-bottom: 0.5em;
+.markdown :global(h3),
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) {
+  margin: 1.8em 0 0.55em;
   line-height: 1.3;
+  font-weight: 600;
+  color: var(--text);
 }
-
-/* No underline rule: that is a GitHub-README convention, not a book-page one,
- * and it fights the narrow measure by drawing a hard horizontal edge. */
-.markdown :global(h1) {
-  font-size: 2.25em;
-  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', Georgia, serif;
-  letter-spacing: -0.035em;
-}
-
+.markdown :global(h1),
 .markdown :global(h2) {
-  font-size: 1.5em;
-  letter-spacing: -0.005em;
+  font-family: var(--font-literary);
+  font-weight: 500;
+  letter-spacing: -0.025em;
 }
-
-.markdown :global(h3) {
-  font-size: 1.15em;
-}
-
-/* First heading in the document should not push the whole page down. */
-.markdown :global(h1:first-child),
-.markdown :global(h2:first-child),
-.markdown :global(h3:first-child) {
-  margin-top: 0;
-}
-
-.markdown :global(p) {
-  margin: 0.9em 0;
-}
+.markdown :global(h1) { font-size: 2.35em; line-height: 1.16; margin-bottom: 0.8em; }
+.markdown :global(h2) { font-size: 1.65em; }
+.markdown :global(h3) { font-size: 1.18em; }
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) { font-size: 1em; }
+.markdown > :first-child { margin-top: 0; }
+.markdown :global(p) { margin: 0 0 0.8em; }
+.markdown :global(ul),
+.markdown :global(ol) { margin: 0.8em 0 1.2em; padding-inline-start: 1.5em; }
+.markdown :global(li) { padding-inline-start: 0.2em; margin-block: 0.3em; }
+.markdown :global(li > p) { margin-block: 0.4em; }
+.markdown :global(strong) { font-weight: 600; }
 
 .markdown :global(pre) {
   background: var(--panel-solid);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin: 1.2em 0;
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 1.4em 0;
   overflow-x: auto;
+  overflow-wrap: normal;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.85em;
+  line-height: 1.65;
 }
-
 .markdown :global(code) {
   background: var(--panel-solid);
-  padding: 1px 4px;
-  border-radius: 2px;
+  padding: 2px 5px;
+  border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
-
-.markdown :global(pre code) {
-  background: transparent;
-  padding: 0;
-}
-
-/* Block elements sit a little further from body text than paragraphs do, so a
- * quote or table reads as an interruption rather than another paragraph. */
+.markdown :global(pre code) { background: transparent; padding: 0; font-size: inherit; }
 .markdown :global(blockquote) {
-  border-left: 3px solid var(--border-strong);
-  margin: 1.2em 0;
-  padding: 0 16px;
+  border-left: 2px solid var(--accent);
+  margin: 1.5em 0;
+  padding: 0.15em 0 0.15em 1.2em;
+  font-family: var(--font-literary);
+  font-size: 1.12em;
+  line-height: 1.65;
   color: var(--text-muted);
 }
-
-.markdown :global(a) {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.markdown :global(a:hover) {
-  text-decoration: underline;
-}
-
-.markdown :global(table) {
-  border-collapse: collapse;
-  margin: 1.2em 0;
-}
-
+.markdown :global(blockquote > :last-child) { margin-bottom: 0; }
+.markdown :global(a) { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.markdown :global(a:hover) { text-decoration-thickness: 2px; }
+.markdown :global(hr) { border: 0; border-top: 1px solid var(--border-strong); margin: 2.4em 0; }
+.markdown :global(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.4em 0; font-size: 0.92em; }
 .markdown :global(th),
-.markdown :global(td) {
-  border: 1px solid var(--border);
-  padding: 4px 8px;
-}
+.markdown :global(td) { border-bottom: 1px solid var(--border); padding: 8px 12px; }
+.markdown :global(th) { font-weight: 600; background: var(--panel-soft); }
+.markdown :global(img) { max-width: 100%; height: auto; }
+.markdown :global(.katex-display) { overflow-x: auto; overflow-y: hidden; padding-block: 4px; }
+.typstSvg :global(svg) { max-width: 100%; height: auto; }
+.notice { padding: 24px; color: var(--text-muted); }
+.error { padding: 16px 24px; color: var(--error); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
 
-.markdown :global(img) {
-  max-width: 100%;
+@container reading-pane (max-width: 560px) {
+  .preview { --reading-inset: 24px; padding-top: 32px; }
+  .markdown :global(h1) { font-size: 2em; }
 }
-
-.typstSvg :global(svg) {
-  max-width: 100%;
-  height: auto;
-}
-
-.notice {
-  padding: 24px;
-  color: var(--text-muted);
-}
-
-.error {
-  padding: 16px 24px;
-  color: var(--error);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-
-@media (max-width: 850px) {
-  .preview { padding: 32px 20px; }
+@container reading-pane (max-width: 340px) {
+  .preview { --reading-inset: 16px; }
 }
 
 .previewStatus {

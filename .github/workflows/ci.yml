@@ -70,5 +70,9 @@ jobs:
       - name: Rust check
         run: cargo check --locked --all-targets
 
+      - name: Compile Rust tests
+        run: cargo test --locked --no-run
+
       - name: Rust tests
-        run: cargo test --locked
+        timeout-minutes: 15
+        run: cargo test --locked -- --test-threads=1 --nocapture

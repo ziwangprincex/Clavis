@@ -21,7 +21,7 @@ describe('quiet writing palettes', () => {
     const spec = resolveThemeSpec('paper', { bg: '#ffffff', fg: '#111111', cursor: '#aabbcc' }, false);
     expect(spec.bg).toBe('#ffffff');
     expect(spec.cursor).toBe('#aabbcc');
-    expect(BUILTIN_THEMES.paper.bg).toBe('#faf9f6');
+    expect(BUILTIN_THEMES.paper.bg).toBe('#fbf9f5');
     expect(spec.syntax).toEqual(BUILTIN_THEMES.paper.syntax);
   });
 

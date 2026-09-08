@@ -15,9 +15,9 @@ export function accentTokens(accent: string, dark: boolean): Record<string, stri
 /** Flat document, recessed workspace, lifted popovers. No translucent chrome. */
 export function chromeTokens(spec: ThemeSpec): Record<string, string> {
   const { bg, fg, dark } = spec;
-  const panel = mix(bg, fg, dark ? 0.025 : 0.038);
+  const panel = mix(bg, fg, dark ? 0.035 : 0.030);
   const elevated = dark ? mix(bg, fg, 0.065) : mix(bg, '#ffffff', 0.72);
-  const desk = mix(bg, fg, dark ? 0.015 : 0.055);
+  const desk = mix(bg, fg, dark ? 0.018 : 0.050);
   const textSurface = dark ? elevated : desk;
   const error = dark ? '#e5a09a' : '#a33d39';
   const warning = dark ? '#d9b77c' : '#8d621f';
@@ -30,7 +30,7 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
     '--panel-solid': panel,
     '--panel-soft': withAlpha(fg, dark ? 0.055 : 0.045),
     '--preview-desk': desk,
-    '--border': withAlpha(fg, dark ? 0.10 : 0.09),
+    '--border': withAlpha(fg, dark ? 0.10 : 0.08),
     '--border-strong': withAlpha(fg, dark ? 0.24 : 0.20),
     '--text': fg,
     '--text-muted': readableMix(textSurface, fg, 0.65),
@@ -41,8 +41,8 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
     '--ok': ok,
     '--tint-error': withAlpha(error, 0.10),
     '--tint-warning': withAlpha(warning, 0.10),
-    '--shadow-sm': dark ? '0 1px 2px rgba(0, 0, 0, 0.24)' : '0 1px 2px rgba(24, 30, 38, 0.06)',
-    '--shadow-md': dark ? '0 12px 40px rgba(0, 0, 0, 0.32)' : '0 12px 40px rgba(24, 30, 38, 0.12)',
+    '--shadow-sm': dark ? '0 1px 2px rgba(0, 0, 0, 0.24)' : '0 1px 2px rgba(48, 40, 28, 0.05)',
+    '--shadow-md': dark ? '0 12px 40px rgba(0, 0, 0, 0.32)' : '0 12px 40px rgba(48, 40, 28, 0.10)',
     ...accentTokens(spec.accent, dark),
   };
 }

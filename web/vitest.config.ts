@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
-    css: { include: [/SubmissionCheckDialog\.module\.css\?raw$/] },
+    css: { include: [/\.module\.css\?raw$/] },
   },
 });

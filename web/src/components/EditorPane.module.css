@@ -1,25 +1,33 @@
 .host {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  container: writing-pane / inline-size;
 }
 
 .host :global(.cm-editor) { flex: 1; height: 100%; }
 .host :global(.cm-editor.cm-focused) { outline: none; }
 .host :global(.cm-scroller) {
-  padding-inline: var(--editor-inline-padding, 12px);
+  /* ch follows the user's editor font, including at larger accessibility sizes.
+   * Centre gutter + text together; never put max-width on CM's content layer. */
+  padding-inline: max(24px, calc((100% - 78ch) / 2));
   overscroll-behavior: contain;
 }
-.host :global(.cm-content) { min-width: 0; }
-.host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 10px; }
+.host :global(.cm-content) { min-width: 0; padding-block: 56px 160px; }
+.host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 12px; }
 .host :global(.cm-gutters) { user-select: none; }
 .host :global(.cm-activeLineGutter) { font-weight: 500; }
+.host[data-language='markdown'] :global(.cm-scroller) {
+  padding-inline: max(32px, calc((100% - 68ch) / 2));
+}
 .host[data-language='markdown'] :global(.cm-gutters) { display: none; }
 .host[data-language='markdown'] :global(.cm-activeLine) { background: transparent; }
 
-@media (max-width: 850px) {
-  .host :global(.cm-scroller) { padding-inline: 12px; }
-  .host :global(.cm-content) { padding-top: 36px; }
+@container writing-pane (max-width: 560px) {
+  .host :global(.cm-scroller),
+  .host[data-language='markdown'] :global(.cm-scroller) { padding-inline: 12px; }
+  .host :global(.cm-content) { padding-top: 32px; }
 }
