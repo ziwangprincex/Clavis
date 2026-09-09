@@ -65,7 +65,7 @@ blocked app; never disable Gatekeeper globally.
 
 Automated tests cover logic and React lifecycle behavior without a browser. They
 do not certify native input latency, scrolling, PDF paint quality, or visual
-appearance. Use the native app and the checklist in docs/RELEASE_CANDIDATE.md.
+appearance. Use the native app and the checklist in docs/history/RELEASE_CANDIDATE.md.
 No Chrome preview is part of this project's local verification workflow.
 
 ## Troubleshooting

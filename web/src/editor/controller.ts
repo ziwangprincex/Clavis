@@ -40,7 +40,7 @@ import { writingAssist } from './writingAssist';
 import { inlineMath } from './inlineMath';
 import { buildEditorKeymap } from './keymaps';
 import { signatureTheme, signatureTooltipExt } from './signatureTooltip';
-import { type ThemeSpec } from '../theme/themes';
+import { syntaxPalette, type ThemeSpec } from '../theme/themes';
 import { withAlpha } from '../theme/colors';
 export { BUILTIN_THEMES, type ThemeSpec } from '../theme/themes';
 export { withAlpha } from '../theme/colors';
@@ -190,69 +190,23 @@ function buildThemeExt(spec: ThemeSpec) {
   );
 }
 
-// Syntax-token colors. CodeMirror's built-in `defaultHighlightStyle` is tuned
-// for LIGHT backgrounds, so on any dark theme its dark-on-dark tokens become
-// unreadable (the "can't see the text" bug). We ship one palette per luminance
-// and pick by `spec.dark`, so headings/keywords/strings stay legible on every
-// built-in theme. Base (unhighlighted) text still comes from `spec.fg`.
-const darkHighlightStyle = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: '#c586c0' },
-  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: '#9cdcfe' },
-  { tag: [t.function(t.variableName), t.labelName], color: '#dcdcaa' },
-  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: '#4fc1ff' },
-  { tag: [t.definition(t.name), t.separator], color: '#d4d4d4' },
-  { tag: [t.typeName, t.className, t.namespace, t.tagName], color: '#4ec9b0' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: '#b5cea8' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: '#ce9178' },
-  { tag: [t.comment, t.lineComment, t.blockComment, t.meta], color: '#6a9955', fontStyle: 'italic' },
-  { tag: [t.heading], color: '#4ec9b0', fontWeight: 'bold' },
-  { tag: t.strong, fontWeight: 'bold' },
-  { tag: t.emphasis, fontStyle: 'italic' },
-  { tag: t.strikethrough, textDecoration: 'line-through' },
-  { tag: t.link, color: '#4aa5ff', textDecoration: 'underline' },
-  { tag: [t.url, t.escape, t.special(t.string)], color: '#d7ba7d' },
-  { tag: t.invalid, color: '#f14c4c' },
-]);
-
-const lightHighlightStyle = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: '#af00db' },
-  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: '#001080' },
-  { tag: [t.function(t.variableName), t.labelName], color: '#795e26' },
-  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: '#0070c1' },
-  { tag: [t.definition(t.name), t.separator], color: '#1e1e1e' },
-  { tag: [t.typeName, t.className, t.namespace, t.tagName], color: '#267f99' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: '#098658' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: '#a31515' },
-  { tag: [t.comment, t.lineComment, t.blockComment, t.meta], color: '#008000', fontStyle: 'italic' },
-  { tag: [t.heading], color: '#267f99', fontWeight: 'bold' },
-  { tag: t.strong, fontWeight: 'bold' },
-  { tag: t.emphasis, fontStyle: 'italic' },
-  { tag: t.strikethrough, textDecoration: 'line-through' },
-  { tag: t.link, color: '#0969da', textDecoration: 'underline' },
-  { tag: [t.url, t.escape, t.special(t.string)], color: '#b5690f' },
-  { tag: t.invalid, color: '#cd3131' },
-]);
-
+// Syntax colors come from the theme: signature themes ship a palette, community
+// themes derive one from their own bg/fg/accent (see syntaxPalette). One
+// restrained scheme everywhere, no separate saturated fallback per luminance.
 function buildHighlightExt(spec: ThemeSpec) {
-  if (spec.syntax) {
-    const accent = spec.syntax.name;
-    const secondary = spec.syntax.keyword;
-    return syntaxHighlighting(HighlightStyle.define([
-      { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: secondary },
-      { tag: [t.name, t.propertyName, t.macroName, t.typeName, t.tagName], color: accent },
-      { tag: [t.number, t.bool, t.atom, t.string], color: spec.syntax.literal },
-      { tag: [t.comment, t.meta], color: spec.syntax.comment, fontStyle: 'italic' },
-      { tag: t.heading, color: spec.fg, fontWeight: '600' },
-      { tag: t.strong, fontWeight: '600' },
-      { tag: t.emphasis, fontStyle: 'italic' },
-      { tag: t.strikethrough, textDecoration: 'line-through' },
-      { tag: [t.link, t.url], color: accent, textDecoration: 'underline' },
-      { tag: t.invalid, color: spec.dark ? '#e7a49b' : '#a14035' },
-    ]), { fallback: true });
-  }
-  return syntaxHighlighting(spec.dark ? darkHighlightStyle : lightHighlightStyle, {
-    fallback: true,
-  });
+  const syntax = syntaxPalette(spec);
+  return syntaxHighlighting(HighlightStyle.define([
+    { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: syntax.keyword },
+    { tag: [t.name, t.propertyName, t.macroName, t.typeName, t.tagName], color: syntax.name },
+    { tag: [t.number, t.bool, t.atom, t.string], color: syntax.literal },
+    { tag: [t.comment, t.meta], color: syntax.comment, fontStyle: 'italic' },
+    { tag: t.heading, color: spec.fg, fontWeight: '600' },
+    { tag: t.strong, fontWeight: '600' },
+    { tag: t.emphasis, fontStyle: 'italic' },
+    { tag: t.strikethrough, textDecoration: 'line-through' },
+    { tag: [t.link, t.url], color: syntax.name, textDecoration: 'underline' },
+    { tag: t.invalid, color: spec.dark ? '#e7a49b' : '#a14035' },
+  ]), { fallback: true });
 }
 
 export interface FontSpec {

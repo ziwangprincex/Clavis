@@ -49,7 +49,7 @@
   width: 100%;
   background: white;
   margin-bottom: 20px;
-  box-shadow: 0 1px 6px #0001;
+  box-shadow: var(--shadow-sm);
 }
 .art {
   position: absolute;
@@ -76,16 +76,18 @@
   cursor: text;
 }
 .text text::selection {
-  background: #6595c666;
+  /* Pages are white paper under any theme; the accent tint must stay translucent
+   * so the rendered glyphs in the art layer below remain visible. */
+  background: color-mix(in srgb, var(--paper-accent, var(--accent)) 32%, transparent);
   fill: transparent;
 }
 .text .hit {
-  fill: #244a73;
+  fill: var(--paper-accent, var(--accent));
   text-decoration: underline;
 }
 .text a {
   cursor: pointer;
 }
 .text a:hover rect {
-  fill: #6595c622;
+  fill: color-mix(in srgb, var(--paper-accent, var(--accent)) 14%, transparent);
 }

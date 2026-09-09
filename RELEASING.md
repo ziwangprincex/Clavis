@@ -7,44 +7,6 @@ for a newer **signed** build and can install it in-app (command palette →
 This doc is the release runbook. Steps 1–2 are one-time setup; steps 3+ repeat
 per release.
 
-## Current release preparation (2026-09-09)
-
-The owner clarified "打包app啊 我要更新程序的": this is an authorized **formal
-installer and in-app update**, not just a source push or updater-disabled trial.
-Prepare **1.4.0** from published v1.3.2 with Chinese UI, full font controls and the
-reviewed neutral PDF surround / translucent editor-selection repairs. Include all
-associated source, tests and documentation. Notes: [v1.4.0.md](docs/releases/v1.4.0.md).
-
-Authorization covers this release commit, a new v1.4.0 tag, GitHub draft/publication
-and Homebrew distribution update. Do not move old tags, replace old packages,
-rotate keys or disable the production updater. No Apple credentials/notarization.
-The earlier local app-only trial ZIPs have no updater: their users need one manual
-install of the formal DMG. Native Air visual acceptance and actual installed-app
-upgrading remain unverified until tested on the device.
-
-Require successful exact-tag CI and all three platform installers, signed updater
-packages and the complete six-entry manifest before publication. Verify every
-updater archive with the unchanged deployed public key. The existing workflow can
-produce empty notes and mutable latest-download URLs: copy reviewed notes into
-latest.json and pin its package URLs to this exact tag, preserving all signatures,
-platform entries and package bytes. Reverify after uploading only the corrected
-manifest. Record publication, public latest.json and Homebrew checks in HANDOFF.
-Future work does not inherit this release authorization.
-
-Local preparation (no commit required):
-
-```bash
-python3 -m unittest discover -s tools -p 'test_*.py'
-python3 tools/check_release.py
-python3 tools/check_handoff.py --working-tree
-bash build-macos.sh --app-only --skip-install
-```
-
-The local script snapshots and restores Cargo files because Tauri 1 can rewrite
-features/lock data when updater is disabled for a trial bundle. It does not
-modify the production public key. Do not edit Cargo inputs concurrently.
-
-
 ## Prerequisites
 
 - Rust toolchain + the Tauri CLI (`cargo install tauri-cli` or `npm --prefix web i`).
@@ -122,11 +84,13 @@ commands it prints.
 4. The **Release** workflow verifies that the tag matches all project versions
    and runs the reusable CI workflow on that exact commit (frontend checks/tests,
    production build, Rust checks/tests and release-guard tests). Only after both
-   pass does it create one **draft** Release and build/upload Windows, macOS and
-   Linux installers plus signed updater artifacts and `latest.json`. This gate
-   does not replace manual native acceptance or permission to publish.
-5. Review the draft Release and **publish** it. Only published, non-draft releases
-   are visible through `/releases/latest/` and therefore to the in-app updater.
+   pass does it create the Release and build/upload Windows, macOS and Linux
+   installers plus signed updater artifacts and `latest.json`. In practice
+   `tauri-action` marks the Release published once uploads finish, so pushing
+   the tag is the publish step; there is no manual draft review in between.
+5. After the workflow finishes, verify the public
+   `releases/latest/download/latest.json` (version, six platform entries,
+   notes) and the Homebrew cask checksum.
 
 A normal push to `main` only runs CI; it does not create or update a Release.
 
@@ -138,7 +102,7 @@ A normal push to `main` only runs CI; it does not create or update a Release.
   on confirm, downloads → verifies signature → installs → relaunches.
 - Keep `docs/releases/<tag>.md`, the GitHub release body and `latest.json` notes
   to a version heading and at most three short user-facing bullets (240 characters
-  total). Put test counts, CI details and technical handoff material in HANDOFF,
+  total). Put test counts and CI details in the commit message or `docs/history/`,
   not the update prompt. Mention any critical migration warning within this budget.
 - Older installed apps show the entire manifest notes in a non-scrolling native
   alert. Always check the actual `latest.json` notes before publication; shortening

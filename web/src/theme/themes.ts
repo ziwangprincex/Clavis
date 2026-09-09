@@ -1,8 +1,12 @@
 // Built-in palettes. Stable IDs preserve existing saved preferences.
+import { contrast, mix } from './colors';
+
+export interface SyntaxPalette { keyword: string; name: string; literal: string; comment: string }
+
 export interface ThemeSpec {
   label: string;
   description?: string;
-  syntax?: { keyword: string; name: string; literal: string; comment: string };
+  syntax?: SyntaxPalette;
   dark: boolean;
   bg: string;
   fg: string;
@@ -147,3 +151,27 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
 };
 
 export const SIGNATURE_THEMES = ['paper', 'ink', 'mist', 'dusk'] as const;
+
+/** Legible on both the page and the active line, without shouting. The active
+ *  line never demands more than the theme's own body text achieves there. */
+function legible(color: string, spec: ThemeSpec): string {
+  const activeMinimum = Math.min(4.5, contrast(spec.fg, spec.activeBg));
+  const readable = (c: string) => contrast(c, spec.bg) >= 4.5 && contrast(c, spec.activeBg) >= activeMinimum;
+  for (let amount = 0; amount <= 1; amount += 0.05) {
+    const out = mix(color, spec.fg, amount);
+    if (readable(out)) return out;
+  }
+  return spec.fg;
+}
+
+/** Syntax colors for themes that ship none: the accent carries names, a cooler
+ *  mix of it carries keywords, literals lean toward the text, comments recede. */
+export function syntaxPalette(spec: ThemeSpec): SyntaxPalette {
+  if (spec.syntax) return spec.syntax;
+  return {
+    name: legible(mix(spec.accent, spec.fg, 0.25), spec),
+    keyword: legible(mix(spec.accent, spec.fg, 0.55), spec),
+    literal: legible(mix(spec.fg, spec.accent, 0.3), spec),
+    comment: legible(mix(spec.bg, spec.fg, 0.55), spec),
+  };
+}

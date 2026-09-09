@@ -20,7 +20,7 @@ Entry points: `web/src/theme/themes.ts`, `chromeTokens.ts`, `web/src/styles/toke
 ## Validation
 
 - 645 frontend tests, TypeScript checking and production frontend build pass.
-- After the separate CI cancellation fix, 142 Rust tests pass, with three optional tool/benchmark tests ignored. Ten Python guard tests pass. See `docs/CI_RUNNER_FIX.md` for the GitHub runner investigation; the UI changes were not in the failed GitHub runs.
+- After the separate CI cancellation fix, 142 Rust tests pass, with three optional tool/benchmark tests ignored. Ten Python guard tests pass. See `docs/history/CI_RUNNER_FIX.md` for the GitHub runner investigation; the UI changes were not in the failed GitHub runs.
 - Continued build completed successfully: `target/marker-study/Clavis-Marker-CI-Fix-macOS-arm64.zip` contains the current design plus process cancellation fix. App signature, ZIP integrity and exact Cargo input restoration all pass. It is an ad-hoc signed local candidate, not installed, Apple-notarized or released.
 - All four signature palettes retain >=7:1 body contrast, >=4.5:1 secondary/accent/severity text, >=4.5:1 syntax on both normal and active lines, and >=3:1 gutter text.
 - Static stylesheet tests and compiled CSS are checked, but are not screenshots or layout measurements. Native appearance, text selection at extreme sizes and actual interaction feel remain manual acceptance items. No Chrome, browser automation or remote repository service is used.

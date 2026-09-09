@@ -42,6 +42,8 @@ export function PreviewPane({
   let paperAccent = theme.accent;
   for (let amount = 0.05; contrast(paperAccent, '#ffffff') < 4.5 && amount <= 1; amount += 0.05) paperAccent = mix(theme.accent, '#000000', amount);
   const lightStyle = { ...accentTokens(paperAccent, false), '--selection': mix('#ffffff', paperAccent, 0.2) } as CSSProperties;
+  // Typst pages are white paper too, but the desk around them keeps chrome tokens.
+  const paperStyle = { '--paper-accent': paperAccent } as CSSProperties;
   const root = tab ? documentRoot(tab, project) : null;
   const documentKey = lang === 'typst' ? `typst:${root ?? tab?.id}` : `markdown:${tab?.id}`;
   const dependencies = useRef<{ key: string; paths: string[] }>();
@@ -233,7 +235,7 @@ export function PreviewPane({
   return (
     <div
       ref={scroll}
-      style={lang === 'markdown' && settings.preview_paper === 'light' ? lightStyle : undefined}
+      style={lang === 'typst' ? paperStyle : settings.preview_paper === 'light' ? lightStyle : undefined}
       onClick={event => {
         if (lang !== 'markdown') return;
         const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');

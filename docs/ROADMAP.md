@@ -21,7 +21,7 @@ latest-only Typst queue and background SVG/PDF execution. Automated coverage is
 491 frontend + 119 Rust + 6 release-guard tests; the macOS app is built locally.
 Update 2026-09-08: the owner authorized publishing 1.2.0, the version bump is
 applied, and fresh checks pass (491 frontend, 119 Rust, 8 Python guard tests).
-Native interaction acceptance remains unverified. See RELEASE_CANDIDATE.md and
+Native interaction acceptance remains unverified. See history/RELEASE_CANDIDATE.md and
 the newest HANDOFF entry for the actual remote publication status.
 
 ---
@@ -247,8 +247,8 @@ Proposed, unordered:
 
 ## P2 — Repo hygiene
 
-- `docs/HANDOFF.md` is ~158 KB and growing; archive per-release entries into
-  `docs/handoffs/` when they age out, keeping `docs/HANDOFF.md` as a rolling log.
+- Done 2026-09-09: `docs/HANDOFF.md` is a one-page current-state document; the
+  previous rolling log and one-off notes live in `docs/history/`.
 - Generate release notes (currently a one-line body) from HANDOFF/commits in
   `.github/workflows/release.yml`.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_THEMES, SIGNATURE_THEMES } from './themes';
+import { BUILTIN_THEMES, SIGNATURE_THEMES, syntaxPalette } from './themes';
 import { accentTokens, chromeTokens } from './chromeTokens';
 import { contrast, hexToRgb, mix, withAlpha } from './colors';
 import { resolveThemeId, resolveThemeSpec } from './appTheme';
@@ -57,6 +57,21 @@ describe('quiet writing palettes', () => {
         expect(contrast(tokens['--accent'], tokens['--on-accent'])).toBeGreaterThanOrEqual(4.5);
         expect(contrast(tokens['--accent-hover'], tokens['--on-accent-hover'])).toBeGreaterThanOrEqual(4.5);
       }
+    }
+  });
+
+  it('derives a legible, theme-owned syntax palette for every community theme', () => {
+    for (const [id, spec] of Object.entries(BUILTIN_THEMES)) {
+      const syntax = syntaxPalette(spec);
+      if (spec.syntax) expect(syntax).toBe(spec.syntax);
+      const activeMinimum = Math.min(4.5, contrast(spec.fg, spec.activeBg));
+      for (const color of Object.values(syntax)) {
+        expect(contrast(color, spec.bg), `${id} on bg`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color, spec.activeBg), `${id} on active line`).toBeGreaterThanOrEqual(activeMinimum);
+      }
+      // Solarized is low-contrast by design; only themes with real headroom must
+      // keep names, keywords and literals visibly distinct.
+      if (contrast(spec.fg, spec.bg) >= 7) expect(new Set(Object.values(syntax)).size, id).toBeGreaterThanOrEqual(3);
     }
   });
 
