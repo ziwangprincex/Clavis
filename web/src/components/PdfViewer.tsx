@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // PdfViewer — continuous-scroll PDF viewer using pdfjs-dist.
 //
 // - Renders each page to a canvas + a transparent text layer on top so users
@@ -41,7 +42,6 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
   const currentPage = usePdfStore(s => s.currentPage);
   const scrollRequest = usePdfStore(s => s.scrollRequest);
 
-  const pdfBg = useSettingsStore(s => s.settings.pdf_bg_color);
   const pdfDarkMode = useSettingsStore(s => s.settings.pdf_dark_mode);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,7 +225,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
           className={styles.btn}
           onClick={() => scrollToPage(Math.max(1, currentPage - 1))}
           disabled={!numPages || currentPage <= 1}
-          aria-label="Previous page"
+          aria-label={t("Previous page")}
         >
           ←
         </button>
@@ -236,16 +236,16 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
           className={styles.btn}
           onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))}
           disabled={!numPages || currentPage >= numPages}
-          aria-label="Next page"
+          aria-label={t("Next page")}
         >
           →
         </button>
         <span className={styles.divider} />
-        <button className={styles.btn} aria-label="Zoom out" onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
+        <button className={styles.btn} aria-label={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
           −
         </button>
         <span className={styles.info}>{Math.round(zoom * 100)}%</span>
-        <button className={styles.btn} aria-label="Zoom in" onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
+        <button className={styles.btn} aria-label={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
           +
         </button>
         <span className={styles.divider} />
@@ -254,7 +254,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
           onClick={() => (findOpen ? closeFinder() : openFinder())}
           disabled={!bytes}
           title={`Find in PDF (${fmtShortcut('Ctrl+F')})`}
-          aria-label="Find in PDF"
+          aria-label={t("Find in PDF")}
         >
           <IconSearch size={13} />
         </button>
@@ -277,17 +277,17 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
                 gotoMatch(e.shiftKey ? -1 : 1);
               }
             }}
-            placeholder="Find in PDF…"
+            placeholder={t("Find in PDF…")}
           />
           <span className={styles.finderInfo} aria-live="polite" title={searchError ?? undefined}>
-            {searchError ? 'Search failed' : searching ? 'Searching…'
+            {searchError ? t("Search failed") : searching ? t("Searching…")
               : findQuery ? (findCount ? `${findIndex + 1}/${findCount}` : '0/0') : ''}
           </span>
           <button
             className={styles.btn}
             onClick={() => gotoMatch(-1)}
             disabled={!findCount}
-            title="Previous (Shift+Enter)"
+            title={t("Previous (Shift+Enter)")}
           >
             ↑
           </button>
@@ -295,11 +295,11 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
             className={styles.btn}
             onClick={() => gotoMatch(1)}
             disabled={!findCount}
-            title="Next (Enter)"
+            title={t("Next (Enter)")}
           >
             ↓
           </button>
-          <label className={styles.finderCheckbox} title="Match case">
+          <label className={styles.finderCheckbox} title={t("Match case")}>
             <input
               type="checkbox"
               checked={findCase}
@@ -307,7 +307,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
             />
             Aa
           </label>
-          <button className={styles.btn} onClick={closeFinder} title="Close (Esc)">
+          <button className={styles.btn} onClick={closeFinder} title={t("Close (Esc)")}>
             ×
           </button>
         </div>
@@ -318,27 +318,26 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
         * remount between a failed load and the next successful one would leave
         * the viewer permanently blank. Overlays sit on top instead. */}
       <div className={styles.body} aria-busy={compiling}>
-        {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? "Updating preview" : "Preview not updated"} · showing last successful render</div>}
+        {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? t("Updating preview") : t("Preview not updated")} {t("· showing last successful render")}</div>}
         <div
           ref={containerRef}
           className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
-          style={pdfBg ? { background: pdfBg } : undefined}
           onScroll={onScroll}
           onClick={onPageClick}
         />
         {error ? (
           <div className={styles.overlay}>
             <div className={styles.error} role="alert">
-              <span>Could not display PDF: {error}</span>
-              <button className={styles.btn} onClick={() => setRetry(n => n + 1)}>Reload preview</button>
+              <span>{t("Could not display PDF:")} {error}</span>
+              <button className={styles.btn} onClick={() => setRetry(n => n + 1)}>{t("Reload preview")}</button>
             </div>
           </div>
         ) : !bytes ? (
           <div className={styles.overlay}>
             <div className={styles.empty} role="status">
-              {compiling ? 'Compiling LaTeX…' : compileStatus === 'error'
+              {compiling ? t("Compiling LaTeX…") : compileStatus === 'error'
                 ? `Compilation failed: ${compileError ?? 'See problems for details.'}`
-                : 'Compile your LaTeX document to show the preview.'}
+                : t("Compile your LaTeX document to show the preview.")}
             </div>
           </div>
         ) : null}

@@ -14,7 +14,7 @@ vi.mock('../files/files', () => ({ openFileByPath: vi.fn() }));
 let tree: ReactTestRenderer;
 const close = vi.fn();
 const button = (label: string) =>
-  tree.root.findAllByType('button').find((b) => b.children.join('') === label)!;
+  tree.root.findAllByType('button').find((b) => b.children.join('').trim() === label)!;
 const mount = async (tool: 'history' | 'templates' | 'environment') => {
   await act(async () => {
     tree = create(<WriterDialog tool={tool} onClose={close} />);

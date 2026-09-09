@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   memo,
   useCallback,
@@ -231,12 +232,12 @@ export function TypstReader({
   }, [scroll, pages]);
   return (
     <>
-      <div className={styles.toolbar} aria-label="Typst reading controls">
-        <button disabled={page <= 1} onClick={() => goto(page - 2)} aria-label="Previous page">
+      <div className={styles.toolbar} aria-label={t("Typst reading controls")}>
+        <button disabled={page <= 1} onClick={() => goto(page - 2)} aria-label={t("Previous page")}>
           ‹
         </button>
         <input
-          aria-label="Page number"
+          aria-label={t("Page number")}
           value={pageInput}
           onChange={(e) => setPageInput(e.target.value)}
           onKeyDown={(e) => {
@@ -246,22 +247,22 @@ export function TypstReader({
           className={styles.pageInput}
         />
         <span>/ {pages.length}</span>
-        <button disabled={page >= pages.length} onClick={() => goto(page)} aria-label="Next page">
+        <button disabled={page >= pages.length} onClick={() => goto(page)} aria-label={t("Next page")}>
           ›
         </button>
-        <select aria-label="Zoom" value={zoom} onChange={(e) => resize(Number(e.target.value))}>
+        <select aria-label={t("Zoom")} value={zoom} onChange={(e) => resize(Number(e.target.value))}>
           {![75, 100, 125, 150, 200].includes(zoom) && (
             <option value={zoom}>{Math.round(zoom)}%</option>
           )}
           {[75, 100, 125, 150, 200].map((n) => (
             <option key={n} value={n}>
-              {n === 100 ? 'Fit width' : `${n}%`}
+              {n === 100 ? t("Fit width") : `${n}%`}
             </option>
           ))}
         </select>
         <input
-          aria-label="Find in document"
-          placeholder="Find in document…"
+          aria-label={t("Find in document")}
+          placeholder={t("Find in document…")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -278,10 +279,10 @@ export function TypstReader({
         <span aria-live="polite">
           {query ? `${hits.length ? Math.min(match + 1, hits.length) : 0}/${hits.length}` : ''}
         </span>
-        <button disabled={!hits.length} onClick={() => find(match - 1)} aria-label="Previous match">
+        <button disabled={!hits.length} onClick={() => find(match - 1)} aria-label={t("Previous match")}>
           ↑
         </button>
-        <button disabled={!hits.length} onClick={() => find(match + 1)} aria-label="Next match">
+        <button disabled={!hits.length} onClick={() => find(match + 1)} aria-label={t("Next match")}>
           ↓
         </button>
       </div>

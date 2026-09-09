@@ -1,6 +1,6 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
 .sidebar[hidden] { display: none; }
-.heading { padding: 25px 22px 16px; font: 500 1.65em/1.2 var(--font-literary); letter-spacing: -0.025em; color: var(--text); }
+.heading { padding: 25px 22px 16px; font: 500 1.65em/1.2 var(--font-sans); letter-spacing: -0.025em; color: var(--text); }
 .views { display: flex; margin: 0 18px 24px; gap: 6px; border-bottom: 1px solid var(--border); }
 .view { flex: 1; min-width: 0; padding: 8px 0; margin-bottom: -1px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text-muted); font: inherit; font-size: 0.85em; cursor: pointer; transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
 .view:hover { color: var(--text); }

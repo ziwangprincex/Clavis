@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { Component, type ReactNode } from 'react';
 
 interface Props {
@@ -29,10 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback(this.state.error, this.reset);
       }
       return (
-        <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif', color: '#c0392b' }}>
-          <h2>Something went wrong.</h2>
+        <div style={{ padding: 24, fontFamily: 'var(--font-sans)', color: 'var(--error)' }}>
+          <h2>{t("Something went wrong.")}</h2>
           <pre style={{ whiteSpace: 'pre-wrap' }}>{this.state.error.message}</pre>
-          <button onClick={this.reset}>Try again</button>
+          <button onClick={this.reset}>{t("Try again")}</button>
         </div>
       );
     }

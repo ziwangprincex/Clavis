@@ -1,4 +1,50 @@
-# Clavis - Handoff (updated 2026-09-08)
+# Clavis - Handoff (updated 2026-09-09)
+
+## 0. Authorized v1.4.0 formal installer and update - 2026-09-09
+
+The owner corrected the source-only interpretation: "打包app啊 我要更新程序的".
+This authorizes the accumulated implementation's release commit, fresh v1.4.0 tag,
+CI draft/publication and Homebrew distribution. Published latest is v1.3.2 and
+origin/main equals 89d7da7; v1.4.0 is unused. Prior local-only entries below are
+historical preparation boundaries, not a restriction on this approved release.
+
+Ship complete font control/Chinese UI, neutral PDF surroundings, flat effective-color
+controls, focused/unfocused selection alpha 0.7/0.5, Markdown and modal repairs with
+all tests and supporting documentation. Keep the five pre-existing untracked tools
+local. Align Cargo.toml, Cargo.lock and tauri.conf.json to 1.4.0. Production updater
+settings/public key and CI gates remain unchanged; notes have three short bullets
+in docs/releases/v1.4.0.md. Do not overwrite old tags, packages or user installations.
+
+Fresh pre-bump checks passed: 715 frontend tests, 144 Rust tests (three existing
+optional ignored), ten Python guard tests, TypeScript, production frontend build,
+Rust all-target, release/HANDOFF and whitespace checks. Evidence:
+target/ui-refinement/push-checks.log. Versioned 1.4.0 validation passed the same full suite; evidence: target/release-1.4.0/local-checks.log. Exact-tag platform builds follow; publication is not yet claimed. Prior local native/signature checks
+are below. Use CI's existing signing secrets; no Apple credential/notarization work,
+key rotation, Gongfeng/MCP or Chrome. Require all 11 assets, the six-entry manifest,
+cryptographic updater verification and macOS version/CWL checks before publishing.
+Then verify the public updater endpoint and Homebrew DMG checksum and record results.
+Local trial apps with updater disabled need a one-time formal DMG install.
+
+
+## 0. Editor selection was opaque - 2026-09-09
+
+The owner's screenshot showed a solid block hiding selected text. Cause: 2be2bc3 raised .cm-selectionLayer above the content (z-index 2) with a translucent fixed blue; the theme-driven follow-up replaced that fill with the opaque spec.selection hex, so the raised layer covered the characters. Fix: selectionFill() in editor/controller.ts paints spec.selection at alpha 0.7 (focused) / 0.5 (unfocused); the accent-derived selection mixes at 0.45 toward the accent so it reads as a tint rather than a slab. Layer order is unchanged. Regression in typography.test.ts; 715 frontend tests pass. Local build only, same boundary as below.
+
+## 0. Remove PDF surround colors; repair color controls - 2026-09-09
+
+The owner rejected the bright-purple PDF surround and native beveled accent picker, then explicitly said paper surroundings should have no color setting at all. Do not replace this with another custom-mode switch. Read-only inspection found legacy pdf_bg_color=#942192; this is a viewer override, not LaTeX output or the Dusk theme accent. The option and renderer override are removed. Settings migration drops the old key without touching other preferences; even unmigrated state cannot tint the viewer. The surround uses component-local neutral gray (#242424 dark / #e8e8e8 light), independent of accent and generic preview-desk overrides. PDF page colors and existing opt-in canvas filters remain unchanged.
+
+Accent/editor color fields now share a scoped flat swatch with a hex readout and understated Follow theme action. Native WebKit/Firefox swatch chrome is normalized while retaining keyboard focus. Editor swatches show actual effective colors instead of black placeholder values. No new color preference or dependency was introduced, and no on-disk personal settings were edited.
+
+714 frontend tests and TypeScript pass, including eight new regression cases for old-setting removal, no PDF-color control, neutral surrounding styles, renderer isolation and accessible color fields. Ten Python guard tests pass. Evidence: target/ui-refinement/pdf-color-tests.log and pdf-color-build.log. Standard local macOS app build and 144 Rust tests passed (three existing optional ignored). codesign --verify --deep --strict and ZIP integrity passed; Cargo.toml/Cargo.lock match pre-build snapshots byte-for-byte. Download: target/ui-refinement/Clavis-Neutral-PDF-macOS-arm64.zip (arm64, ad-hoc signed, not notarized, trial updater disabled). Native visual acceptance is not established by these checks. Same local-only boundary: no installation, commit, push, version/tag, updater credentials/config or public release changes; preserve prior work and the five unrelated one-off tools.
+
+## 0. Font control, Chinese interface and interaction repairs - 2026-09-09
+
+The owner authorized fixing the entire UI audit and adding Chinese mode, then requested a platform-neutral command-palette icon. Local implementation includes installed-font selection, independent UI/editor/Markdown typography with H1–H6/quote/code overrides, scalable UI text, shared accent, safe category reset and settings save errors/retry, modal focus/shortcut containment, Read-mode outline navigation, syntax-aware Markdown math/anchors and bounded relative images. Simplified Chinese/English/system language is persistent and independent of document language. The command-list icon no longer depicts the macOS Command key; real shortcut labels still follow the host OS. Details and acceptance checklist: docs/UI_PREFERENCES.md.
+
+Fresh checks: **706 frontend tests, 144 Rust tests (three existing optional ignored), ten Python guard tests**, TypeScript, Rust all-target and production frontend checks pass. Evidence: target/ui-refinement/frontend-tests.log, rust-tests.log, rust-check.log and build.log. Local macOS app build and codesign --verify --deep --strict succeeded. ZIP integrity passed; Cargo.toml/Cargo.lock are byte-identical to their build-input snapshots. Download: target/ui-refinement/Clavis-Fonts-Chinese-macOS-arm64.zip (arm64, ad-hoc signed, not notarized). No installation was performed. Native Air visual/keyboard acceptance and Windows/Linux builds remain unverified. Font fallback depends on installed families; compiled PDF/Typst and math retain document-owned fonts. OS menus and compiler-origin text are not translated. The existing 2 MiB in-workspace image-preview limit is preserved with explicit failure messages.
+
+Version remains 1.3.2; this work is not a formal release or replacement for old release assets. No commit, push, tag, public manifest, updater key/config, CI weakening, Apple credentials/notarization or user-app installation. The five pre-existing untracked one-off tools are untouched and excluded. Local build scripts restore Cargo inputs after the trial updater override. No Gongfeng/MCP or Chrome. The trial app has auto-update disabled; do not claim it upgrades through the production endpoint.
 
 ## 0. Authorized v1.3.2 formal update - 2026-09-08
 

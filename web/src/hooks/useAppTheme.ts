@@ -8,7 +8,8 @@
 // top so they win over the theme defaults.
 
 import { useEffect } from 'react';
-import { type Settings } from '../store';
+import { defaultSettings, type Settings } from '../store';
+import { resolveLocale } from '../i18n';
 import { applyChromeTokens, setAccent, useResolvedThemeSpec } from '../theme/appTheme';
 
 export function useAppTheme(settings: Settings): void {
@@ -16,6 +17,7 @@ export function useAppTheme(settings: Settings): void {
 
   useEffect(() => {
     const root = document.documentElement;
+    root.setAttribute('lang', resolveLocale(settings.ui_language));
 
     // Remove previous overrides BEFORE deriving the palette. Removing them
     // afterward would also erase newly restored theme defaults.
@@ -31,6 +33,11 @@ export function useAppTheme(settings: Settings): void {
     } else {
       root.style.removeProperty('--font-sans');
     }
+    root.style.setProperty('--font-display', 'var(--font-sans)');
+    root.style.setProperty('--font-literary', 'var(--font-sans)');
+    root.style.setProperty('--font-mono', settings.ui_mono_font_family || settings.editor_font_family || defaultSettings.editor_font_family);
+    root.style.setProperty('--ui-font-size', `${settings.ui_font_size}px`);
+    root.style.fontSize = `${settings.ui_font_size}px`;
     document.body.style.fontSize = `${settings.ui_font_size}px`;
 
     // 3) User accent override wins over the theme's accent.
@@ -46,8 +53,11 @@ export function useAppTheme(settings: Settings): void {
     root.dataset.clavisOverrideKeys = Object.keys(ov).join(',');
   }, [
     spec,
+    settings.ui_language,
     settings.ui_font_family,
     settings.ui_font_size,
+    settings.ui_mono_font_family,
+    settings.editor_font_family,
     settings.ui_accent_color,
     settings.ui_color_overrides,
   ]);

@@ -26,7 +26,7 @@
   border-bottom: 1px solid var(--border);
 }
 .dialog h2 {
-  font-size: 20px;
+  font-size: 1.5385rem;
   font-weight: 550;
   margin: 0;
   letter-spacing: -0.025em;
@@ -53,7 +53,7 @@
 }
 .dialog p {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 0.9231rem;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -83,7 +83,7 @@
 .choices span,
 .versionList span {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 0.9231rem;
 }
 .field {
   display: flex;
@@ -99,7 +99,7 @@
   border-bottom: 1px solid var(--border);
 }
 .engine span {
-  font-size: 12px;
+  font-size: 0.9231rem;
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
@@ -129,13 +129,13 @@
   border-radius: 6px;
   padding: 12px;
   box-sizing: border-box;
-  font: 12px/1.7 var(--font-mono);
+  font: 0.9231rem/1.7 var(--font-mono);
 }
 .versionText pre {
   max-height: 180px;
   overflow: auto;
   white-space: pre-wrap;
-  font: 12px/1.7 var(--font-mono);
+  font: 0.9231rem/1.7 var(--font-mono);
 }
 .insert {
   background: var(--tint-accent);

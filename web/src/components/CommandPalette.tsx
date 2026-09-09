@@ -1,3 +1,5 @@
+import { t, useLocale } from '../i18n';
+import { useModal } from '../hooks/useModal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCommandsStore, type Command } from '../store/commands';
 import styles from './CommandPalette.module.css';
@@ -8,6 +10,8 @@ export interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+  const locale = useLocale();
+  const modal = useModal(open, onClose);
   const list = useCommandsStore(s => s.list);
   const commandsMap = useCommandsStore(s => s.commands); // dependency for memo
   const [query, setQuery] = useState('');
@@ -17,10 +21,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const filtered = useMemo<Command[]>(() => {
     const q = query.toLowerCase().trim();
     const all = list();
-    return q ? all.filter(c => c.name.toLowerCase().includes(q)) : all;
+    return q ? all.filter(c => `${c.name} ${t(c.name)}`.toLowerCase().includes(q)) : all;
     // Re-run when commandsMap identity changes (a register/unregister occurred).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, commandsMap]);
+  }, [query, commandsMap, locale]);
 
   useEffect(() => {
     if (open) {
@@ -67,19 +71,19 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={styles.palette} role="dialog" aria-label="Command Palette">
+      <section {...modal} className={styles.palette} role="dialog" aria-label={t("Command Palette")}>
         <input
           ref={inputRef}
           className={styles.input}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Type a command…"
-          aria-label="Command query"
+          placeholder={t("Type a command…")}
+          aria-label={t("Command query")}
         />
         <ul className={styles.list}>
           {filtered.length === 0 ? (
-            <li className={styles.empty}>No matching commands</li>
+            <li className={styles.empty}>{t("No matching commands")}</li>
           ) : (
             filtered.map((cmd, i) => (
               <li
@@ -91,13 +95,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   exec(cmd);
                 }}
               >
-                <span className={styles.name}>{cmd.name}</span>
+                <span className={styles.name}>{t(cmd.name)}</span>
                 {cmd.shortcut && <span className={styles.shortcut}>{cmd.shortcut}</span>}
               </li>
             ))
           )}
         </ul>
-      </div>
+      </section>
     </div>
   );
 }

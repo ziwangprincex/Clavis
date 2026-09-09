@@ -34,7 +34,7 @@ export function writingAssist(language: Lang, workspace?: () => CompletionWorksp
         maxWidth: '440px',
         maxHeight: '260px',
         overflow: 'auto',
-        fontSize: '13px',
+        fontSize: '1.0rem',
         lineHeight: '1.6',
       },
       '.cm-writing-hover svg': { maxWidth: '400px', maxHeight: '220px' },

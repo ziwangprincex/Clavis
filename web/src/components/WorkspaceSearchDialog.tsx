@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+import { useModal } from '../hooks/useModal';
 ﻿import { useMemo, useState } from 'react';
 import { dialogConfirm, ipc, type WorkspaceSearchMatch } from '../api/tauri';
 import { pathsEqual } from '../files/projectPaths';
@@ -21,6 +23,7 @@ export function WorkspaceSearchDialog({ open, root, onClose, onOpenMatch, onFile
   const [summary, setSummary] = useState('');
   const [truncated, setTruncated] = useState(false);
   const [busy, setBusy] = useState(false);
+  const modal = useModal(open, onClose, busy);
   const [error, setError] = useState<string | null>(null);
 
   const fingerprints = useMemo(() => Object.fromEntries(matches.map(m => [m.path, m.fingerprint])), [matches]);
@@ -32,7 +35,7 @@ export function WorkspaceSearchDialog({ open, root, onClose, onOpenMatch, onFile
       const result = await ipc.searchWorkspace({ root, query, regex, caseSensitive });
       setMatches(result.matches);
       setTruncated(result.truncated);
-      setSummary(`${result.matches.length} matches in ${result.scannedFiles} files${result.truncated ? ' (truncated)' : ''}`);
+      setSummary(`${result.matches.length} matches in ${result.scannedFiles} files${result.truncated ? t(" (truncated)") : ''}`);
     } catch (reason) { setError(String(reason)); }
     finally { setBusy(false); }
   }
@@ -66,16 +69,16 @@ export function WorkspaceSearchDialog({ open, root, onClose, onOpenMatch, onFile
 
   if (!open) return null;
   return (
-    <div className={styles.backdrop} onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Workspace Search">
-        <header className={styles.header}><div><h2>Workspace Search</h2><p>{root ?? 'No workspace open'}</p></div><button onClick={onClose}>Close</button></header>
+    <div className={styles.backdrop} onMouseDown={e => e.target === e.currentTarget && !busy && onClose()}>
+      <section {...modal} className={styles.dialog} role="dialog" aria-modal="true" aria-label={t("Workspace Search")}>
+        <header className={styles.header}><div><h2>{t("Workspace Search")}</h2><p>{root ?? 'No workspace open'}</p></div><button disabled={busy} onClick={onClose}>{t("Close")}</button></header>
         <form className={styles.controls} onSubmit={e => { e.preventDefault(); void search(); }}>
-          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search text or pattern" />
-          <input value={replacement} onChange={e => setReplacement(e.target.value)} placeholder="Replace with" />
-          <label><input type="checkbox" checked={regex} onChange={e => setRegex(e.target.checked)} /> Regex</label>
-          <label><input type="checkbox" checked={caseSensitive} onChange={e => setCaseSensitive(e.target.checked)} /> Match case</label>
-          <button type="submit" disabled={busy || !root || !query}>{busy ? 'Working…' : 'Search'}</button>
-          <button type="button" disabled={busy || matches.length === 0 || truncated} onClick={() => void replaceAll()}>Replace All</button>
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t("Search text or pattern")} />
+          <input value={replacement} onChange={e => setReplacement(e.target.value)} placeholder={t("Replace with")} />
+          <label><input type="checkbox" checked={regex} onChange={e => setRegex(e.target.checked)} /> {t("Regex")}</label>
+          <label><input type="checkbox" checked={caseSensitive} onChange={e => setCaseSensitive(e.target.checked)} /> {t("Match case")}</label>
+          <button type="submit" disabled={busy || !root || !query}>{busy ? t("Working…") : t("Search")}</button>
+          <button type="button" disabled={busy || matches.length === 0 || truncated} onClick={() => void replaceAll()}>{t("Replace All")}</button>
         </form>
         <div className={styles.meta}>{error ? <span className={styles.error}>{error}</span> : summary}</div>
         <ul className={styles.results}>

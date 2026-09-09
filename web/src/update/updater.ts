@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // Auto-update flow — thin orchestration over the Tauri updater.
 //
 // checkForUpdates() asks the updater if a newer signed GitHub release exists.
@@ -37,8 +38,8 @@ export function summarizeUpdateNotes(body = ''): string {
 export async function checkForUpdates({ silent }: { silent: boolean }): Promise<void> {
   if (!hasTauri()) {
     if (!silent) {
-      await dialogMessage('Updates are only available in the desktop app.', {
-        title: 'Check for Updates',
+      await dialogMessage(t("Updates are only available in the desktop app."), {
+        title: t("Check for Updates"),
       });
     }
     return;
@@ -52,8 +53,8 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
       if (!silent) {
         const version = await getAppVersion().catch(() => '');
         await dialogMessage(
-          version ? `You’re up to date (v${version}).` : 'You’re up to date.',
-          { title: 'Check for Updates' },
+          version ? t('You’re up to date (v{version}).', { version }) : t("You’re up to date."),
+          { title: t("Check for Updates") },
         );
       }
       return;
@@ -62,8 +63,8 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
     const m = status.manifest;
     const summary = summarizeUpdateNotes(m.body);
     const consented = await dialogConfirm(
-      `Clavis ${m.version} is available.${summary ? `\n\n${summary}` : ''}\n\nInstall and relaunch now?`,
-      { title: 'Update available', okLabel: 'Install & Relaunch', cancelLabel: 'Later' },
+      t('Clavis {version} is available.{summary}\n\nInstall and relaunch now?', { version: m.version, summary: summary ? `\n\n${summary}` : '' }),
+      { title: t("Update available"), okLabel: t("Install & Relaunch"), cancelLabel: t("Later") },
     );
     if (!consented) return;
 
@@ -72,8 +73,8 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
   } catch (e) {
     console.error('update check failed', e);
     if (!silent) {
-      await dialogMessage(`Update check failed: ${String(e)}`, {
-        title: 'Check for Updates',
+      await dialogMessage(t('Update check failed: {error}', { error: String(e) }), {
+        title: t("Check for Updates"),
       });
     }
   } finally {

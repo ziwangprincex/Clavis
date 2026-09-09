@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '../store';
 import { BUILTIN_THEMES, type ThemeSpec } from './themes';
 import { accentTokens, chromeTokens } from './chromeTokens';
+import { mix } from './colors';
 
 /** Theme id used when `editor_theme` is 'auto' and the OS is in dark/light. */
 const AUTO_DARK = 'ink';
@@ -32,11 +33,13 @@ export function resolveThemeSpec(
   editorTheme: string,
   overrides: Record<string, string>,
   osDark: boolean,
+  accent = '',
 ): ThemeSpec {
   const base = BUILTIN_THEMES[resolveThemeId(editorTheme, osDark)];
   const ov = overrides ?? {};
   return {
     ...base,
+    ...(accent && { accent, cursor: accent, selection: mix(base.bg, accent, 0.45) }),
     ...(ov.bg && { bg: ov.bg }),
     ...(ov.fg && { fg: ov.fg }),
     ...(ov.gutter_bg && { gutterBg: ov.gutter_bg }),
@@ -67,10 +70,10 @@ export function applyChromeTokens(spec: ThemeSpec): void {
 /** Track the OS dark-mode preference, but only subscribe while `active`. */
 export function useOsDark(active: boolean): boolean {
   const [osDark, setOsDark] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches,
   );
   useEffect(() => {
-    if (!active) return;
+    if (!active || typeof window === 'undefined' || !window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = () => setOsDark(mq.matches);
     setOsDark(mq.matches);
@@ -88,9 +91,10 @@ export function useOsDark(active: boolean): boolean {
 export function useResolvedThemeSpec(): ThemeSpec {
   const editorTheme = useSettingsStore(s => s.settings.editor_theme);
   const overrides = useSettingsStore(s => s.settings.editor_theme_overrides);
+  const accent = useSettingsStore(s => s.settings.ui_accent_color);
   const osDark = useOsDark(editorTheme === 'auto');
   return useMemo(
-    () => resolveThemeSpec(editorTheme, overrides, osDark),
-    [editorTheme, overrides, osDark],
+    () => resolveThemeSpec(editorTheme, overrides, osDark, accent),
+    [editorTheme, overrides, osDark, accent],
   );
 }

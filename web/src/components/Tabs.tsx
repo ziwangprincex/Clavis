@@ -1,3 +1,4 @@
+import { t as tr } from '../i18n';
 import { useTabsStore, type Tab, type Lang } from '../store';
 import { IconClose, IconDot } from './icons';
 import styles from './Tabs.module.css';
@@ -17,7 +18,7 @@ function tabDisplayName(t: Tab): string {
     const parts = t.filePath.split(/[\\/]/);
     return parts[parts.length - 1] || t.filePath;
   }
-  return 'Untitled';
+  return tr('Untitled');
 }
 
 export function Tabs({ onCloseTab }: TabsProps) {
@@ -34,7 +35,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
     const tab = useTabsStore.getState().tabs.find(t => t.id === id);
     if (tab?.isDirty) {
       const ok = window.confirm(
-        `"${tab.filePath ? tab.filePath.split(/[\\/]/).pop() : 'Untitled'}" has unsaved changes. Close anyway?`,
+        tr('"{name}" has unsaved changes. Close anyway?', { name: tabDisplayName(tab) }),
       );
       if (!ok) return;
     }
@@ -61,15 +62,15 @@ export function Tabs({ onCloseTab }: TabsProps) {
               onClose(e as unknown as React.MouseEvent, t.id);
             }
           }}
-          title={t.filePath ?? 'Unsaved'}
+          title={t.filePath ?? tr('Unsaved')}
         >
           <span className={styles.langTag}>{LANG_LABEL[t.lang]}</span>
           <span className={styles.title}>{tabDisplayName(t)}</span>
-          {t.isDirty && <IconDot size={8} className={styles.dirty} aria-label="unsaved" />}
+          {t.isDirty && <IconDot size={8} className={styles.dirty} aria-label={tr("unsaved")} />}
           <button
             className={styles.close}
             onClick={e => onClose(e, t.id)}
-            aria-label={`Close ${tabDisplayName(t)}`}
+            aria-label={tr('Close {name}', { name: tabDisplayName(t) })}
           >
             <IconClose size={11} />
           </button>

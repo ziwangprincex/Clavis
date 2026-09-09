@@ -25,8 +25,6 @@
   --text: #302e2a;
   --text-muted: #68655e;
   --text-dim: #77736b;
-  --accent: #52694f;
-  --selection: #dfe6d8;
   --error: #a33d39;
   color-scheme: light;
 }
@@ -41,8 +39,8 @@
   margin: 0 auto;
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 17px;
-  line-height: 1.75;
+  font-size: 1.3077rem;
+  line-height: inherit;
   overflow-wrap: anywhere;
 }
 
@@ -62,18 +60,12 @@
   font-weight: 600;
   color: var(--text);
 }
-.markdown :global(h1),
-.markdown :global(h2) {
-  font-family: var(--font-literary);
-  font-weight: 500;
-  letter-spacing: -0.025em;
-}
-.markdown :global(h1) { font-size: 2.35em; line-height: 1.16; margin-bottom: 0.8em; }
-.markdown :global(h2) { font-size: 1.65em; }
-.markdown :global(h3) { font-size: 1.18em; }
-.markdown :global(h4),
-.markdown :global(h5),
-.markdown :global(h6) { font-size: 1em; }
+.markdown :global(h1) { font-family: var(--h1-font, inherit); font-size: var(--h1-size, 1em); font-weight: var(--h1-weight, 600); }
+.markdown :global(h2) { font-family: var(--h2-font, inherit); font-size: var(--h2-size, 1em); font-weight: var(--h2-weight, 600); }
+.markdown :global(h3) { font-family: var(--h3-font, inherit); font-size: var(--h3-size, 1em); font-weight: var(--h3-weight, 600); }
+.markdown :global(h4) { font-family: var(--h4-font, inherit); font-size: var(--h4-size, 1em); font-weight: var(--h4-weight, 600); }
+.markdown :global(h5) { font-family: var(--h5-font, inherit); font-size: var(--h5-size, 1em); font-weight: var(--h5-weight, 600); }
+.markdown :global(h6) { font-family: var(--h6-font, inherit); font-size: var(--h6-size, 1em); font-weight: var(--h6-weight, 600); }
 .markdown > :first-child { margin-top: 0; }
 .markdown :global(p) { margin: 0 0 0.8em; }
 .markdown :global(ul),
@@ -90,7 +82,7 @@
   margin: 1.4em 0;
   overflow-x: auto;
   overflow-wrap: normal;
-  font-family: var(--font-mono);
+  font-family: var(--code-font, var(--font-mono));
   font-size: 0.85em;
   line-height: 1.65;
 }
@@ -98,16 +90,16 @@
   background: var(--panel-solid);
   padding: 2px 5px;
   border-radius: 3px;
-  font-family: var(--font-mono);
+  font-family: var(--inline-code-font, var(--font-mono));
   font-size: 0.88em;
 }
-.markdown :global(pre code) { background: transparent; padding: 0; font-size: inherit; }
+.markdown :global(pre code) { font-family: inherit; background: transparent; padding: 0; font-size: inherit; }
 .markdown :global(blockquote) {
   border-left: 2px solid var(--accent);
   margin: 1.5em 0;
   padding: 0.15em 0 0.15em 1.2em;
-  font-family: var(--font-literary);
-  font-size: 1.12em;
+  font-family: var(--quote-font, inherit);
+  font-size: 1em;
   line-height: 1.65;
   color: var(--text-muted);
 }
@@ -123,11 +115,10 @@
 .markdown :global(.katex-display) { overflow-x: auto; overflow-y: hidden; padding-block: 4px; }
 .typstSvg :global(svg) { max-width: 100%; height: auto; }
 .notice { padding: 24px; color: var(--text-muted); }
-.error { padding: 16px 24px; color: var(--error); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
+.error { padding: 16px 24px; color: var(--error); font-family: var(--font-mono); font-size: 0.9231rem; white-space: pre-wrap; }
 
 @container reading-pane (max-width: 560px) {
   .preview { --reading-inset: 24px; padding-top: 32px; }
-  .markdown :global(h1) { font-size: 2em; }
 }
 @container reading-pane (max-width: 340px) {
   .preview { --reading-inset: 16px; }
@@ -145,7 +136,7 @@
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 0.8462rem;
 }
 .previewStatus button, .diagnostics button { font: inherit; color: inherit; cursor: pointer; }
 .previewStatus button { border: 0; border-radius: 5px; padding: 4px 8px; background: var(--panel-soft); }
@@ -160,7 +151,10 @@
   contain-intrinsic-size: auto 1000px;
 }
 .typstPage > svg { display: block; width: 100%; height: auto; }
-.diagnostics { padding: 10px 18px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.diagnostics { padding: 10px 18px; font-size: 0.9231rem; border-bottom: 1px solid var(--border); }
 .diagnostic { display: flex; flex-direction: column; text-align: left; width: 100%; border: 0; background: transparent; padding: 8px 0; }
 .diagnostic span { color: var(--text-muted); }
 .diagnostic strong { font-weight: 500; }
+
+.markdown :global([id]) { scroll-margin-top: 24px; }
+.markdown :global(img[data-image-error]) { display: block; min-height: 2em; border: 1px dashed var(--border-strong); }

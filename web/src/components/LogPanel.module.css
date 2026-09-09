@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100%;
   background: var(--bg-elevated);
-  font-size: 12px;
+  font-size: 0.9231rem;
 }
 
 .header {
@@ -17,7 +17,7 @@
 
 .title {
   font-weight: 600;
-  font-size: 11px;
+  font-size: 0.8462rem;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
@@ -84,7 +84,7 @@
 
 .kindLabel {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 0.8462rem;
   text-transform: uppercase;
   min-width: 80px;
 }
@@ -101,7 +101,7 @@
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.8462rem;
 }
 
 .installBtn:hover {
@@ -130,7 +130,7 @@
   margin: 0;
   padding: 8px 12px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.8462rem;
   white-space: pre-wrap;
   color: var(--text-dim);
 }
@@ -143,5 +143,5 @@
   color: var(--accent);
 }
 
-.guide { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 11px; padding: 5px 0; cursor: pointer; }
+.guide { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 0.8462rem; padding: 5px 0; cursor: pointer; }
 .guide:disabled { opacity: .4; cursor: default; }

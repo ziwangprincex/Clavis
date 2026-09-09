@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // SymbolsPanel — floating math-symbol palette. Click a symbol to insert
 // the LaTeX/Typst command at the editor cursor. Filterable by typing.
 
@@ -42,9 +43,9 @@ export function SymbolsPanel({ open, lang, onClose, onInsert }: SymbolsPanelProp
   }
 
   return (
-    <div className={styles.panel} role="dialog" aria-label="Math symbols">
+    <div className={styles.panel} role="dialog" aria-label={t("Math symbols")}>
       <div className={styles.header}>
-        <span className={styles.title}>Math symbols ({lang})</span>
+        <span className={styles.title}>{t("Math symbols (")}{lang})</span>
         <input
           ref={inputRef}
           className={styles.filter}
@@ -54,15 +55,15 @@ export function SymbolsPanel({ open, lang, onClose, onInsert }: SymbolsPanelProp
           onKeyDown={e => {
             if (e.key === 'Escape') onClose();
           }}
-          placeholder="filter…"
+          placeholder={t("filter…")}
         />
-        <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+        <button className={styles.closeBtn} onClick={onClose} aria-label={t("Close")}>
           ×
         </button>
       </div>
       <div className={styles.body}>
         {groups.length === 0 ? (
-          <div className={styles.empty}>No matches</div>
+          <div className={styles.empty}>{t("No matches")}</div>
         ) : (
           groups.map(g => (
             <section key={g.name} className={styles.group}>

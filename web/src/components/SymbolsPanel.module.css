@@ -23,7 +23,7 @@
 }
 
 .title {
-  font-size: 12px;
+  font-size: 0.9231rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -35,14 +35,14 @@
   border-radius: var(--radius-sm);
   color: var(--text);
   padding: 3px 6px;
-  font-size: 12px;
+  font-size: 0.9231rem;
 }
 
 .closeBtn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 1.3846rem;
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
@@ -64,7 +64,7 @@
 
 .groupTitle {
   margin: 0 0 4px;
-  font-size: 10px;
+  font-size: 0.7692rem;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.05em;
@@ -96,13 +96,13 @@
 }
 
 .glyph {
-  font-size: 16px;
+  font-size: 1.2308rem;
   line-height: 1.2;
 }
 
 .cmd {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 0.6923rem;
   color: var(--text-dim);
   margin-top: 2px;
   overflow: hidden;

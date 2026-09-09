@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMemo, useState } from 'react';
 import { ipc } from '../api/tauri';
 import { useAssetsStore, type Lang } from '../store';
@@ -30,15 +31,15 @@ export function AssetsSection({ root, language, onActivate, onInsert, onRefresh 
   return <div className={styles.root}>
     <div className={styles.tools}><span>{assets.length} assets</span><button type="button" disabled={loading} onClick={onRefresh}>?</button></div>
     {error && <div className={styles.error}>{error}</div>}
-    {loading && <div className={styles.empty}>Indexing assets?</div>}
+    {loading && <div className={styles.empty}>{t("Indexing assets?")}</div>}
     {!loading && result && <>
       {result.diagnostics.length > 0 && <ul className={styles.diagnostics}>{result.diagnostics.map((item, index) => <li key={index} className={styles[item.severity]} onClick={() => item.path && item.line && onActivate(item.path, item.line)}>{item.message}</li>)}</ul>}
       <ul className={styles.list}>{assets.map(asset => <li key={asset.path} className={asset.usages.length ? styles.used : styles.unused}>
         <div><button type="button" className={styles.asset} onClick={() => void ipc.openArtifactPath(root, asset.path)}>{asset.relativePath}</button><span>{asset.extension} ? {(asset.sizeBytes / 1024).toFixed(1)} KB</span></div>
-        <div className={styles.usage}><span>{asset.usages.length} use{asset.usages.length === 1 ? '' : 's'}</span><div><button type="button" onClick={() => void togglePreview(asset.path)}>{previewPath === asset.path ? 'Hide preview' : 'Preview'}</button><button type="button" onClick={() => onInsert(assetInsertText(asset.relativePath, language))}>Insert</button><button type="button" onClick={() => onInsert(assetFigureTemplate(asset.relativePath, language))}>Figure</button>{asset.usages[0] && <button type="button" onClick={() => onActivate(asset.usages[0].sourcePath, asset.usages[0].line)}>Go to use</button>}</div></div>
-        {previewPath === asset.path && <div className={styles.preview}>{preview ? (asset.extension === 'pdf' ? <object className={styles.pdfPreview} data={preview} type="application/pdf"><span>PDF preview unavailable in this webview.</span></object> : <img src={preview} alt={`Preview of ${asset.relativePath}`} />) : previewError ? <span>{previewError}</span> : previewLoaded ? <span>Preview unavailable for this format or file size.</span> : <span>Loading preview?</span>}</div>}
+        <div className={styles.usage}><span>{asset.usages.length} use{asset.usages.length === 1 ? '' : 's'}</span><div><button type="button" onClick={() => void togglePreview(asset.path)}>{previewPath === asset.path ? t("Hide preview") : t("Preview")}</button><button type="button" onClick={() => onInsert(assetInsertText(asset.relativePath, language))}>{t("Insert")}</button><button type="button" onClick={() => onInsert(assetFigureTemplate(asset.relativePath, language))}>{t("Figure")}</button>{asset.usages[0] && <button type="button" onClick={() => onActivate(asset.usages[0].sourcePath, asset.usages[0].line)}>{t("Go to use")}</button>}</div></div>
+        {previewPath === asset.path && <div className={styles.preview}>{preview ? (asset.extension === 'pdf' ? <object className={styles.pdfPreview} data={preview} type="application/pdf"><span>{t("PDF preview unavailable in this webview.")}</span></object> : <img src={preview} alt={`Preview of ${asset.relativePath}`} />) : previewError ? <span>{previewError}</span> : previewLoaded ? <span>{t("Preview unavailable for this format or file size.")}</span> : <span>{t("Loading preview?")}</span>}</div>}
       </li>)}</ul>
     </>}
-    {!loading && !result && <div className={styles.empty}>Open a workspace to index assets.</div>}
+    {!loading && !result && <div className={styles.empty}>{t("Open a workspace to index assets.")}</div>}
   </div>;
 }

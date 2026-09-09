@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMemo, useState } from 'react';
 import { useReferencesStore } from '../store';
 import styles from './ReferencesSection.module.css';
@@ -38,17 +39,17 @@ export function ReferencesSection({ onActivate, onRefresh }: ReferencesSectionPr
   return (
     <div className={styles.root}>
       <div className={styles.tools}>
-        <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="filter references?" />
-        <button type="button" onClick={onRefresh} disabled={loading} title="Refresh reference index">?</button>
+        <input value={filter} onChange={e => setFilter(e.target.value)} placeholder={t("filter references?")} />
+        <button type="button" onClick={onRefresh} disabled={loading} title={t("Refresh reference index")}>?</button>
       </div>
       {error && <div className={styles.error}>{error}</div>}
-      {!error && loading && <div className={styles.empty}>Indexing?</div>}
-      {!error && !loading && !result && <div className={styles.empty}>Open a workspace to index references.</div>}
+      {!error && loading && <div className={styles.empty}>{t("Indexing?")}</div>}
+      {!error && !loading && !result && <div className={styles.empty}>{t("Open a workspace to index references.")}</div>}
       {result && (
         <>
           <div className={styles.summary}>{result.occurrences.length} occurrences ? {result.diagnostics.length} issues{result.truncated ? ' ? truncated' : ''}</div>
-          <div className={styles.subhead}>Issues</div>
-          {diagnostics.length === 0 ? <div className={styles.empty}>No reference issues.</div> : (
+          <div className={styles.subhead}>{t("Issues")}</div>
+          {diagnostics.length === 0 ? <div className={styles.empty}>{t("No reference issues.")}</div> : (
             <ul className={styles.list}>{diagnostics.map((item, index) => (
               <li key={`${item.code}:${item.path}:${item.line}:${item.key}:${index}`} className={styles[item.severity]} onClick={() => item.path && item.line && onActivate(item.path, item.line)}>
                 <span className={styles.code}>{item.code}</span><span className={styles.message}>{item.message}</span>
@@ -56,14 +57,14 @@ export function ReferencesSection({ onActivate, onRefresh }: ReferencesSectionPr
               </li>
             ))}</ul>
           )}
-          <div className={styles.subhead}>Symbols</div>
+          <div className={styles.subhead}>{t("Symbols")}</div>
           <ul className={styles.symbols}>{symbols.map(group => {
             const id = `${group.namespace}:${group.key}`;
             const definition = group.definitions[0];
             return <li key={id}>
               <div className={styles.symbolRow}>
                 <button type="button" className={styles.expand} onClick={() => setExpanded(expanded === id ? null : id)}>{expanded === id ? '?' : '?'}</button>
-                <button type="button" className={styles.symbolName} onClick={() => definition && onActivate(definition.path, definition.line)} title={definition ? 'Go to definition' : 'No definition'}>
+                <button type="button" className={styles.symbolName} onClick={() => definition && onActivate(definition.path, definition.line)} title={definition ? t("Go to definition") : t("No definition")}>
                   <span>{group.key}</span><small>{group.namespace} ? {group.usages.length} refs</small>
                 </button>
               </div>

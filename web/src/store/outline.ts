@@ -1,3 +1,4 @@
+import { markdownHeadings } from '../render/markdown';
 // Document outline parsing — reads heading-like markers out of source text.
 // Ported from ui-legacy/app.js parseOutline (lines 1440-1474), behaviour-equivalent.
 
@@ -30,17 +31,7 @@ export function parseOutline(src: string, lang: Lang): OutlineItem[] {
   const lines = src.split('\n');
 
   if (lang === 'markdown') {
-    let inFence = false;
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i];
-      if (/^\s*```/.test(l) || /^\s*~~~/.test(l)) {
-        inFence = !inFence;
-        continue;
-      }
-      if (inFence) continue;
-      const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(l);
-      if (m) items.push({ level: m[1].length - 1, title: m[2].trim(), line: i + 1 });
-    }
+    return markdownHeadings(src).map(({ level, title, line }) => ({ level, title, line }));
   } else if (lang === 'latex') {
     const re = /\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}/g;
     for (let i = 0; i < lines.length; i++) {

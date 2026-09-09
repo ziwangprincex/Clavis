@@ -17,6 +17,7 @@ mod latex;
 mod project_config;
 mod references;
 mod settings;
+mod system_fonts;
 mod submission_bundle;
 mod submission_check;
 mod tasks;
@@ -306,6 +307,7 @@ fn main() {
             compile_typst_pdf,
             typst_packages::download_typst_package,
             list_typst_fonts,
+            system_fonts::list_system_fonts,
             typst_sig::list_typst_signatures,
             scan_folder,
             scan_folder_shallow,

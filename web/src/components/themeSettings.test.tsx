@@ -25,7 +25,7 @@ const root = {
 };
 const media = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
 const close = vi.fn();
-const button = (text: string) => tree!.root.findAllByType('button').find(b => b.children.join('') === text)!;
+const button = (text: string) => tree!.root.findAllByType('button').find(b => b.children.join('').trim() === text)!;
 const radio = (id: string) => tree!.root.findAllByType('input').find(i => i.props.type === 'radio' && i.props.value === id)!;
 const mountDialog = () => act(() => { tree = create(<SettingsDialog open onClose={close} />); });
 
@@ -87,7 +87,8 @@ describe('theme settings without a browser', () => {
   it('keeps automatic mode and classic themes in the selector', () => {
     useSettingsStore.getState().patch({ editor_theme: 'auto' });
     mountDialog();
-    const choices = tree!.root.findAllByType('option').map(o => o.props.value);
+    const themeSelect = tree!.root.findAllByType('select').find(s => s.findAllByType('option').some(o => o.props.value === 'paper'))!;
+    const choices = themeSelect.findAllByType('option').map(o => o.props.value);
     expect(choices).toEqual(['auto', ...Object.keys(BUILTIN_THEMES)]);
     for (const id of ['paper', 'ink', 'mist', 'dusk']) expect(radio(id).props.checked).toBe(false);
     const color = tree!.root.findAllByType('input').find(i => i.props.type === 'color')!;
@@ -110,4 +111,106 @@ describe('theme settings without a browser', () => {
       expect(properties.get(key)).toBe(value);
     }
   });
+});
+
+
+describe('safe settings behavior', () => {
+  it('keeps the dialog and draft on disk failure, then allows retry', async () => {
+    mountDialog();
+    act(() => radio('ink').props.onChange());
+    vi.mocked(ipc.setSettings).mockRejectedValueOnce(new Error('disk full'));
+    await act(async () => { await button('Save').props.onClick(); });
+    expect(close).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().settings.editor_theme).toBe('paper');
+    expect(radio('ink').props.checked).toBe(true);
+    expect(tree!.root.findByProps({ role: 'alert' }).children.join('')).toContain('disk full');
+    await act(async () => { await button('Save').props.onClick(); });
+    expect(close).toHaveBeenCalledOnce();
+    expect(useSettingsStore.getState().settings.editor_theme).toBe('ink');
+  });
+
+  it('Appearance reset does not clear compiler paths, recents or geometry', async () => {
+    const preserved = { latex_engine: 'xelatex', latex_custom_paths: { xelatex: '/tex/xelatex' }, recent_files: ['/paper.md'], pane_editor_ratio: 0.4 };
+    useSettingsStore.getState().patch({ ...preserved, ui_font_size: 20 });
+    mountDialog();
+    act(() => button('Reset this category').props.onClick());
+    await act(async () => { await button('Save').props.onClick(); });
+    expect(useSettingsStore.getState().settings).toMatchObject({ ...preserved, ui_font_size: defaultSettings.ui_font_size });
+  });
+
+  it('background settings changes do not erase the draft or get overwritten by Save', async () => {
+    mountDialog();
+    act(() => radio('dusk').props.onChange());
+    act(() => useSettingsStore.getState().patch({ recent_files: ['/new.md'] }));
+    expect(radio('dusk').props.checked).toBe(true);
+    await act(async () => { await button('Save').props.onClick(); });
+    expect(useSettingsStore.getState().settings).toMatchObject({ editor_theme: 'dusk', recent_files: ['/new.md'] });
+  });
+
+  it('saves Chinese preference and restores it when reopened', async () => {
+    mountDialog();
+    const language = tree!.root.findAllByType('select').find(s => s.findAllByType('option').some(o => o.props.value === 'zh-CN'))!;
+    act(() => language.props.onChange({ target: { value: 'zh-CN' } }));
+    expect(useSettingsStore.getState().settings.ui_language).toBe('auto');
+    await act(async () => { await button('Save').props.onClick(); });
+    expect(useSettingsStore.getState().settings.ui_language).toBe('zh-CN');
+    act(() => tree!.update(<SettingsDialog open={false} onClose={close} />));
+    act(() => tree!.update(<SettingsDialog open onClose={close} />));
+    expect(tree!.root.findByProps({ role: 'dialog' }).props['aria-label']).toBe('设置');
+  });
+
+  it('Escape closes without saving and modal keys do not reach global shortcuts', () => {
+    mountDialog();
+    const modal = tree!.root.findByProps({ role: 'dialog' });
+    const event = { key: 's', stopPropagation: vi.fn(), preventDefault: vi.fn(), defaultPrevented: false };
+    act(() => modal.props.onKeyDown(event));
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    act(() => modal.props.onKeyDown({ ...event, key: 'Escape' }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(ipc.setSettings).not.toHaveBeenCalled();
+  });
+
+  it('Tab and Shift+Tab stay within the dialog and focus returns on close', () => {
+    const before = { focus: vi.fn() };
+    const first = { focus: vi.fn(), closest: () => null, getClientRects: () => [1] };
+    const last = { focus: vi.fn(), closest: () => null, getClientRects: () => [1] };
+    const element = { focus: vi.fn(), querySelectorAll: () => [first, last] };
+    const document = { activeElement: before };
+    vi.stubGlobal('document', document);
+    act(() => { tree = create(<SettingsDialog open onClose={close} />, { createNodeMock: node => node.props.role === 'dialog' ? element : null }); });
+    const modal = tree!.root.findByProps({ role: 'dialog' });
+    expect(element.focus).toHaveBeenCalledOnce();
+    document.activeElement = last;
+    const event = { key: 'Tab', shiftKey: false, stopPropagation: vi.fn(), preventDefault: vi.fn() };
+    act(() => modal.props.onKeyDown(event));
+    expect(first.focus).toHaveBeenCalledOnce();
+    document.activeElement = first;
+    act(() => modal.props.onKeyDown({ ...event, shiftKey: true }));
+    expect(last.focus).toHaveBeenCalledOnce();
+    act(() => tree!.unmount()); tree = undefined;
+    expect(before.focus).toHaveBeenCalledOnce();
+  });
+});
+
+
+it('does not expose paper-surround colors, including with a legacy stored purple', () => {
+  useSettingsStore.setState({ settings: { ...defaultSettings, pdf_bg_color: '#942192' } as typeof defaultSettings });
+  mountDialog();
+  act(() => button('LaTeX & PDF').props.onClick());
+  expect(tree!.root.findAllByType('input').filter(input => input.props.type === 'color')).toHaveLength(0);
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Background color');
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('#942192');
+  expect(JSON.stringify(tree!.toJSON())).toContain('neutral gray');
+});
+
+it('shows actual inherited editor colors instead of black placeholder swatches', () => {
+  mountDialog();
+  act(() => button('Editor').props.onClick());
+  const colors = tree!.root.findAllByType('input').filter(input => input.props.type === 'color');
+  expect(colors.map(input => input.props.value)).toEqual([
+    BUILTIN_THEMES.paper.bg, BUILTIN_THEMES.paper.fg, BUILTIN_THEMES.paper.gutterBg,
+    BUILTIN_THEMES.paper.gutterFg, BUILTIN_THEMES.paper.activeBg, BUILTIN_THEMES.paper.cursor,
+    BUILTIN_THEMES.paper.selection,
+  ]);
 });

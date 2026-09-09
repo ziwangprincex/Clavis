@@ -63,7 +63,7 @@
   width: 12px;
   height: 10px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 0.7692rem;
   flex: none;
   transition: transform var(--dur) var(--ease);
 }

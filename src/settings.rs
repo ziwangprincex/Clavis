@@ -123,7 +123,17 @@ fn load_from_disk(app: &AppHandle) -> Settings {
 fn save_to_disk(app: &AppHandle, s: &Settings) -> Result<(), String> {
     let p = settings_path(app).ok_or_else(|| "no config dir available".to_string())?;
     let bytes = serde_json::to_vec_pretty(s).map_err(|e| e.to_string())?;
-    std::fs::write(&p, bytes).map_err(|e| e.to_string())
+    write_settings_file(&p, &bytes)
+}
+
+fn write_settings_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path.parent().ok_or("settings path has no parent")?;
+    let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+    file.write_all(bytes).map_err(|e| e.to_string())?;
+    file.as_file().sync_all().map_err(|e| e.to_string())?;
+    file.persist(path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -274,6 +284,27 @@ async fn probe_all(app: AppHandle, names: &'static [&'static str]) -> Result<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn typography_and_language_round_trip_without_losing_unknown_fields() {
+        let value = serde_json::json!({"ui_language":"zh-CN", "preview_heading_fonts":{"h1":"PingFang SC"},
+            "preview_heading_sizes":{"h2":1.8}, "preview_heading_weights":{"h3":500},
+            "ui_mono_font_family":"Menlo", "preview_line_height":1.9,
+            "preview_code_font_family":"Consolas", "preview_inline_code_font_family":"Menlo",
+            "preview_quote_font_family":"Songti SC", "future_setting":true});
+        let settings: Settings = serde_json::from_value(value.clone()).unwrap();
+        let round_trip = serde_json::to_value(settings).unwrap();
+        for (key, expected) in value.as_object().unwrap() { assert_eq!(&round_trip[key], expected); }
+    }
+
+    #[test]
+    fn atomic_settings_write_replaces_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        write_settings_file(&path, b"old").unwrap();
+        write_settings_file(&path, b"new").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
+    }
 
     #[test]
     fn rust_defaults_match_frontend_typography_defaults() {

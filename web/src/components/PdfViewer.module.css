@@ -1,10 +1,16 @@
 .root {
+  --pdf-desk: #242424;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--preview-desk);
+  background: var(--pdf-desk);
   position: relative;
   min-width: 0;
+}
+
+/* The reading surround is neutral, not an accent or a saved custom color. */
+:global(:root[data-theme='light']) .root {
+  --pdf-desk: #e8e8e8;
 }
 
 /* Opaque, not frosted: this toolbar is a `flex: none` sibling ABOVE `.pages`,
@@ -32,7 +38,7 @@
   border: none;
   border-radius: 5px;
   padding: 0 6px;
-  font-size: 12px;
+  font-size: 0.9231rem;
   cursor: pointer;
   transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
@@ -48,7 +54,7 @@
 }
 
 .info {
-  font-size: 11px;
+  font-size: 0.8462rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
   min-width: 56px;
@@ -92,12 +98,13 @@
   background: var(--bg);
   box-shadow: var(--shadow-sm);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 0.8462rem;
   text-align: center;
   pointer-events: none;
 }
 
 .pages {
+  background: var(--pdf-desk);
   position: relative;
   flex: 1;
   overflow: auto;
@@ -108,6 +115,11 @@
   align-items: flex-start;
   gap: 24px;
   overscroll-behavior: contain;
+}
+
+.pages::-webkit-scrollbar-thumb {
+  background: rgb(128 128 128 / 48%);
+  background-clip: padding-box;
 }
 
 .pages.invert canvas {
@@ -182,12 +194,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: 0.9231rem;
   min-width: 120px;
 }
 
 .finderInfo {
-  font-size: 11px;
+  font-size: 0.8462rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
   min-width: 40px;
@@ -198,7 +210,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 0.8462rem;
   color: var(--text-muted);
   user-select: none;
 }

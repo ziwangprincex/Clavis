@@ -7,30 +7,29 @@ for a newer **signed** build and can install it in-app (command palette →
 This doc is the release runbook. Steps 1–2 are one-time setup; steps 3+ repeat
 per release.
 
-## Current release preparation (2026-09-08)
+## Current release preparation (2026-09-09)
 
-The owner explicitly requested a **formal installer and in-app update** for their
-MacBook Air, not just a main push. Prepare **1.3.2** from published v1.3.1 with the
-ordinary Write-mode spacing fix and compact update confirmation. Split, Read and
-opt-in Focus spacing stay unchanged. Notes live in
-[v1.3.2.md](docs/releases/v1.3.2.md); keep them short in the actual updater manifest
-so already-installed clients also retain accessible confirmation buttons.
+The owner clarified "打包app啊 我要更新程序的": this is an authorized **formal
+installer and in-app update**, not just a source push or updater-disabled trial.
+Prepare **1.4.0** from published v1.3.2 with Chinese UI, full font controls and the
+reviewed neutral PDF surround / translucent editor-selection repairs. Include all
+associated source, tests and documentation. Notes: [v1.4.0.md](docs/releases/v1.4.0.md).
 
-Authorization covers this release commit, new v1.3.2 tag, GitHub draft/publication
-and Homebrew distribution update. Do not move existing tags, replace old packages,
-rotate updater keys or disable the production updater. Local app-only trial ZIPs
-have the updater disabled and require a one-time manual install of the formal DMG.
-Native Air visual acceptance and actual installed-app upgrading remain unverified.
+Authorization covers this release commit, a new v1.4.0 tag, GitHub draft/publication
+and Homebrew distribution update. Do not move old tags, replace old packages,
+rotate keys or disable the production updater. No Apple credentials/notarization.
+The earlier local app-only trial ZIPs have no updater: their users need one manual
+install of the formal DMG. Native Air visual acceptance and actual installed-app
+upgrading remain unverified until tested on the device.
 
-The draft must have successful CI, all three platform installers and signed
-updater packages with a complete manifest before publication. Validate every
-package signature against the deployed public key. The existing workflow can
-produce empty notes and mutable latest-download URLs: before publishing, copy the
-reviewed notes into latest.json and pin its package URLs to this exact tag,
-preserving all signatures and platform entries. Reverify after uploading only the
-corrected manifest. Each future tag must include its reviewed
-`docs/releases/<tag>.md`; record publication, public latest.json and Homebrew
-verification in HANDOFF. Future local work does not imply permission to publish.
+Require successful exact-tag CI and all three platform installers, signed updater
+packages and the complete six-entry manifest before publication. Verify every
+updater archive with the unchanged deployed public key. The existing workflow can
+produce empty notes and mutable latest-download URLs: copy reviewed notes into
+latest.json and pin its package URLs to this exact tag, preserving all signatures,
+platform entries and package bytes. Reverify after uploading only the corrected
+manifest. Record publication, public latest.json and Homebrew checks in HANDOFF.
+Future work does not inherit this release authorization.
 
 Local preparation (no commit required):
 

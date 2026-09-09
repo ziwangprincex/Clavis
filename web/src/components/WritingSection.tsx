@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 ﻿import { useMemo, useState } from 'react';
 import { useWritingStore } from '../store';
 import type { WritingPolicy } from '../writing/options';
@@ -19,11 +20,11 @@ export function WritingSection({ onActivate, onRefresh, policy }: WritingSection
   }, [diagnostics, filter]);
   return <div className={styles.root}>
     <div className={styles.tools}>
-      <input value={filter} onChange={event => setFilter(event.target.value)} placeholder="filter writing checks…" />
-      <button type="button" onClick={onRefresh} title="Refresh writing checks">↻</button>
+      <input value={filter} onChange={event => setFilter(event.target.value)} placeholder={t("filter writing checks…")} />
+      <button type="button" onClick={onRefresh} title={t("Refresh writing checks")}>↻</button>
     </div>
-    <div className={styles.policy} title="Project terms are saved vocabulary only; they do not change current local checks.">{writingPolicySummary(policy)}</div>
-    {visible.length === 0 ? <div className={styles.empty}>No writing consistency issues.</div> : <ul className={styles.list}>
+    <div className={styles.policy} title={t("Project terms are saved vocabulary only; they do not change current local checks.")}>{writingPolicySummary(policy)}</div>
+    {visible.length === 0 ? <div className={styles.empty}>{t("No writing consistency issues.")}</div> : <ul className={styles.list}>
       {visible.map((item, index) => <li key={`${item.code}:${item.path}:${item.line}:${item.column}:${index}`} className={styles[item.severity]} onClick={() => item.path && onActivate(item.path, item.line)}>
         <span className={styles.code}>{item.code}</span>
         <span className={styles.message}>{item.message}</span>

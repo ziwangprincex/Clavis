@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // FilesSection — list of subfiles in an active LaTeX project (or sibling
 // files for Markdown/Typst). Driven by useProjectStore.
 
@@ -14,10 +15,10 @@ export function FilesSection({ onFileActivate }: FilesSectionProps) {
   const rootAbs = useProjectStore(s => s.rootAbs);
 
   if (!rootAbs) {
-    return <div className={styles.empty}>(no project)</div>;
+    return <div className={styles.empty}>{t("(no project)")}</div>;
   }
   if (files.length === 0) {
-    return <div className={styles.empty}>(no project files)</div>;
+    return <div className={styles.empty}>{t("(no project files)")}</div>;
   }
 
   return (

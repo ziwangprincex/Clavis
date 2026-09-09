@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTabsStore, useSettingsStore, useProjectStore } from '../store';
 import { markdownWithMath } from '../render/markdown';
@@ -11,6 +12,12 @@ import styles from './PreviewPane.module.css';
 import { TypstReader } from './TypstReader';
 import { previewDocuments, revisionCounter } from '../compile/previewRevision';
 import { guidance } from '../compile/guidance';
+import { previewTypography } from '../theme/typography';
+import { useResolvedThemeSpec } from '../theme/appTheme';
+import { accentTokens } from '../theme/chromeTokens';
+import { contrast, mix } from '../theme/colors';
+import { loadMarkdownImages, scrollToMarkdownHeading } from '../render/markdownView';
+import type { CSSProperties } from 'react';
 
 type Navigate = (path: string | null, line: number) => void;
 
@@ -18,7 +25,9 @@ export function PreviewPane({
   visible = true,
   onNavigate,
   onEnvironment,
+  markdownJump,
 }: {
+  markdownJump?: { tabId: string; line: number; seq: number } | null;
   visible?: boolean;
   onNavigate?: Navigate;
   onEnvironment?: () => void;
@@ -29,6 +38,10 @@ export function PreviewPane({
   const project = useProjectStore();
   const settings = useSettingsStore((s) => s.settings);
   const lang = tab?.lang ?? 'markdown';
+  const theme = useResolvedThemeSpec();
+  let paperAccent = theme.accent;
+  for (let amount = 0.05; contrast(paperAccent, '#ffffff') < 4.5 && amount <= 1; amount += 0.05) paperAccent = mix(theme.accent, '#000000', amount);
+  const lightStyle = { ...accentTokens(paperAccent, false), '--selection': mix('#ffffff', paperAccent, 0.2) } as CSSProperties;
   const root = tab ? documentRoot(tab, project) : null;
   const documentKey = lang === 'typst' ? `typst:${root ?? tab?.id}` : `markdown:${tab?.id}`;
   const dependencies = useRef<{ key: string; paths: string[] }>();
@@ -49,6 +62,7 @@ export function PreviewPane({
       : [];
   const revision = counter.current([
     documentKey,
+    tab?.filePath,
     tab?.filePath ? null : tab?.content,
     lang === 'markdown' ? tab?.content : null,
     ...relevant.flatMap((t) => [t.filePath, t.content]),
@@ -189,6 +203,15 @@ export function PreviewPane({
       });
   }, [jump, visible, stale, current]);
 
+  useEffect(() => {
+    if (!visible || lang !== 'markdown' || !scroll.current || !current?.html) return;
+    return loadMarkdownImages(scroll.current, tab?.filePath ?? null, scope, hasTauri());
+  }, [visible, lang, current?.html, tab?.filePath, scope]);
+  useEffect(() => {
+    if (!visible || lang !== 'markdown' || !markdownJump || markdownJump.tabId !== tab?.id || stale || !scroll.current) return;
+    scrollToMarkdownHeading(scroll.current, markdownJump.line);
+  }, [visible, lang, markdownJump, tab?.id, stale, current?.html]);
+
   async function download(spec: string) {
     if (
       !(await dialogConfirm(
@@ -210,6 +233,17 @@ export function PreviewPane({
   return (
     <div
       ref={scroll}
+      style={lang === 'markdown' && settings.preview_paper === 'light' ? lightStyle : undefined}
+      onClick={event => {
+        if (lang !== 'markdown') return;
+        const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
+        if (!link || !scroll.current) return;
+        event.preventDefault();
+        let id: string;
+        try { id = decodeURIComponent(link.getAttribute('href')!.slice(1)); } catch { return; }
+        const heading = Array.from(scroll.current.querySelectorAll<HTMLElement>('[id]')).find(element => element.id === id);
+        heading?.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }}
       className={`${styles.root} ${lang === 'typst' ? styles.typeset : settings.preview_paper === 'light' ? styles.paperLight : ''}`}
     >
       {lang === 'typst' && (
@@ -217,13 +251,11 @@ export function PreviewPane({
           <span>
             {stale
               ? busy
-                ? 'Updating preview'
-                : 'Preview not updated · showing last successful render'
-              : `${current?.typst?.pages.length ?? 0} pages`}
+                ? t("Updating preview")
+                : t("Preview not updated · showing last successful render")
+              : t('{count} pages', { count: current?.typst?.pages.length ?? 0 })}
           </span>
-          <button onClick={() => setRetry((n) => n + 1)} disabled={busy}>
-            Refresh
-          </button>
+          <button onClick={() => setRetry((n) => n + 1)} disabled={busy}> {t("Refresh")} </button>
         </div>
       )}
       {current?.error && (
@@ -233,8 +265,8 @@ export function PreviewPane({
       )}
       {!!current?.typst?.diagnostics.length && (
         <details className={styles.diagnostics}>
-          <summary>{current.typst.diagnostics.length} typesetting message(s)</summary>
-          <button onClick={onEnvironment}>Check environment…</button>
+          <summary>{current.typst.diagnostics.length} {t("typesetting message(s)")}</summary>
+          <button onClick={onEnvironment}>{t("Check environment…")}</button>
           {current.typst.diagnostics.map((d, i) => (
             <button
               key={i}
@@ -256,8 +288,7 @@ export function PreviewPane({
           {current.typst.missingPackages
             .filter((spec) => spec.startsWith('@preview/'))
             .map((spec) => (
-              <button key={spec} disabled={downloading} onClick={() => void download(spec)}>
-                Download {spec}…
+              <button key={spec} disabled={downloading} onClick={() => void download(spec)}> {t("Download")} {spec}…
               </button>
             ))}
         </details>
@@ -273,10 +304,7 @@ export function PreviewPane({
       ) : (
         <div
           className={`${styles.preview} ${styles.markdown} ${settings.preview_reading_width === 'narrow' ? styles.widthNarrow : settings.preview_reading_width === 'medium' ? styles.widthMedium : ''}`}
-          style={{
-            fontFamily: settings.preview_font_family || undefined,
-            fontSize: settings.preview_font_size ? `${settings.preview_font_size}px` : undefined,
-          }}
+          style={previewTypography(settings)}
           dangerouslySetInnerHTML={{ __html: current?.html ?? '' }}
         />
       )}

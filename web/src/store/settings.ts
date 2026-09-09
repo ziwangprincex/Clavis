@@ -7,6 +7,15 @@ import { ipc } from '../api/tauri';
 export type EditorLayout = 'editor' | 'split' | 'preview';
 
 export interface Settings {
+  ui_language: 'auto' | 'en' | 'zh-CN';
+  ui_mono_font_family: string;
+  preview_line_height: number;
+  preview_heading_fonts: Record<string, string>;
+  preview_heading_sizes: Record<string, number>;
+  preview_heading_weights: Record<string, number>;
+  preview_quote_font_family: string;
+  preview_inline_code_font_family: string;
+  preview_code_font_family: string;
   editor_layout: EditorLayout;
   sidebar_visible: boolean;
   latex_engine: string;
@@ -15,8 +24,6 @@ export interface Settings {
   max_runs: number;
   latex_custom_paths: Record<string, string>;
   pdf_dark_mode: 'off' | 'on' | 'invert' | 'sepia' | string;
-  /** Custom PDF background color (hex). Empty = use theme default. */
-  pdf_bg_color: string;
   editor_font_family: string;
   editor_font_size: number;
   editor_line_height: number;
@@ -85,6 +92,15 @@ export interface Settings {
 }
 
 export const defaultSettings: Settings = {
+  ui_language: 'auto',
+  ui_mono_font_family: '',
+  preview_line_height: 1.75,
+  preview_heading_fonts: {},
+  preview_heading_sizes: {},
+  preview_heading_weights: {},
+  preview_quote_font_family: '',
+  preview_inline_code_font_family: '',
+  preview_code_font_family: '',
   editor_layout: 'editor',
   sidebar_visible: false,
   latex_engine: 'pdflatex',
@@ -93,7 +109,6 @@ export const defaultSettings: Settings = {
   max_runs: 4,
   latex_custom_paths: {},
   pdf_dark_mode: 'off',
-  pdf_bg_color: '',
   editor_font_family:
     '"Maple Mono NF", "Maple Mono NF CN", "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", Consolas, Menlo, monospace',
   editor_font_size: 16,
@@ -133,6 +148,8 @@ export const defaultSettings: Settings = {
 interface SettingsStore {
   settings: Settings;
   loaded: boolean;
+  saveError: string | null;
+  saveDraft: (delta: Partial<Settings>) => Promise<void>;
   load: () => Promise<void>;
   patch: (delta: Partial<Settings>) => void;
   save: () => Promise<void>;
@@ -149,7 +166,9 @@ interface SettingsStore {
  * installs land near their previous split instead of snapping back to 50/50.
  */
 export function migrateSettings(s: Settings): Settings {
-  let migrated = s;
+  // Retire the old canvas-color preference: paper surroundings are not a color control.
+  let migrated = { ...s };
+  delete (migrated as Settings & { pdf_bg_color?: unknown }).pdf_bg_color;
   const legacyPx = (s as unknown as { pane_editor_width?: number }).pane_editor_width;
   if (!s.pane_editor_ratio && typeof legacyPx === 'number' && legacyPx > 120) {
     const ratio = legacyPx / 1200;
@@ -166,12 +185,28 @@ export function migrateSettings(s: Settings): Settings {
   if (typeof migrated.sidebar_visible !== 'boolean') {
     migrated = { ...migrated, sidebar_visible: true };
   }
+  if (!['auto', 'en', 'zh-CN'].includes(migrated.ui_language)) migrated = { ...migrated, ui_language: 'auto' };
   return migrated;
+}
+
+let writeQueue = Promise.resolve();
+function queueSettingsWrite(action: () => Promise<void>): Promise<void> {
+  const next = writeQueue.then(action, action);
+  writeQueue = next.catch(() => {});
+  return next;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: defaultSettings,
   loaded: false,
+  saveError: null,
+  async saveDraft(delta) {
+    await queueSettingsWrite(async () => {
+      const settings = { ...get().settings, ...delta };
+      await ipc.setSettings(settings as unknown as Record<string, unknown>);
+      set({ settings: { ...get().settings, ...delta }, saveError: null });
+    });
+  },
   async load() {
     try {
       const raw = (await ipc.getSettings()) as Partial<Settings> | null;
@@ -185,10 +220,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   async save() {
     try {
-      await ipc.setSettings(get().settings as unknown as Record<string, unknown>);
+      await queueSettingsWrite(() => ipc.setSettings(get().settings as unknown as Record<string, unknown>));
+      set({ saveError: null });
     } catch (e) {
-      // Surface to console for now; UI feedback added when Settings panel migrates.
-      console.error('setSettings failed', e);
+      set({ saveError: String(e) });
     }
   },
   async patchAndSave(delta) {

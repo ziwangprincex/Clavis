@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+import { useModal } from '../hooks/useModal';
 import { useEffect, useState } from 'react';
 import { dialogConfirm, dialogOpen, ipc, type BundleManifest, type SubmissionBuildVerification, type SubmissionReport } from '../api/tauri';
 import type { Tab } from '../store';
@@ -21,6 +23,8 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   const [creatingBundle, setCreatingBundle] = useState(false);
   const [creatingArchive, setCreatingArchive] = useState(false);
   const [verifyingBundle, setVerifyingBundle] = useState(false);
+  const busy = creatingBundle || creatingArchive || verifyingBundle;
+  const modal = useModal(open, onClose, busy);
   const [verification, setVerification] = useState<SubmissionBuildVerification | null>(null);
 
   useEffect(() => {
@@ -76,32 +80,32 @@ export function SubmissionCheckDialog({ open, root, tabs, onClose, onActivate }:
   }
 
   if (!open) return null;
-  return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
-    <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Submission Check">
-      <header><div><h2>Submission Check</h2><p>Local preflight, source snapshot, ZIP export, and optional isolated build verification. Exports copy only the ready manifest outside your workspace; verification builds a temporary copy with shell escape disabled.</p></div><button type="button" onClick={onClose}>Close</button></header>
+  return <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && !busy && onClose()}>
+    <section {...modal} className={styles.dialog} role="dialog" aria-modal="true" aria-label={t("Submission Check")}>
+      <header><div><h2>{t("Submission Check")}</h2><p>{t("Local preflight, source snapshot, ZIP export, and optional isolated build verification. Exports copy only the ready manifest outside your workspace; verification builds a temporary copy with shell escape disabled.")}</p></div><button type="button" disabled={busy} onClick={onClose}>{t("Close")}</button></header>
       <div className={styles.body}>
-        {!root ? <p>No workspace open.</p> : error ? <p className={styles.error}>{error}</p> : !report ? <p>Checking submission readiness…</p> : <>
-          <div className={`${styles.summary} ${report.ready ? styles.ready : styles.needs}`}>{report.ready ? 'No blocking errors found' : 'Submission needs attention'} · {report.scannedFiles} files checked{report.truncated ? ' · scan truncated' : ''}</div>
-          {report.issues.length === 0 ? <p className={styles.empty}>No static issues found.</p> : <ul>{report.issues.map((issue, index) => <li key={`${issue.code}:${issue.path}:${issue.line}:${index}`} className={styles[issue.severity]} onClick={() => issue.path && issue.line && onActivate(issue.path, issue.line)}>
+        {!root ? <p>{t("No workspace open.")}</p> : error ? <p className={styles.error}>{error}</p> : !report ? <p>{t("Checking submission readiness…")}</p> : <>
+          <div className={`${styles.summary} ${report.ready ? styles.ready : styles.needs}`}>{report.ready ? t("No blocking errors found") : t("Submission needs attention")} · {report.scannedFiles} {t("files checked")}{report.truncated ? t(" · scan truncated") : ''}</div>
+          {report.issues.length === 0 ? <p className={styles.empty}>{t("No static issues found.")}</p> : <ul>{report.issues.map((issue, index) => <li key={`${issue.code}:${issue.path}:${issue.line}:${index}`} className={styles[issue.severity]} onClick={() => issue.path && issue.line && onActivate(issue.path, issue.line)}>
             <span>{issue.code}</span><strong>{issue.message}</strong>{issue.path && <small>{issue.path.split(/[\\/]/).pop()}:{issue.line ?? 1}</small>}
           </li>)}</ul>}
         </>}
         {manifestError && <p className={styles.error}>{manifestError}</p>}
         {bundleResult && <p className={styles.created}>{bundleResult}</p>}
-        {verification && <div className={verification.ok ? styles.created : styles.error}><strong>{verification.ok ? 'Isolated build verified' : 'Isolated build did not produce a PDF'}</strong> - {verification.engine}{verification.logTail && <details><summary>Build log tail</summary><pre>{verification.logTail}</pre></details>}</div>}
+        {verification && <div className={verification.ok ? styles.created : styles.error}><strong>{verification.ok ? t("Isolated build verified") : t("Isolated build did not produce a PDF")}</strong> - {verification.engine}{verification.logTail && <details><summary>{t("Build log tail")}</summary><pre>{verification.logTail}</pre></details>}</div>}
         {manifest && <div className={styles.manifest}>
-          <strong>{manifest.ready ? 'Bundle manifest ready' : 'Bundle manifest has warnings'}</strong>
+          <strong>{manifest.ready ? t("Bundle manifest ready") : t("Bundle manifest has warnings")}</strong>
           <span>{manifest.files.length} files ? {manifest.mainDocument.split(/[\/]/).pop()}</span>
           {manifest.warnings.length > 0 && <ul>{manifest.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-          <details><summary>Files that would be bundled</summary><ul>{manifest.files.map(file => <li key={file.relativePath}><code>{file.relativePath}</code> <small>{file.kind} ? {(file.sizeBytes / 1024).toFixed(1)} KB</small></li>)}</ul></details>
+          <details><summary>{t("Files that would be bundled")}</summary><ul>{manifest.files.map(file => <li key={file.relativePath}><code>{file.relativePath}</code> <small>{file.kind} ? {(file.sizeBytes / 1024).toFixed(1)} KB</small></li>)}</ul></details>
         </div>}
       </div>
       <footer>
-        <button type="button" onClick={() => setRun(value => value + 1)}>Run again</button>
-        <button type="button" onClick={() => void inspectManifest()}>Bundle manifest</button>
-        <button type="button" disabled={!manifest?.ready || creatingBundle} onClick={() => void createBundle()} title={manifest?.ready ? 'Create a source-only snapshot outside this workspace' : 'Inspect a ready manifest before creating a bundle'}>{creatingBundle ? 'Creating...' : 'Create bundle...'}</button>
-        <button type="button" disabled={!manifest?.ready || creatingArchive} onClick={() => void createArchive()} title={manifest?.ready ? 'Create a source-only ZIP outside this workspace' : 'Inspect a ready manifest before creating an archive'}>{creatingArchive ? 'Archiving...' : 'Create ZIP...'}</button>
-        <button type="button" disabled={!manifest?.ready || verifyingBundle} onClick={() => void verifyBundle()} title={manifest?.ready ? 'Build a temporary manifest copy with shell escape disabled' : 'Inspect a ready manifest before verifying'}>{verifyingBundle ? 'Verifying...' : 'Verify build...'}</button>
+        <button type="button" onClick={() => setRun(value => value + 1)}>{t("Run again")}</button>
+        <button type="button" onClick={() => void inspectManifest()}>{t("Bundle manifest")}</button>
+        <button type="button" disabled={!manifest?.ready || creatingBundle} onClick={() => void createBundle()} title={manifest?.ready ? t("Create a source-only snapshot outside this workspace") : t("Inspect a ready manifest before creating a bundle")}>{creatingBundle ? t("Creating...") : t("Create bundle...")}</button>
+        <button type="button" disabled={!manifest?.ready || creatingArchive} onClick={() => void createArchive()} title={manifest?.ready ? t("Create a source-only ZIP outside this workspace") : t("Inspect a ready manifest before creating an archive")}>{creatingArchive ? t("Archiving...") : t("Create ZIP...")}</button>
+        <button type="button" disabled={!manifest?.ready || verifyingBundle} onClick={() => void verifyBundle()} title={manifest?.ready ? t("Build a temporary manifest copy with shell escape disabled") : t("Inspect a ready manifest before verifying")}>{verifyingBundle ? t("Verifying...") : t("Verify build...")}</button>
       </footer>
     </section>
   </div>;

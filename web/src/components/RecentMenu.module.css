@@ -24,7 +24,7 @@
 
 .groupLabel {
   padding: 6px 12px 3px;
-  font-size: 10px;
+  font-size: 0.7692rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -47,7 +47,7 @@
 
 .short {
   color: var(--text);
-  font-size: 12px;
+  font-size: 0.9231rem;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -55,7 +55,7 @@
 
 .full {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 0.7692rem;
   font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -65,7 +65,7 @@
 .empty {
   padding: 10px 12px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 0.9231rem;
 }
 
 .clearBtn {
@@ -76,7 +76,7 @@
   border-top: 1px solid var(--border);
   padding: 6px 12px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.8462rem;
   text-align: left;
 }
 

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // EditorPane — React wrapper around the CodeMirror EditorController.
 //
 // Strategy:
@@ -8,7 +9,7 @@
 //   needed) by passing onContentChange.
 
 import { useEffect, useRef } from 'react';
-import { useTabsStore, useSettingsStore, useCursorStore, useProjectStore, type Lang } from '../store';
+import { useTabsStore, useSettingsStore, defaultSettings, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
 import { prefetchCwlForDocument, setCwlOptions } from '../completions/cwlProvider';
 import { prefetchTypstSignatures } from '../completions/signatures';
@@ -112,6 +113,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
   const tabIds = useTabsStore(s => s.tabs.map(tab => tab.id).join('\0'));
 
   const settings = useSettingsStore(s => s.settings);
+  useEffect(() => { controllerRef.current?.setLocale(settings.ui_language); }, [settings.ui_language]);
   // Single source of truth for colors, shared with the app chrome so the editor
   // and the surrounding UI always match (incl. 'auto' → OS light/dark).
   const themeSpec = useResolvedThemeSpec();
@@ -124,7 +126,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
       initialDoc: useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.content ?? '',
       lang: useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.lang ?? 'markdown',
       font: {
-        family: settings.editor_font_family,
+        family: settings.editor_font_family || defaultSettings.editor_font_family,
         size: settings.editor_font_size,
         lineHeight: settings.editor_line_height,
       },
@@ -153,6 +155,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
         onOpenIncludeRef.current?.(raw, kind, isImport),
     });
     controllerRef.current = ctrl;
+    ctrl.setLocale(useSettingsStore.getState().settings.ui_language);
     onReady?.({
       scrollToLine: (line: number) => ctrl.scrollLineIntoView(line),
       focus: () => ctrl.focus(),
@@ -210,7 +213,7 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     const ctrl = controllerRef.current;
     if (!ctrl) return;
     ctrl.setFont({
-      family: settings.editor_font_family,
+      family: settings.editor_font_family || defaultSettings.editor_font_family,
       size: settings.editor_font_size,
       lineHeight: settings.editor_line_height,
     });
@@ -235,5 +238,5 @@ export function EditorPane({ onReady, onOpenInclude }: EditorPaneProps) {
     controllerRef.current?.retainDocuments(tabIds.split('\0'));
   }, [tabIds]);
 
-  return <div ref={hostRef} className={styles.host} data-language={activeTab?.lang ?? 'markdown'} aria-label="Document editor" />;
+  return <div ref={hostRef} className={styles.host} data-language={activeTab?.lang ?? 'markdown'} aria-label={t("Document editor")} />;
 }

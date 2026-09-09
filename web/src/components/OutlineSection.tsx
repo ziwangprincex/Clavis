@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useMemo } from 'react';
 import { useTabsStore, useProjectStore } from '../store';
 import { parseOutline, parseProjectOutline } from '../store/outline';
@@ -39,25 +40,26 @@ export function OutlineSection({ onJumpTo }: OutlineSectionProps) {
   }, [useProject, projectFiles, activeTab?.filePath, activeTab?.content, activeTab?.lang]);
 
   if (!activeTab) {
-    return <div className={styles.empty}>(no document)</div>;
+    return <div className={styles.empty}>{t("(no document)")}</div>;
   }
   if (items.length === 0) {
-    return <div className={styles.empty}>(no headings)</div>;
+    return <div className={styles.empty}>{t("(no headings)")}</div>;
   }
 
   return (
     <ul className={styles.list}>
       {items.map((item, i) => (
-        <li
+        <li key={`${item.sourceFileAbsPath ?? ''}-${item.line}-${i}`}>
+        <button type="button"
           key={`${item.sourceFileAbsPath ?? ''}-${item.line}-${item.level}-${i}`}
           className={styles.item}
           style={{ paddingLeft: 8 + item.level * 12 }}
           onClick={() => onJumpTo?.(item.sourceFileAbsPath ?? null, item.line)}
-          title={item.sourceFileAbsPath ? `${item.sourceFileAbsPath}:${item.line}` : `Line ${item.line}`}
+          title={item.sourceFileAbsPath ? `${item.sourceFileAbsPath}:${item.line}` : t('Line {line}', { line: item.line })}
         >
           <span className={styles.title}>{item.title}</span>
           <span className={styles.line}>L{item.line}</span>
-        </li>
+        </button></li>
       ))}
     </ul>
   );

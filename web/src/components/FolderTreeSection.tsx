@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { ipc, type TreeNode } from '../api/tauri';
 import { IconChevronDown, IconClose, IconFolder } from './icons';
@@ -83,18 +84,18 @@ export function FolderTreeSection({
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.name}>{rootPath ? root?.name ?? '…' : 'No folder'}</span>
-        <button className={styles.btn} onClick={onOpenFolder} title="Open folder"><IconFolder size={13} /></button>
-        <button className={styles.btn} onClick={onRefresh} title="Rescan">⟳</button>
+        <span className={styles.name}>{rootPath ? root?.name ?? '…' : t("No folder")}</span>
+        <button className={styles.btn} onClick={onOpenFolder} title={t("Open folder")}><IconFolder size={13} /></button>
+        <button className={styles.btn} onClick={onRefresh} title={t("Rescan")}>⟳</button>
         {rootPath && (
-          <button className={styles.btn} onClick={onCloseFolder} title="Close folder">
+          <button className={styles.btn} onClick={onCloseFolder} title={t("Close folder")}>
             <IconClose size={11} />
           </button>
         )}
       </div>
       {error && <div className={styles.error}>{error}</div>}
       {!rootPath && !error && (
-        <div className={styles.empty}>No folder open</div>
+        <div className={styles.empty}>{t("No folder open")}</div>
       )}
       {root && root.children.length > 0 && (
         <ul className={styles.tree}>

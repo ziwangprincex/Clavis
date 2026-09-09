@@ -4,7 +4,7 @@
   height: 100%;
   min-height: 0;
   background: var(--bg-elevated);
-  font-size: 12px;
+  font-size: 0.9231rem;
 }
 
 .header {
@@ -18,7 +18,7 @@
 
 .title {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 0.8462rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -28,7 +28,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 0.7692rem;
   text-transform: uppercase;
 }
 
@@ -73,7 +73,7 @@
   margin: 0;
   padding: 10px 12px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.8462rem;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;

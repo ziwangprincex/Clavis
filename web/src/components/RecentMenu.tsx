@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // RecentMenu — small dropdown listing recent files. Click to open.
 
 import { useEffect, useRef } from 'react';
@@ -52,12 +53,12 @@ export function RecentMenu({ open, onClose, onPickPath, onPickFolder, onClear }:
   return (
     <div ref={wrapRef} className={styles.menu} role="menu">
       {nothing ? (
-        <div className={styles.empty}>No recent items</div>
+        <div className={styles.empty}>{t("No recent items")}</div>
       ) : (
         <>
           {recentFolders.length > 0 && onPickFolder && (
             <>
-              <div className={styles.groupLabel}>Folders</div>
+              <div className={styles.groupLabel}>{t("Folders")}</div>
               <ul className={styles.list}>
                 {recentFolders.map((p, i) => (
                   <li
@@ -79,7 +80,7 @@ export function RecentMenu({ open, onClose, onPickPath, onPickFolder, onClear }:
           {recent.length > 0 && (
             <>
               {recentFolders.length > 0 && onPickFolder && (
-                <div className={styles.groupLabel}>Files</div>
+                <div className={styles.groupLabel}>{t("Files")}</div>
               )}
               <ul className={styles.list}>
                 {recent.map((p, i) => (
@@ -106,9 +107,7 @@ export function RecentMenu({ open, onClose, onPickPath, onPickFolder, onClear }:
                 onClear();
                 onClose();
               }}
-            >
-              Clear list
-            </button>
+            > {t("Clear list")} </button>
           )}
         </>
       )}

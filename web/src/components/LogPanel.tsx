@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useCompileStore } from '../store';
 import styles from './LogPanel.module.css';
 import { guidance } from '../compile/guidance';
@@ -19,7 +20,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.title}>Compile Log</span>
+        <span className={styles.title}>{t("Compile Log")}</span>
         <span className={styles.errCount}>
           {errors.length} {errors.length === 1 ? 'issue' : 'issues'}
         </span>
@@ -27,7 +28,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
 
       <div className={styles.errors}>
         {errors.length === 0 ? (
-          <div className={styles.muted}>No errors.</div>
+          <div className={styles.muted}>{t("No errors.")}</div>
         ) : (
           errors.map((err, i) => (
             <div key={i} className={`${styles.row} ${styles[`kind-${err.kind ?? 'error'}`] ?? ''}`}>
@@ -56,8 +57,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
                 <button
                   className={styles.installBtn}
                   onClick={() => onInstallPackage?.(err.package!)}
-                >
-                  Install {err.package}
+                > {t("Install")} {err.package}
                 </button>
               )}
             </div>
@@ -66,7 +66,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
       </div>
 
       <details className={styles.rawDetails}>
-        <summary>Raw output ({logLines.length} lines)</summary>
+        <summary>{t("Raw output (")}{logLines.length} lines)</summary>
         <pre className={styles.raw}>
           {logLines.map((l, i) => (
             <span key={i} className={styles[`stream-${l.stream}`]}>

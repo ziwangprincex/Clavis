@@ -135,7 +135,7 @@ export function signatureTheme(spec: ThemeSpec) {
       color: spec.fg,
       border: `1px solid ${withAlpha(spec.accent, 0.4)}`,
       borderRadius: '4px',
-      fontSize: '12px',
+      fontSize: '0.9231rem',
       lineHeight: '1.5',
     },
     '.cm-signature-name': {
@@ -156,7 +156,7 @@ export function signatureTheme(spec: ThemeSpec) {
     '.cm-signature-required': { color: spec.accent, fontWeight: '600' },
     '.cm-signature-docs': {
       opacity: '0.8',
-      fontSize: '11px',
+      fontSize: '0.8462rem',
       paddingLeft: '10px',
       whiteSpace: 'normal',
     },

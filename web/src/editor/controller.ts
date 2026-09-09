@@ -33,6 +33,7 @@ import { highlightSelectionMatches } from '@codemirror/search';
 import { markdown } from '@codemirror/lang-markdown';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import type { Lang } from '../store';
+import { resolveLocale, t as translate } from '../i18n';
 import { buildCompletionSource, type CompletionWorkspace } from '../completions/source';
 import { inputLinkExtension } from './inputLinks';
 import { writingAssist } from './writingAssist';
@@ -78,6 +79,11 @@ function languageExtension(lang: Lang) {
   return [];
 }
 
+/** Translucent selection paint: text underneath stays readable. */
+export function selectionFill(spec: ThemeSpec, focused: boolean): string {
+  return withAlpha(spec.selection, focused ? 0.7 : 0.5);
+}
+
 function buildThemeExt(spec: ThemeSpec) {
   return EditorView.theme(
     {
@@ -92,11 +98,13 @@ function buildThemeExt(spec: ThemeSpec) {
         zIndex: '2 !important',
         pointerEvents: 'none',
       },
+      // The layer sits above the text, so the fill must stay translucent;
+      // an opaque hex here hides the selected characters.
       '.cm-selectionLayer .cm-selectionBackground': {
-        background: `${withAlpha(spec.accent, 0.18)} !important`,
+        background: `${selectionFill(spec, false)} !important`,
       },
       '&.cm-focused .cm-selectionLayer .cm-selectionBackground': {
-        background: `${withAlpha(spec.accent, 0.26)} !important`,
+        background: `${selectionFill(spec, true)} !important`,
       },
       '.cm-cursorLayer': { zIndex: '3 !important', pointerEvents: 'none' },
       '.cm-selectionMatch': { backgroundColor: withAlpha(spec.accent, 0.24) },
@@ -125,7 +133,7 @@ function buildThemeExt(spec: ThemeSpec) {
       },
       '.cm-tooltip.cm-tooltip-autocomplete > ul': {
         fontFamily: 'var(--font-sans)',
-        fontSize: '13px',
+        fontSize: '1rem',
         fontWeight: '400',
         padding: '5px',
         minWidth: 'min(260px, 80vw)',
@@ -147,7 +155,7 @@ function buildThemeExt(spec: ThemeSpec) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         fontFamily: 'var(--font-mono)',
-        fontSize: '13px',
+        fontSize: '1rem',
         fontWeight: '400',
         color: spec.fg,
       },
@@ -172,7 +180,7 @@ function buildThemeExt(spec: ThemeSpec) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         fontFamily: 'var(--font-sans)',
-        fontSize: '12px',
+        fontSize: '0.9231rem',
         fontStyle: 'normal',
         fontWeight: '400',
         color: 'var(--text-muted)',
@@ -292,6 +300,8 @@ export interface EditorOptions {
 export class EditorController {
   view: EditorView;
   private langCompartment = new Compartment();
+  private localeCompartment = new Compartment();
+  private locale = 'auto';
   private completionCompartment = new Compartment();
   private fontCompartment = new Compartment();
   private themeCompartment = new Compartment();
@@ -344,7 +354,7 @@ export class EditorController {
       lineNumbers(),
       this.writingCompartment.of(writingAssist(this.currentLang, this.getCompletionWorkspaceCb)),
       this.inlineMathCompartment.of([]),
-      placeholder('Begin with a thought…'),
+      this.localeCompartment.of(this.localeExtensions()),
       highlightActiveLine(),
       highlightActiveLineGutter(),
       drawSelection(),
@@ -411,6 +421,7 @@ export class EditorController {
     // Cached states may predate a font/theme/indent preference change.
     this.setLanguage(lang, true);
     this.setFont(this.font);
+    this.setLocale(this.locale);
     this.setTheme(this.themeSpec);
     this.setSpellcheck(this.spellcheck);
     this.setIndent(this.tabSize, this.indentWithSpaces);
@@ -490,6 +501,22 @@ export class EditorController {
         this.signatureCompartment.reconfigure(signatureTooltipExt(lang)),
       ],
     });
+  }
+
+  private localeExtensions() {
+    const chinese = resolveLocale(this.locale) === 'zh-CN';
+    return [placeholder(translate('Begin with a thought…')), EditorState.phrases.of(chinese ? {
+      'Find': '查找', 'Replace': '替换', 'next': '下一个', 'previous': '上一个',
+      'all': '全部', 'match case': '区分大小写', 'by word': '整词匹配',
+      'regexp': '正则表达式', 'replace': '替换', 'replace all': '全部替换',
+      'close': '关闭', 'Go to line': '跳转到行', 'go': '跳转',
+      'current match': '当前匹配', 'replaced $ matches': '已替换 $ 处',
+      'replaced match on line $': '已替换第 $ 行的匹配',
+    } : {})];
+  }
+  setLocale(locale: string) {
+    this.locale = locale;
+    this.view.dispatch({ effects: this.localeCompartment.reconfigure(this.localeExtensions()) });
   }
 
   setFont(font: Partial<FontSpec>) {

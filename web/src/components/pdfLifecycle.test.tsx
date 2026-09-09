@@ -1,7 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PdfViewer } from './PdfViewer';
-import { usePdfStore, useTabsStore } from '../store';
+import { usePdfStore, useTabsStore, useSettingsStore, defaultSettings } from '../store';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -143,4 +143,19 @@ it('reports a failed first paint and reloads successfully without remounting the
   await act(async () => reload.props.onClick());
   expect(mocks.attach).toHaveBeenCalledTimes(1);
   expect(tree.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+});
+
+
+it('ignores legacy PDF canvas overrides even before the settings migration runs', async () => {
+  const previous = useSettingsStore.getState().settings;
+  try {
+    useSettingsStore.setState({ settings: { ...defaultSettings, pdf_bg_color: '#942192' } as typeof defaultSettings });
+    await mount();
+    const scroller = tree.root.findAllByType('div').find(node => node.props.onScroll)!;
+    expect(scroller.props.style).toBeUndefined();
+    expect(JSON.stringify(tree.toJSON())).not.toContain('#942192');
+    expect(mocks.attach).toHaveBeenCalledOnce();
+  } finally {
+    useSettingsStore.setState({ settings: previous });
+  }
 });

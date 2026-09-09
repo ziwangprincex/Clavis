@@ -1,4 +1,4 @@
-// Minimal SF-Symbols-flavoured stroke icons (16×16 grid, currentColor).
+// Platform-neutral stroke icons (16×16 grid, currentColor).
 // Kept as plain components — no icon-font or external dependency, so they
 // inherit color/size from CSS and stay crisp on retina.
 
@@ -90,10 +90,10 @@ export const IconSigma = (p: IconProps) => (
   </svg>
 );
 
-export const IconCommand = (p: IconProps) => (
+export const IconCommandPalette = (p: IconProps) => (
   <svg {...base(p)}>
-    <path d="M6 6h4v4H6z" />
-    <path d="M6 6H4.5A1.5 1.5 0 1 1 6 4.5zM10 6h1.5A1.5 1.5 0 1 0 10 4.5zM6 10H4.5A1.5 1.5 0 1 0 6 11.5zM10 10h1.5a1.5 1.5 0 1 1-1.5 1.5z" />
+    <rect x="2" y="2.5" width="12" height="11" rx="2" />
+    <path d="m4.5 6 2 2-2 2M9 6h2.5M9 10h2.5" />
   </svg>
 );
 

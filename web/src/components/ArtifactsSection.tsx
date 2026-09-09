@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 ﻿import { useMemo } from 'react';
 import { ipc } from '../api/tauri';
 import { useArtifactsStore, useTaskStore } from '../store';
@@ -25,11 +26,11 @@ export function ArtifactsSection({ root, onRunTask, onRefresh }: ArtifactsSectio
     <div className={styles.root}>
       <div className={styles.toolbar}>
         <span>{items.length} declared</span>
-        <button type="button" onClick={onRefresh} disabled={loading} title="Refresh artifacts">↻</button>
+        <button type="button" onClick={onRefresh} disabled={loading} title={t("Refresh artifacts")}>↻</button>
       </div>
       {error && <div className={styles.error}>{error}</div>}
-      {!error && loading && <div className={styles.empty}>Checking artifacts…</div>}
-      {!error && !loading && sorted.length === 0 && <div className={styles.empty}>(no artifacts declared)</div>}
+      {!error && loading && <div className={styles.empty}>{t("Checking artifacts…")}</div>}
+      {!error && !loading && sorted.length === 0 && <div className={styles.empty}>{t("(no artifacts declared)")}</div>}
       <ul className={styles.list}>
         {sorted.map(item => (
           <li key={item.name} className={`${styles.item} ${styles[item.status]}`}>
@@ -48,11 +49,10 @@ export function ArtifactsSection({ root, onRunTask, onRefresh }: ArtifactsSectio
             )}
             <div className={styles.actions}>
               {item.status !== 'missing' && (
-                <button type="button" onClick={() => void ipc.openArtifactPath(root, item.path)}>Open</button>
+                <button type="button" onClick={() => void ipc.openArtifactPath(root, item.path)}>{t("Open")}</button>
               )}
               {item.task && (
-                <button type="button" disabled={taskStatus === 'running'} onClick={() => onRunTask(item.task!)}>
-                  Run {item.task}
+                <button type="button" disabled={taskStatus === 'running'} onClick={() => onRunTask(item.task!)}> {t("Run")} {item.task}
                 </button>
               )}
             </div>

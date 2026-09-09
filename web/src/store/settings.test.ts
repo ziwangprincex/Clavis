@@ -61,3 +61,16 @@ describe('workspace layout preferences', () => {
     expect(settings.sidebar_visible).toBe(true);
   });
 });
+
+
+describe('retired PDF surround preference', () => {
+  it('drops a legacy saturated PDF background without touching fonts or accents', () => {
+    const source = { ...defaultSettings, pdf_bg_color: '#942192', ui_accent_color: '#c3adc9', editor_font_family: 'My Mono' };
+    const migrated = migrateSettings(source);
+    expect(migrated).not.toHaveProperty('pdf_bg_color');
+    expect(migrated.ui_accent_color).toBe('#c3adc9');
+    expect(migrated.editor_font_family).toBe('My Mono');
+    expect(source.pdf_bg_color).toBe('#942192');
+    expect(migrateSettings(migrated)).toEqual(migrated);
+  });
+});

@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+import { useModal } from '../hooks/useModal';
 ﻿import { useEffect, useState } from 'react';
 import { dialogSave, fs, ipc, type ArtifactStatus, type BibliographyExportStatus, type DocumentToolsInspection, type ProjectDoctorReport, type WorkspaceInspection } from '../api/tauri';
 import { reproducibilityReport } from '../project/reproducibility';
@@ -10,6 +12,7 @@ export interface ProjectDoctorDialogProps {
 }
 
 export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorDialogProps) {
+  const modal = useModal(open, onClose);
   const [report, setReport] = useState<ProjectDoctorReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tools, setTools] = useState<DocumentToolsInspection | null>(null);
@@ -34,25 +37,25 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
   if (!open) return null;
   return (
     <div className={styles.backdrop} onMouseDown={event => event.target === event.currentTarget && onClose()}>
-      <section className={styles.dialog} role="dialog" aria-modal="true" aria-label="Project Doctor">
+      <section {...modal} className={styles.dialog} role="dialog" aria-modal="true" aria-label={t("Project Doctor")}>
         <header className={styles.header}>
           <div>
-            <h2>Project Doctor</h2>
+            <h2>{t("Project Doctor")}</h2>
             <p>{workspace?.root ?? 'No workspace open'}</p>
           </div>
-          <button type="button" onClick={onClose}>Close</button>
+          <button type="button" onClick={onClose}>{t("Close")}</button>
         </header>
         <div className={styles.body}>
           {!workspace ? (
-            <p className={styles.empty}>Open a workspace first.</p>
+            <p className={styles.empty}>{t("Open a workspace first.")}</p>
           ) : error ? (
             <p className={styles.error}>{error}</p>
           ) : !report ? (
-            <p className={styles.empty}>Inspecting project…</p>
+            <p className={styles.empty}>{t("Inspecting project…")}</p>
           ) : (
             <>
               <div className={`${styles.summary} ${report.ok ? styles.good : styles.bad}`}>
-                {report.ok ? 'Project is ready' : 'Project needs attention'}
+                {report.ok ? t("Project is ready") : t("Project needs attention")}
               </div>
               <ul className={styles.checks}>
                 {report.checks.map((check, index) => (
@@ -66,7 +69,7 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
               </ul>
               {tools && (
                 <>
-                  <h3 className={styles.subhead}>Document tools</h3>
+                  <h3 className={styles.subhead}>{t("Document tools")}</h3>
                   <ul className={styles.checks}>
                     {[tools.quarto, tools.pandoc].map(tool => (
                       <li key={tool.name} className={tool.path ? styles.ok : styles.warning}>
@@ -86,7 +89,7 @@ export function ProjectDoctorDialog({ open, workspace, onClose }: ProjectDoctorD
         </div>
         {workspace && (
           <footer className={styles.footer}>
-            <button type="button" disabled={!report} onClick={() => void saveReport()}>Save report...</button><button type="button" onClick={() => setRefresh(value => value + 1)}>Run again</button>
+            <button type="button" disabled={!report} onClick={() => void saveReport()}>{t("Save report...")}</button><button type="button" onClick={() => setRefresh(value => value + 1)}>{t("Run again")}</button>
           </footer>
         )}
       </section>

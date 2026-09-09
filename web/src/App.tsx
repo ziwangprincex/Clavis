@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
 import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
@@ -72,6 +73,7 @@ const PdfViewer = lazy(() =>
 );
 
 export function App() {
+  const [markdownJump, setMarkdownJump] = useState<{ tabId: string; line: number; seq: number } | null>(null);
   const loadSettings = useSettingsStore(s => s.load);
   const settings = useSettingsStore(s => s.settings);
   const patchAndSave = useSettingsStore(s => s.patchAndSave);
@@ -350,7 +352,7 @@ export function App() {
       const input = await typstInput(tab);
       const r = await ipc.compileTypstPdf(input.source, input.docPath, input.snapshot);
       if (!r.ok || !r.pdfBase64) {
-        setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : 'Compile failed', 'error');
+        setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : t("Compile failed"), 'error');
         return;
       }
       const target = await dialogSave({
@@ -469,7 +471,7 @@ export function App() {
     const offs = [
       reg({ id: 'view.focus', name: 'Toggle focus mode', shortcut: fmtShortcut('Ctrl+Shift+Enter'), run: () => setFocusMode(value => !value) }),
       reg({ id: 'view.sidebar', name: 'Toggle sidebar', run: () => { setFocusMode(false); void patchAndSave({ sidebar_visible: !useSettingsStore.getState().settings.sidebar_visible }); } }),
-      ...(['editor', 'split', 'preview'] as const).map(layout => reg({ id: `view.${layout}`, name: layout === 'editor' ? 'Editor only' : layout === 'preview' ? 'Preview only' : 'Split view', run: () => { setFocusMode(false); void patchAndSave({ editor_layout: layout }); } })),
+      ...(['editor', 'split', 'preview'] as const).map(layout => reg({ id: `view.${layout}`, name: layout === 'editor' ? t("Editor only") : layout === 'preview' ? t("Preview only") : t("Split view"), run: () => { setFocusMode(false); void patchAndSave({ editor_layout: layout }); } })),
       reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
       reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
       reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
@@ -662,6 +664,7 @@ export function App() {
   // Focus is temporary: leaving it restores the user's exact pane preferences.
   useEffect(() => {
     function onFocusKey(event: KeyboardEvent) {
+      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"]'))) return;
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
         event.preventDefault();
         setFocusMode(value => !value);
@@ -676,6 +679,7 @@ export function App() {
   // Global keyboard shortcuts.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[role="dialog"]'))) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
@@ -759,11 +763,13 @@ export function App() {
           width={sidebarWidth || undefined}
           outline={
             <OutlineSection
-              onJumpTo={(absPath, line) =>
-                void openFileAndScrollToLine(absPath, line, l =>
-                  editorApiRef.current?.scrollToLine(l),
-                )
-              }
+              onJumpTo={(absPath, line) => {
+                if (layout === 'preview') {
+                  if (lang === 'markdown') setMarkdownJump({ tabId: activeTab?.id ?? '', line, seq: Date.now() });
+                  else if (lang === 'typst') useTypstPreviewStore.getState().requestJump(absPath ?? activeTab?.filePath ?? null, line);
+                  else void openFileAndScrollToLine(absPath, line, l => { void syncTexForwardFromEditor(l); });
+                } else void openFileAndScrollToLine(absPath, line, l => editorApiRef.current?.scrollToLine(l));
+              }}
             />
           }
           folderTree={
@@ -843,7 +849,7 @@ export function App() {
               aria-hidden={layout === 'preview'}
               style={layout === 'split' && editorRatio ? { flex: `${editorRatio} 1 0%` } : undefined}
             >
-              <Suspense fallback={<div className={styles.lazyFallback}>Loading editor…</div>}>
+              <Suspense fallback={<div className={styles.lazyFallback}>{t("Loading editor…")}</div>}>
                 <ErrorBoundary>
                   <EditorPane
                     onReady={api => {
@@ -886,7 +892,7 @@ export function App() {
               aria-hidden={layout === 'editor'}
               style={layout === 'split' && editorRatio ? { flex: `${1 - editorRatio} 1 0%` } : undefined}
             >
-              <Suspense fallback={<div className={styles.lazyFallback}>Loading preview…</div>}>
+              <Suspense fallback={<div className={styles.lazyFallback}>{t("Loading preview…")}</div>}>
                 <ErrorBoundary>
                   {lang === 'latex' ? (
                     <PdfViewer
@@ -900,7 +906,7 @@ export function App() {
                       }
                     />
                   ) : (
-                    <PreviewPane onEnvironment={() => setWriterTool('environment')} visible={layout !== 'editor'} onNavigate={(path, line) => void openFileAndScrollToLine(path, line, l => editorApiRef.current?.scrollToLine(l))} />
+                    <PreviewPane markdownJump={markdownJump} onEnvironment={() => setWriterTool('environment')} visible={layout !== 'editor'} onNavigate={(path, line) => void openFileAndScrollToLine(path, line, l => editorApiRef.current?.scrollToLine(l))} />
                   )}
                 </ErrorBoundary>
               </Suspense>

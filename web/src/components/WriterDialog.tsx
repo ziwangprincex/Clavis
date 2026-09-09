@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { createTemplate, dialogOpen, history, ipc, type EngineInfo, type LocalVersion } from '../api/tauri';
 import { openFileByPath } from '../files/files';
@@ -30,11 +31,11 @@ export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () 
     ref.current?.focus();
     return () => before?.focus();
   }, []);
-  const title = {
+  const title = t({
     templates: 'Start with a clean page',
     history: 'Local version timeline',
     environment: 'Writing environment',
-  }[tool];
+  }[tool]);
   return (
     <div className={styles.backdrop}>
       <section
@@ -74,9 +75,7 @@ export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () 
       >
         <header>
           <h2>{title}</h2>
-          <button disabled={busy} onClick={onClose}>
-            Close
-          </button>
+          <button disabled={busy} onClick={onClose}> {t("Close")} </button>
         </header>
         {error && (
           <p role="alert" className={styles.error}>
@@ -105,7 +104,7 @@ function Templates({
     [name, setName] = useState('My paper');
   return (
     <>
-      <p>Three offline starters. No package downloads, generated scripts or template marketplace.</p>
+      <p>{t("Three offline starters. No package downloads, generated scripts or template marketplace.")}</p>
       <div className={styles.choices}>
         {[
           [
@@ -117,14 +116,12 @@ function Templates({
           ['research-note', 'Research note', 'Markdown · question, evidence and next step'],
         ].map(([id, title, description]) => (
           <button key={id} aria-pressed={template === id} onClick={() => setTemplate(id)}>
-            <strong>{title}</strong>
-            <span>{description}</span>
+            <strong>{t(title)}</strong>
+            <span>{t(description)}</span>
           </button>
         ))}
       </div>
-      <label className={styles.field}>
-        New project folder
-        <input value={name} onChange={(e) => setName(e.target.value)} />
+      <label className={styles.field}> {t("New project folder")} <input value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <button
         disabled={busy || !name.trim()}
@@ -141,9 +138,7 @@ function Templates({
             onClose();
           })
         }
-      >
-        Choose location and create…
-      </button>
+      > {t("Choose location and create…")} </button>
     </>
   );
 }
@@ -166,14 +161,11 @@ function Environment() {
   }, []);
   return (
     <>
-      <p>
-        Typst and Markdown rendering are bundled and available offline. No external installation is needed for
-        the Typst starter.
-      </p>
+      <p> {t("Typst and Markdown rendering are bundled and available offline. No external installation is needed for the Typst starter.")} </p>
       {error ? (
         <p role="alert">{error}</p>
       ) : !engines ? (
-        <p>Checking local TeX tools…</p>
+        <p>{t("Checking local TeX tools…")}</p>
       ) : (
         engines.map((engine) => (
           <div className={styles.engine} key={engine.name}>
@@ -181,15 +173,12 @@ function Environment() {
             <span>
               {engine.path
                 ? `${engine.path}${engine.version ? ` · ${engine.version}` : ''}`
-                : 'Not found. Install a TeX distribution or set its path in Settings → LaTeX.'}
+                : t("Not found. Install a TeX distribution or set its path in Settings → LaTeX.")}
             </span>
           </div>
         ))
       )}
-      <p>
-        Fonts and additional packages are project-specific. Their exact missing names appear in the
-        compilation diagnostics. Nothing is installed automatically.
-      </p>
+      <p> {t("Fonts and additional packages are project-specific. Their exact missing names appear in the compilation diagnostics. Nothing is installed automatically.")} </p>
     </>
   );
 }
@@ -241,15 +230,12 @@ function Timeline({
       alive = false;
     };
   }, [selected, tab?.filePath]);
-  if (!tab?.filePath) return <p>Save the document once to start its local timeline.</p>;
+  if (!tab?.filePath) return <p>{t("Save the document once to start its local timeline.")}</p>;
   const path = tab.filePath;
   return (
     <>
       <p>{path}</p>
-      <p>
-        Previous disk contents are captured before each changed save. Keep up to 50 versions per document and
-        256 MiB in total, independently of Git. Restoring changes only the editor buffer.
-      </p>
+      <p> {t("Previous disk contents are captured before each changed save. Keep up to 50 versions per document and 256 MiB in total, independently of Git. Restoring changes only the editor buffer.")} </p>
       {error && <p role="alert">{error}</p>}
       <button
         disabled={busy}
@@ -261,12 +247,10 @@ function Timeline({
             setVersions(await history.list(path));
           })
         }
-      >
-        Create checkpoint
-      </button>
+      > {t("Create checkpoint")} </button>
       <div className={styles.timeline}>
         <div className={styles.versionList}>
-          {!versions.length && <p>No saved versions yet.</p>}
+          {!versions.length && <p>{t("No saved versions yet.")}</p>}
           {versions.map((v) => (
             <button key={v.id} aria-pressed={v.id === selected} onClick={() => setSelected(v.id)}>
               <strong>{new Date(v.timestamp).toLocaleString()}</strong>
@@ -276,16 +260,14 @@ function Timeline({
         </div>
         <div className={styles.versionText}>
           <textarea
-            aria-label="Historical version"
+            aria-label={t("Historical version")}
             readOnly
-            value={content ?? 'Select a version to compare.'}
+            value={content ?? t('Select a version to compare.')}
           />
           {content !== null && (
             <>
               <label>
-                <input type="checkbox" checked={diff} onChange={(e) => setDiff(e.target.checked)} /> Show
-                differences with current draft
-              </label>
+                <input type="checkbox" checked={diff} onChange={(e) => setDiff(e.target.checked)} /> {t("Show differences with current draft")} </label>
               {diff && (
                 <pre>
                   {proseDiff(
@@ -324,9 +306,7 @@ function Timeline({
               });
             onClose();
           }}
-        >
-          Open as copy
-        </button>
+        > {t("Open as copy")} </button>
         <button
           disabled={content === null || busy}
           onClick={() =>
@@ -344,9 +324,7 @@ function Timeline({
               onClose();
             })
           }
-        >
-          Restore into editor
-        </button>
+        > {t("Restore into editor")} </button>
       </footer>
     </>
   );

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 // TitleBar — self-drawn window titlebar for the frameless Windows shell.
 //
 // The whole strip is `data-tauri-drag-region` (root only — Tauri's exact-target
@@ -79,24 +80,24 @@ export function TitleBar({ title = 'Clavis', children }: TitleBarProps) {
           <button
             className={styles.ctrlBtn}
             onClick={onMinimize}
-            aria-label="Minimize"
-            title="Minimize"
+            aria-label={t("Minimize")}
+            title={t("Minimize")}
           >
             <IconWinMinimize size={10} />
           </button>
           <button
             className={styles.ctrlBtn}
             onClick={onMaximize}
-            aria-label={maximized ? 'Restore' : 'Maximize'}
-            title={maximized ? 'Restore' : 'Maximize'}
+            aria-label={maximized ? t("Restore") : t("Maximize")}
+            title={maximized ? t("Restore") : t("Maximize")}
           >
             {maximized ? <IconWinRestore size={10} /> : <IconWinMaximize size={10} />}
           </button>
           <button
             className={`${styles.ctrlBtn} ${styles.closeBtn}`}
             onClick={onClose}
-            aria-label="Close"
-            title="Close"
+            aria-label={t("Close")}
+            title={t("Close")}
           >
             <IconWinClose size={10} />
           </button>
