@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useTabsStore, useProjectStore } from '../store';
 import { parseOutline, parseProjectOutline } from '../store/outline';
 import { pathsEqual } from '../files/projectPaths';
+import { SidebarSection } from './Sidebar';
 import styles from './OutlineSection.module.css';
 
 export interface OutlineSectionProps {
@@ -39,28 +40,25 @@ export function OutlineSection({ onJumpTo }: OutlineSectionProps) {
     return parseOutline(activeTab.content, activeTab.lang);
   }, [useProject, projectFiles, activeTab?.filePath, activeTab?.content, activeTab?.lang]);
 
-  if (!activeTab) {
-    return <div className={styles.empty}>{t("(no document)")}</div>;
-  }
-  if (items.length === 0) {
-    return <div className={styles.empty}>{t("(no headings)")}</div>;
-  }
+  if (items.length === 0) return null;
 
   return (
-    <ul className={styles.list}>
-      {items.map((item, i) => (
-        <li key={`${item.sourceFileAbsPath ?? ''}-${item.line}-${i}`}>
-        <button type="button"
-          key={`${item.sourceFileAbsPath ?? ''}-${item.line}-${item.level}-${i}`}
-          className={styles.item}
-          style={{ paddingLeft: 8 + item.level * 12 }}
-          onClick={() => onJumpTo?.(item.sourceFileAbsPath ?? null, item.line)}
-          title={item.sourceFileAbsPath ? `${item.sourceFileAbsPath}:${item.line}` : t('Line {line}', { line: item.line })}
-        >
-          <span className={styles.title}>{item.title}</span>
-          <span className={styles.line}>L{item.line}</span>
-        </button></li>
-      ))}
-    </ul>
+    <SidebarSection title={t('Outline')} defaultOpen>
+      <ul className={styles.list}>
+        {items.map((item, i) => (
+          <li key={`${item.sourceFileAbsPath ?? ''}-${item.line}-${i}`}>
+            <button type="button"
+              className={styles.item}
+              style={{ paddingLeft: 8 + item.level * 12 }}
+              onClick={() => onJumpTo?.(item.sourceFileAbsPath ?? null, item.line)}
+              title={item.sourceFileAbsPath ? `${item.sourceFileAbsPath}:${item.line}` : t('Line {line}', { line: item.line })}
+            >
+              <span className={styles.title}>{item.title}</span>
+              <span className={styles.line}>L{item.line}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </SidebarSection>
   );
 }

@@ -21,7 +21,7 @@ describe('quiet writing palettes', () => {
     const spec = resolveThemeSpec('paper', { bg: '#ffffff', fg: '#111111', cursor: '#aabbcc' }, false);
     expect(spec.bg).toBe('#ffffff');
     expect(spec.cursor).toBe('#aabbcc');
-    expect(BUILTIN_THEMES.paper.bg).toBe('#fbf9f5');
+    expect(BUILTIN_THEMES.paper.bg).toBe('#fafafa');
     expect(spec.syntax).toEqual(BUILTIN_THEMES.paper.syntax);
   });
 
@@ -82,4 +82,19 @@ describe('quiet writing palettes', () => {
     expect(mix('#000', '#fff', 0.5)).toBe('#808080');
     expect(withAlpha('transparent', 0.1)).toBe('transparent');
   });
+});
+
+
+it('uses neutral default surfaces while retaining theme choices and readable syntax', () => {
+  for (const id of ['paper', 'ink']) {
+    const spec = BUILTIN_THEMES[id];
+    for (const color of [spec.bg, spec.fg, spec.gutterBg, spec.activeBg]) {
+      const rgb = hexToRgb(color)!;
+      expect(rgb.r).toBe(rgb.g);
+      expect(rgb.g).toBe(rgb.b);
+    }
+    expect(new Set(Object.values(syntaxPalette(spec))).size).toBeGreaterThanOrEqual(3);
+  }
+  expect(BUILTIN_THEMES.mist).toBeDefined();
+  expect(BUILTIN_THEMES.dusk).toBeDefined();
 });

@@ -47,7 +47,15 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
   cancelled = false;
   nativeStarted = false;
   activeRequest = `compile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const root = latexRoot(tab, useProjectStore.getState());
+  const project = useProjectStore.getState();
+  const root = latexRoot(tab, project);
+  let context = { sourceRoot: root, sourceFiles: root && pathsEqual(root, project.rootAbs) ? project.files : [], ownerTabId: tab.id };
+  const stillVisible = () => {
+    const current = useTabsStore.getState();
+    const active = current.tabs.find(t => t.id === current.activeTabId);
+    return active?.lang === 'latex' && ((active.id === tab.id && pathsEqual(active.filePath, tab.filePath))
+      || belongsToPdf(active, context));
+  };
   const settings = useSettingsStore.getState().settings;
   const off: Array<() => void> = [];
   useCompileStore.getState().clearLog();
@@ -84,7 +92,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     const source = rootFile?.content ?? tab.content;
     const files = collected?.files ?? [];
     const sourceRoot = rootFile?.absPath ?? root;
-    const context = { sourceRoot, sourceFiles: files, sourceContent: source, ownerTabId: tab.id };
+    context = { sourceRoot, sourceFiles: files, ownerTabId: tab.id };
     const owner = state.tabs.find(t => root && pathsEqual(t.filePath, root)) ?? tab;
     // Workdirs are owned by the main document, not whichever chapter is active.
     const token = owner.latexWorkdirToken;
@@ -126,9 +134,11 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       }
     }
     const current = useTabsStore.getState();
-    const visible = belongsToPdf(current.tabs.find(t => t.id === current.activeTabId), context);
+    const visible = stillVisible();
     if (!visible) {
-      usePdfStore.setState({ bytes: null, workdirToken: null });
+      if (!belongsToPdf(current.tabs.find(t => t.id === current.activeTabId), usePdfStore.getState())) {
+        usePdfStore.setState({ bytes: null, workdirToken: null });
+      }
       useCompileStore.getState().setStatus('idle');
       setStatus('Ready');
       return result;
@@ -144,6 +154,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     });
     usePdfStore.setState({
       ...context,
+      sourceContent: source,
       bytes: result.ok && result.pdfBase64 ? base64ToBytes(result.pdfBase64) : previousBytes,
       stale: !result.ok || buffersChanged,
       workdirToken: result.ok && ownerStillOpen && !buffersChanged ? result.workdirToken : null,
@@ -151,6 +162,12 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · see problems', result.ok ? 'ok' : 'error');
     return result;
   } catch (error) {
+    // A late failure belongs to the document that started it, not the new tab.
+    if (!stillVisible()) {
+      useCompileStore.getState().setStatus('idle');
+      setStatus('Ready');
+      return null;
+    }
     usePdfStore.setState({ bytes: previousBytes, workdirToken: null, stale: true });
     useCompileStore.getState().setStatus('error');
     useCompileStore.getState().setErrors([{ line: null, message: String(error), kind: 'error' }]);

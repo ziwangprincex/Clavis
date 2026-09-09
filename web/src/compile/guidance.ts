@@ -7,6 +7,15 @@ export interface Guidance {
 }
 const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
   {
+    language: 'latex',
+    pattern: /(?:pdf|xe|lua)latex not found in PATH|custom path for .* not found/i,
+    result: {
+      explanation: 'The LaTeX executable could not be found. Install a TeX distribution or configure its path in Settings → LaTeX; your document can still be edited.',
+      action: 'environment',
+      label: 'Check environment',
+    },
+  },
+  {
     pattern: /not cached|package.*not found|file.*not found|cannot find file|could not find file/i,
     result: {
       explanation:
@@ -19,7 +28,7 @@ const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
     pattern: /font.*(not found|unknown)|unknown font|fontspec|unicode character/i,
     result: {
       explanation:
-        'Check installed fonts. For a Unicode or fontspec LaTeX document, select XeLaTeX or LuaLaTeX in Document tools.',
+        'Check installed fonts. For a Unicode or fontspec LaTeX document, select XeLaTeX or LuaLaTeX in Typesetting.',
       action: 'engine',
       label: 'Engine and font settings',
     },

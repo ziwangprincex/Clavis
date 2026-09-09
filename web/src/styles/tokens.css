@@ -17,13 +17,13 @@
 
 :root,
 :root[data-theme='dark'] {
-  --bg: #252724;
-  --bg-elevated: #31332f;
+  --bg: #242424;
+  --bg-elevated: #303030;
   --bg-overlay: rgba(0, 0, 0, 0.55);
 
   /* Toolbar / titlebar / status-bar surface — flat and opaque. */
-  --panel: #2c2e2a;
-  --panel-solid: #2c2e2a;
+  --panel: #2b2b2b;
+  --panel-solid: #2b2b2b;
   --panel-soft: rgba(255, 255, 255, 0.05);
 
   /* Subtle separators (NSColor.separator equivalent) */
@@ -36,17 +36,17 @@
   --text-dim: rgba(235, 235, 245, 0.30);
 
   /* Writing palette fallback; runtime derives matching control colors. */
-  --accent: #aec4a4;
+  --accent: #a8bfd6;
   --on-accent: #17191c;
   --on-accent-hover: #17191c;
-  --preview-desk: #282a27;
-  --accent-hover: #b8cbaf;
+  --preview-desk: #272727;
+  --accent-hover: #b2c7db;
   --error: #ff453a;
   --warning: #ffd60a;
   --ok: #30d158;
 
   /* Selection */
-  --selection: #424f3e;
+  --selection: #455666;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro',
@@ -87,12 +87,12 @@
 }
 
 :root[data-theme='light'] {
-  --bg: #fbf9f5;
-  --bg-elevated: #fefdfc;
+  --bg: #fafafa;
+  --bg-elevated: #fefefe;
   --bg-overlay: rgba(0, 0, 0, 0.20);
 
-  --panel: #f5f3ef;
-  --panel-solid: #f5f3ef;
+  --panel: #f4f4f4;
+  --panel-solid: #f4f4f4;
   --panel-soft: rgba(0, 0, 0, 0.04);
 
   --border: rgba(0, 0, 0, 0.10);
@@ -102,16 +102,16 @@
   --text-muted: rgba(60, 60, 67, 0.60);
   --text-dim: rgba(60, 60, 67, 0.30);
 
-  --accent: #52694f;
+  --accent: #486581;
   --on-accent: #ffffff;
   --on-accent-hover: #ffffff;
-  --preview-desk: #f1efeb;
-  --accent-hover: #485c46;
+  --preview-desk: #f0f0f0;
+  --accent-hover: #3f5972;
   --error: #ff3b30;
   --warning: #ff9500;
   --ok: #34c759;
 
-  --selection: #dfe6d8;
+  --selection: #cbd9e5;
 
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);

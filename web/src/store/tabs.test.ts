@@ -57,7 +57,7 @@ describe('tabs store reducers', () => {
     expect(s.activeTabId).toBe(t3.id); // active unchanged
   });
 
-  it('closeTab of the active tab falls back to the last remaining tab', () => {
+  it('closeTab of the rightmost active tab falls back to its left neighbor', () => {
     const t1 = makeTab();
     const t2 = makeTab();
     const store = useTabsStore.getState();
@@ -84,4 +84,23 @@ describe('tabs store reducers', () => {
     const ids = new Set(Array.from({ length: 50 }, () => newTabId()));
     expect(ids.size).toBe(50);
   });
+});
+
+
+it('closing a middle chapter activates the next chapter instead of the last tab', () => {
+  reset();
+  const tabs = ['intro', 'methods', 'results', 'appendix'].map(id => makeTab({ id }));
+  useTabsStore.getState().setTabs(tabs);
+  useTabsStore.getState().setActive('methods');
+  useTabsStore.getState().closeTab('methods');
+  expect(useTabsStore.getState().activeTabId).toBe('results');
+  expect(useTabsStore.getState().tabs.map(t => t.id)).toEqual(['intro', 'results', 'appendix']);
+});
+
+it('closing the first chapter activates its immediate neighbor', () => {
+  reset();
+  useTabsStore.getState().setTabs(['intro', 'methods', 'results'].map(id => makeTab({ id })));
+  useTabsStore.getState().setActive('intro');
+  useTabsStore.getState().closeTab('intro');
+  expect(useTabsStore.getState().activeTabId).toBe('methods');
 });

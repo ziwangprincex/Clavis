@@ -7,7 +7,7 @@ pub fn files(template: &str) -> Result<Vec<(&'static str, &'static str)>, String
         "research-note" => vec![("main.md", "# Research note\n\n## Question\nWhat are you trying to understand?\n\n## Evidence\nRecord observations and their sources.\n\n## Working model\nAn equation can stay close to the prose: $E=mc^2$.\n\n## Next step\nDescribe one concrete experiment or revision.\n")],
         _ => return Err("Unknown template".into()),
     };
-    files.push(("README.md", "# Writing project\n\nOpen the main document in Clavis. Typst and Markdown work offline with the bundled renderer. LaTeX needs a local TeX installation with article and amsmath. Use Document tools → Check environment before compiling.\n\nNo template scripts are executed. All content is editable. Keep external backups for important work; Clavis local history is bounded.\n"));
+    files.push(("README.md", "# Writing project\n\nOpen the main document in Clavis. Typst and Markdown work offline with the bundled renderer. LaTeX needs a local TeX installation with article and amsmath. Use Typesetting → Check environment before compiling.\n\nNo template scripts are executed. All content is editable. Keep external backups for important work; Clavis local history is bounded.\n"));
     Ok(files)
 }
 fn create(parent: &Path, name: &str, template: &str) -> Result<String, String> {

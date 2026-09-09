@@ -5,7 +5,6 @@ export interface SyntaxPalette { keyword: string; name: string; literal: string;
 
 export interface ThemeSpec {
   label: string;
-  description?: string;
   syntax?: SyntaxPalette;
   dark: boolean;
   bg: string;
@@ -21,25 +20,25 @@ export interface ThemeSpec {
 
 export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
   paper: {
-    label: 'Clavis Paper', description: 'Warm ivory · botanical ink', dark: false,
-    bg: '#fbf9f5', fg: '#302e2a', gutterBg: '#fbf9f5', gutterFg: '#858174',
-    activeBg: '#f2efe8', cursor: '#52694f', selection: '#dfe6d8', accent: '#52694f',
-    syntax: { keyword: '#755970', name: '#49645e', literal: '#826046', comment: '#6c6b60' },
+    label: 'Clavis Paper', dark: false,
+    bg: '#fafafa', fg: '#292929', gutterBg: '#fafafa', gutterFg: '#777777',
+    activeBg: '#f0f0f0', cursor: '#486581', selection: '#cbd9e5', accent: '#486581',
+    syntax: { keyword: '#405c78', name: '#526477', literal: '#675948', comment: '#696969' },
   },
   ink: {
-    label: 'Clavis Ink', description: 'Olive charcoal · soft sage', dark: true,
-    bg: '#252724', fg: '#e1e2d9', gutterBg: '#252724', gutterFg: '#929688',
-    activeBg: '#2e312b', cursor: '#aec4a4', selection: '#424f3e', accent: '#aec4a4',
-    syntax: { keyword: '#c7acc2', name: '#abc3b7', literal: '#d2b798', comment: '#9fa595' },
+    label: 'Clavis Ink', dark: true,
+    bg: '#242424', fg: '#e4e4e4', gutterBg: '#242424', gutterFg: '#909090',
+    activeBg: '#2d2d2d', cursor: '#a8bfd6', selection: '#455666', accent: '#a8bfd6',
+    syntax: { keyword: '#aac0d6', name: '#b5c3cf', literal: '#c8bca9', comment: '#a0a0a0' },
   },
   mist: {
-    label: 'Clavis Mist', description: 'Cool porcelain · muted teal', dark: false,
+    label: 'Clavis Mist', dark: false,
     bg: '#f4f7f8', fg: '#303c43', gutterBg: '#f4f7f8', gutterFg: '#7d8c92',
     activeBg: '#eaf0f2', cursor: '#496c79', selection: '#d5e4e9', accent: '#496c79',
     syntax: { keyword: '#70647f', name: '#466c7c', literal: '#826448', comment: '#5c6f6a' },
   },
   dusk: {
-    label: 'Clavis Dusk', description: 'Warm charcoal · dusty violet', dark: true,
+    label: 'Clavis Dusk', dark: true,
     bg: '#29262d', fg: '#ddd7de', gutterBg: '#29262d', gutterFg: '#968994',
     activeBg: '#332f38', cursor: '#c3adc9', selection: '#504358', accent: '#c3adc9',
     syntax: { keyword: '#c3adc9', name: '#afbdce', literal: '#d0b79a', comment: '#a39c98' },

@@ -13,6 +13,13 @@ export function constrainSidebarWidth(preferred: number, mainWidth: number, layo
   return Math.max(MIN_SIDEBAR_PX, Math.min(max, desired));
 }
 
+/** Preserve enough height for tabs and writing; keep the saved preference separate. */
+export function constrainLogHeight(preferred: number, workHeight: number): number {
+  const desired = Number.isFinite(preferred) && preferred > 0 ? preferred : 220;
+  const max = workHeight > 0 ? Math.max(80, workHeight - 180) : desired;
+  return Math.max(80, Math.min(desired, max));
+}
+
 /** Re-clamp a persisted ratio after resize, not only while dragging. */
 export function constrainEditorRatio(preferred: number, rowWidth: number): number {
   const ratio = Number.isFinite(preferred) && preferred > 0 ? preferred : 1.12 / 2.12;

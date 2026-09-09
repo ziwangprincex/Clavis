@@ -11,23 +11,20 @@
 .host :global(.cm-editor) { flex: 1; height: 100%; }
 .host :global(.cm-editor.cm-focused) { outline: none; }
 .host :global(.cm-scroller) {
-  /* ch follows the user's editor font, including at larger accessibility sizes.
-   * Centre gutter + text together; never put max-width on CM's content layer. */
-  padding-inline: max(24px, calc((100% - 78ch) / 2));
+  /* Normal writing stays close to the sidebar, including in Split.
+   * Only explicit Focus mode supplies a centered reading measure. */
+  padding-inline: var(--editor-inline-padding, 12px);
   overscroll-behavior: contain;
 }
-.host :global(.cm-content) { min-width: 0; padding-block: 56px 160px; }
+.host :global(.cm-content) { min-width: 0; padding-block: var(--editor-top-padding, 24px) 120px; }
 .host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 12px; }
 .host :global(.cm-gutters) { user-select: none; }
 .host :global(.cm-activeLineGutter) { font-weight: 500; }
-.host[data-language='markdown'] :global(.cm-scroller) {
-  padding-inline: max(32px, calc((100% - 68ch) / 2));
-}
 .host[data-language='markdown'] :global(.cm-gutters) { display: none; }
 .host[data-language='markdown'] :global(.cm-activeLine) { background: transparent; }
 
 @container writing-pane (max-width: 560px) {
   .host :global(.cm-scroller),
   .host[data-language='markdown'] :global(.cm-scroller) { padding-inline: 12px; }
-  .host :global(.cm-content) { padding-top: 32px; }
+  .host :global(.cm-content) { padding-top: 24px; }
 }

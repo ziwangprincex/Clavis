@@ -5,6 +5,7 @@ import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatus
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
+import { StartActions } from './components/StartActions';
 import { WriterDialog, type WriterTool } from './components/WriterDialog';
 import { TitleBar } from './components/TitleBar';
 import { StatusBar } from './components/StatusBar';
@@ -84,9 +85,15 @@ export function App() {
   const activeTab = tabs.find(t => t.id === activeTabId);
   const lang: Lang = activeTab?.lang ?? 'markdown';
   const workspaceInspection = useProjectStore(s => s.workspace);
+  const projectRoot = useProjectStore(s => s.rootAbs);
+  const projectFiles = useProjectStore(s => s.files);
+  const gitStatus = useGitStore(s => s.status);
+  const gitError = useGitStore(s => s.error);
   const taskStatus = useTaskStore(s => s.status);
   const taskPanelOpen = taskStatus !== 'idle';
 
+  const [startTabId, setStartTabId] = useState<string | null>(null);
+  const [bootReady, setBootReady] = useState(() => tabs.length > 0);
   const [focusMode, setFocusMode] = useState(false);
   const layout = focusMode ? 'editor' : settings.editor_layout;
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -136,11 +143,12 @@ export function App() {
   // (not the old three Welcome samples) so the editor is ready to type in.
   useEffect(() => {
     if (hasTauri()) loadSettings();
-    if (useTabsStore.getState().tabs.length > 0) return;
+    if (useTabsStore.getState().tabs.length > 0) { setBootReady(true); return; }
 
     function seedScratchTab() {
+      const id = newTabId();
       useTabsStore.getState().addTab({
-        id: newTabId(),
+        id,
         title: 'Untitled.md',
         filePath: null,
         lang: 'markdown',
@@ -153,9 +161,34 @@ export function App() {
       const restored = hasTauri() ? await restoreSession() : false;
       if (!restored && useTabsStore.getState().tabs.length === 0) {
         seedScratchTab();
+        setStartTabId(useTabsStore.getState().activeTabId);
       }
+      setBootReady(true);
     })();
   }, [loadSettings, addTab]);
+
+  // Start actions belong only to the untouched first-run buffer, never restored work.
+  useEffect(() => {
+    if (startTabId && (tabs.length !== 1 || activeTab?.id !== startTabId || activeTab.content !== '' || activeTab.isDirty || activeTab.filePath)) setStartTabId(null);
+  }, [startTabId, tabs, activeTab]);
+
+  function newBlankNote() {
+    const state = useTabsStore.getState();
+    const tab = state.tabs.find(item => item.id === state.activeTabId);
+    if (tab?.id !== startTabId || tab?.content || tab?.isDirty || tab?.filePath) {
+      state.addTab({ id: newTabId(), title: 'Untitled.md', filePath: null, lang: 'markdown', content: '', isDirty: false });
+    }
+    setStartTabId(null);
+    setFocusMode(false);
+    if (settings.editor_layout === 'preview') void patchAndSave({ editor_layout: 'editor' });
+  }
+
+  async function openCreatedProject(main: string) {
+    await openWorkspaceFolder(main.replace(/[\\/][^\\/]*$/, ''));
+    setFocusMode(false);
+    // New typesetting projects should show their output, not inherit a read-only pane.
+    await patchAndSave({ editor_layout: /\.(tex|typ)$/i.test(main) ? 'split' : 'editor' });
+  }
 
   // Quietly check for a newer release once at startup (no-op in browser preview,
   // silent when already up to date). Manual "Check for Updates…" lives in the
@@ -211,6 +244,7 @@ export function App() {
     }
     const openSeq = ++workspaceOpenSeqRef.current;
     setWorkspaceFolder(path);
+    useGitStore.getState().clear();
     useProjectStore.getState().setProject({ workspace: null });
     void pushRecentFolder(path);
     if (!hasTauri()) return;
@@ -472,6 +506,11 @@ export function App() {
       reg({ id: 'view.focus', name: 'Toggle focus mode', shortcut: fmtShortcut('Ctrl+Shift+Enter'), run: () => setFocusMode(value => !value) }),
       reg({ id: 'view.sidebar', name: 'Toggle sidebar', run: () => { setFocusMode(false); void patchAndSave({ sidebar_visible: !useSettingsStore.getState().settings.sidebar_visible }); } }),
       ...(['editor', 'split', 'preview'] as const).map(layout => reg({ id: `view.${layout}`, name: layout === 'editor' ? t("Editor only") : layout === 'preview' ? t("Preview only") : t("Split view"), run: () => { setFocusMode(false); void patchAndSave({ editor_layout: layout }); } })),
+      reg({ id: 'file.new', name: 'New document', shortcut: fmtShortcut('Ctrl+N'), run: () => setWriterTool('templates') }),
+      reg({ id: 'file.blank', name: 'Blank note', run: newBlankNote }),
+      reg({ id: 'writer.templates', name: 'New from template…', run: () => setWriterTool('templates') }),
+      reg({ id: 'writer.history', name: 'Local version timeline…', when: () => !!useTabsStore.getState().activeTabId, run: () => setWriterTool('history') }),
+      reg({ id: 'writer.environment', name: 'Check environment…', run: () => setWriterTool('environment') }),
       reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
       reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
       reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
@@ -659,7 +698,7 @@ export function App() {
     ];
     return () => offs.forEach(off => off());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus]);
+  }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus, startTabId, settings.editor_layout]);
 
   // Focus is temporary: leaving it restores the user's exact pane preferences.
   useEffect(() => {
@@ -690,6 +729,9 @@ export function App() {
       } else if (mod && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         void openFolder();
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setWriterTool('templates');
       } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         void openFileDialog();
@@ -717,7 +759,7 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  }, [lang, workspaceFolder]);
 
   return (
     <div className={`${styles.app} ${focusMode ? styles.focusMode : ''}`} data-layout={layout}>
@@ -761,6 +803,7 @@ export function App() {
         <Sidebar
           hidden={focusMode || !settings.sidebar_visible}
           width={sidebarWidth || undefined}
+          onOpenFolder={openFolder}
           outline={
             <OutlineSection
               onJumpTo={(absPath, line) => {
@@ -783,11 +826,11 @@ export function App() {
             />
           }
           files={
-            useProjectStore.getState().rootAbs ? (
+            lang === 'latex' && projectRoot && projectFiles.length > 0 && activeTab && (pathsEqual(activeTab.filePath, projectRoot) || projectFiles.some(file => pathsEqual(file.absPath, activeTab.filePath))) ? (
               <FilesSection onFileActivate={path => void openFileByPath(path)} />
             ) : null
           }
-          artifacts={workspaceFolder && workspaceInspection?.config ? (
+          artifacts={workspaceFolder && Object.keys(workspaceInspection?.config?.artifacts ?? {}).length > 0 ? (
             <ArtifactsSection
               root={workspaceFolder}
               onRefresh={() => refreshArtifacts()}
@@ -796,7 +839,7 @@ export function App() {
               }}
             />
           ) : null}
-          writing={tabs.length > 0 ? (
+          writing={tabs.some(tab => tab.content.trim().length > 0) ? (
             <WritingSection
               policy={writingPolicyFromConfig(workspaceInspection?.config)}
               onRefresh={() => refreshWriting()}
@@ -805,7 +848,7 @@ export function App() {
               }
             />
           ) : null}
-          git={workspaceFolder ? <GitSection root={workspaceFolder} onRefresh={() => refreshGit()} /> : null}
+          git={workspaceFolder && (gitStatus?.isRepository || gitError) ? <GitSection root={workspaceFolder} onRefresh={() => refreshGit()} /> : null}
           assets={workspaceFolder ? (
             <AssetsSection
               root={workspaceFolder}
@@ -817,7 +860,7 @@ export function App() {
               }
             />
           ) : null}
-          references={workspaceFolder ? (
+          references={workspaceFolder && lang !== 'markdown' ? (
             <ReferencesSection
               onRefresh={() => refreshReferences()}
               onActivate={(path, line) =>
@@ -825,7 +868,7 @@ export function App() {
               }
             />
           ) : null}
-          bibliography={workspaceFolder ? (
+          bibliography={workspaceFolder && lang !== 'markdown' ? (
             <BibSection
               onInsertCites={keys => editorApiRef.current?.insertCites(keys)}
               onJumpToSource={(absPath, line) =>
@@ -842,6 +885,7 @@ export function App() {
         )}
 
         <div className={styles.workArea} ref={workAreaRef}>
+          {bootReady && !focusMode && ((startTabId && activeTab?.id === startTabId && !activeTab.content && !activeTab.filePath && !activeTab.isDirty && tabs.length === 1) || !tabs.length) && <StartActions onOpen={openFileDialog} onFolder={openFolder} onNew={() => setWriterTool('templates')} onDismiss={() => { setStartTabId(null); if (!tabs.length) newBlankNote(); }} />}
           <div className={styles.tabStrip} hidden={focusMode}><Tabs /></div>
           <div className={styles.editorRow} ref={editorRowRef}>
             <div
@@ -897,6 +941,9 @@ export function App() {
                   {lang === 'latex' ? (
                     <PdfViewer
                       visible={layout !== 'editor'}
+                      onCompile={compileNow}
+                      onEnvironment={() => setWriterTool('environment')}
+                      onProblems={() => { setFocusMode(false); void patchAndSave({ problems_panel_open: true }); }}
                       onSyncTexBackward={(page, x, y) =>
                         syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
                           void openFileAndScrollToLine(absPath, line, l =>
@@ -955,7 +1002,7 @@ export function App() {
       />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      {writerTool && <WriterDialog tool={writerTool} onClose={() => setWriterTool(null)} />}
+      {writerTool && <WriterDialog key={writerTool} tool={writerTool} hidden={settingsOpen} onClose={() => setWriterTool(null)} onCreated={openCreatedProject} onBlank={newBlankNote} onSettings={() => setSettingsOpen(true)} />}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ProjectDoctorDialog
         open={doctorOpen}

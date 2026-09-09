@@ -41,20 +41,44 @@ describe('editorial writing surfaces', () => {
         expect(values.transform).toBeUndefined();
       }
     });
-    expect(read('../components/EditorPane.module.css')).toContain('100% - 68ch');
-    expect(read('../components/EditorPane.module.css')).toContain('100% - 78ch');
-    expect(read('../App.module.css')).not.toContain('--editor-inline-padding');
+    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-inline-padding, 12px)');
+    expect(read('../components/EditorPane.module.css')).not.toContain('100% -');
+    expect(read('../App.module.css')).toContain('100% - 68ch');
+    expect(read('../App.module.css')).toContain('100% - 78ch');
   });
 
-  it('keeps ordinary Write insets fixed without changing Split, Read or Focus', () => {
+  it('centers only opt-in Focus, keeping ordinary Write and Split compact', () => {
     const overrides: Rule[] = [];
     postcss.parse(read('../App.module.css')).walkRules(rule => {
-      if (rule.selector.includes(':global(.cm-scroller)')) overrides.push(rule);
+      if (declarations(rule)['--editor-inline-padding']) overrides.push(rule);
     });
-    expect(overrides).toHaveLength(1);
-    expect(overrides[0].selector).toBe(".app[data-layout='editor']:not(.focusMode) .editorPane :global(.cm-scroller)");
-    expect(overrides[0].parent?.type).toBe('root');
-    expect(declarations(overrides[0])).toEqual({ 'padding-inline': '12px' });
+    expect(overrides).toHaveLength(2);
+    for (const rule of overrides) expect(rule.selector).toMatch(/^\.focusMode /);
+    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-top-padding, 24px)');
+  });
+
+  it('uses a compact, aligned titlebar without shrinking the action hit targets', () => {
+    const rules = (name: string) => {
+      const out = new Map<string, Record<string, string>>();
+      sheet(name).walkRules(rule => {
+        if (rule.parent?.type === 'root') out.set(rule.selector, declarations(rule));
+      });
+      return out;
+    };
+    expect(rules('Toolbar').get('.toolbar')?.height).toBe('48px');
+    expect(rules('TitleBar').get('.titlebar')?.height).toBe('48px');
+    expect(rules('TitleBar').get('.titlebar.mac')?.['padding-left']).toBe('76px');
+    expect(rules('Toolbar').get('.iconBtn, .textBtn, .primaryBtn')?.['min-height']).toBe('32px');
+    expect(rules('Toolbar').get('.primaryBtn')?.background).toBe('var(--panel-soft)');
+    const sidebar = rules('Sidebar');
+    expect(sidebar.has('.heading')).toBe(false);
+    expect(sidebar.get('.views')?.['border-bottom']).toBeUndefined();
+    expect(sidebar.get('.view')?.['border-bottom']).toBeUndefined();
+    expect(sidebar.get('.view.selected')?.['border-bottom-color']).toBeUndefined();
+    expect(sidebar.get('.view')?.width).toBe('32px');
+    expect(sidebar.get('.view')?.height).toBe('32px');
+    expect(sidebar.get('.view.selected')?.background).toBe('var(--panel-soft)');
+    expect(rules('Tabs').get('.tab')?.['min-height']).toBe('36px');
   });
 
   it('keeps reading widths ordered and proportional to the selected font size', () => {

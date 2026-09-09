@@ -23,7 +23,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSettingsStore, type Settings, type EditorLayout } from '../store';
-import { constrainSidebarWidth, constrainEditorRatio, MIN_PANE_PX } from './paneConstraints';
+import { constrainSidebarWidth, constrainEditorRatio, constrainLogHeight, MIN_PANE_PX } from './paneConstraints';
 
 export interface PaneLayout {
   mainRef: React.RefObject<HTMLDivElement>;
@@ -48,6 +48,7 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
   const loaded = useSettingsStore(s => s.loaded);
   const [mainWidth, setMainWidth] = useState(0);
   const [rowWidth, setRowWidth] = useState(0);
+  const [workHeight, setWorkHeight] = useState(0);
   const mainRef = useRef<HTMLDivElement>(null);
   const workAreaRef = useRef<HTMLDivElement>(null);
   // The row that actually contains editor | splitter | preview. Measuring the
@@ -59,11 +60,13 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
     const measure = () => {
       setMainWidth(mainRef.current?.getBoundingClientRect().width ?? 0);
       setRowWidth(editorRowRef.current?.getBoundingClientRect().width ?? 0);
+      setWorkHeight(workAreaRef.current?.getBoundingClientRect().height ?? 0);
     };
     measure();
     const observer = new ResizeObserver(measure);
     if (mainRef.current) observer.observe(mainRef.current);
     if (editorRowRef.current) observer.observe(editorRowRef.current);
+    if (workAreaRef.current) observer.observe(workAreaRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -145,7 +148,7 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
     // The splitter sits above the log panel; dragging up (smaller clientY)
     // grows the panel. Height = distance from pointer to the workArea bottom.
     const bottom = work.getBoundingClientRect().bottom;
-    applyLogHeight(Math.max(80, Math.min(work.clientHeight - 120, bottom - clientY)));
+    applyLogHeight(constrainLogHeight(Math.max(80, bottom - clientY), work.clientHeight));
   }
   function endLogDrag() {
     void useSettingsStore.getState().patchAndSave({ pane_log_height: logHeightRef.current });
@@ -157,7 +160,7 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
     editorRowRef,
     sidebarWidth: constrainSidebarWidth(sidebarWidth, mainWidth, layout),
     editorRatio: constrainEditorRatio(editorRatio, rowWidth),
-    logHeight,
+    logHeight: constrainLogHeight(logHeight, workHeight),
     startSidebarDrag,
     dragSidebar,
     endSidebarDrag,

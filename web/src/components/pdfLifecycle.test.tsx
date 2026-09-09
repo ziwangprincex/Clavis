@@ -1,7 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PdfViewer } from './PdfViewer';
-import { usePdfStore, useTabsStore, useSettingsStore, defaultSettings } from '../store';
+import { usePdfStore, useTabsStore, useSettingsStore, useCompileStore, defaultSettings } from '../store';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -158,4 +158,61 @@ it('ignores legacy PDF canvas overrides even before the settings migration runs'
   } finally {
     useSettingsStore.setState({ settings: previous });
   }
+});
+
+
+it('honors a forward jump received before the first PDF pages attach', async () => {
+  let complete!: () => void;
+  mocks.prepare.mockImplementationOnce(() => new Promise<void>(resolve => { complete = resolve; }));
+  await mount();
+  host.querySelector.mockReturnValue({ offsetTop: 1200 });
+  act(() => usePdfStore.getState().requestScroll(2, 300));
+  expect(host.scrollTop).toBe(0);
+  await act(async () => complete());
+  expect(host.scrollTop).toBe(1300);
+  expect(usePdfStore.getState().currentPage).toBe(2);
+});
+
+it('defers jumps in Write mode until the PDF is visible and attached again', async () => {
+  await mount();
+  host.querySelector.mockReturnValue({ offsetTop: 1200 });
+  act(() => tree.update(<PdfViewer visible={false} />));
+  act(() => usePdfStore.getState().requestScroll(2, 100));
+  expect(host.scrollTop).toBe(0);
+  await act(async () => tree.update(<PdfViewer />));
+  expect(host.scrollTop).toBe(1100);
+});
+
+it('does not replay a consumed jump after recompiling or toggling Write/Read', async () => {
+  await mount();
+  host.querySelector.mockReturnValue({ offsetTop: 1200 });
+  act(() => usePdfStore.getState().requestScroll(2, 100));
+  host.scrollTop = 2500;
+  await act(async () => usePdfStore.getState().setBytes(new Uint8Array([2])));
+  expect(host.scrollTop).toBe(2500);
+  act(() => tree.update(<PdfViewer visible={false} />));
+  await act(async () => tree.update(<PdfViewer />));
+  expect(host.scrollTop).toBe(2500);
+});
+
+it('provides a compile action in an empty PDF instead of a dead-end instruction', async () => {
+  usePdfStore.setState({ bytes: null });
+  useCompileStore.setState({ status: 'idle', errors: [] });
+  const compile = vi.fn();
+  await mount(<PdfViewer onCompile={compile} />);
+  act(() => tree.root.findAllByType('button').find(button => button.children.includes('Compile'))!.props.onClick());
+  expect(compile).toHaveBeenCalledOnce();
+});
+
+it('links real missing-engine errors to environment and problems without opening a modal itself', async () => {
+  usePdfStore.setState({ bytes: null });
+  useCompileStore.setState({ status: 'error', errors: [{ line: null, message: 'pdflatex not found in PATH', kind: 'error' }] });
+  const environment = vi.fn(), problems = vi.fn();
+  await mount(<PdfViewer onEnvironment={environment} onProblems={problems} />);
+  act(() => tree.root.findAllByType('button').find(button => button.children.includes('Check environment'))!.props.onClick());
+  act(() => tree.root.findAllByType('button').find(button => button.children.includes('Show problems'))!.props.onClick());
+  expect(environment).toHaveBeenCalledOnce();
+  expect(problems).toHaveBeenCalledOnce();
+  expect(tree.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
+  useCompileStore.setState({ status: 'idle', errors: [] });
 });

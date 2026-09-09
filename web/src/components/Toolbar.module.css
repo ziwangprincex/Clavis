@@ -1,18 +1,18 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   flex: 1;
-  height: 60px;
-  padding: 0 24px;
+  height: 48px;
+  padding: 0 12px;
   background: var(--bg);
   user-select: none;
 }
 .identity { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 4px; }
-.documentName { font-size: 1.08em; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.015em; }
+.documentName { font-size: 1em; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.015em; }
 .dirty { width: 5px; height: 5px; background: var(--text-muted); border-radius: 50%; flex: none; }
-.actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .iconBtn, .textBtn, .primaryBtn {
   display: inline-flex;
   align-items: center;
@@ -32,15 +32,15 @@
 }
 .iconBtn { width: 32px; padding: 0; }
 .iconBtn:hover, .textBtn:hover, .pressed { background: var(--panel-soft); color: var(--text); }
-.primaryBtn { background: var(--accent); color: var(--on-accent); font-weight: 550; padding: 0 12px; min-width: 92px; }
-.primaryBtn:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
+.primaryBtn { background: var(--panel-soft); color: var(--text); font-weight: 550; padding: 0 10px; min-width: 80px; }
+.primaryBtn:hover:not(:disabled) { background: var(--border); color: var(--text); }
 .iconBtn:active, .textBtn:active { background: var(--border); }
-.primaryBtn:active:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
+.primaryBtn:active:not(:disabled) { background: var(--panel-soft); color: var(--text); }
 .iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
-.layoutSwitch { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 7px; gap: 1px; background: transparent; }
+.layoutSwitch { display: flex; padding: 2px; border: 1px solid transparent; border-radius: 7px; gap: 1px; background: var(--panel-soft); }
 .layoutSwitch button { border: 0; border-radius: 5px; padding: 4px 12px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; cursor: pointer; transition: color 160ms var(--ease), background-color 160ms var(--ease); }
 .layoutSwitch button:hover { color: var(--text); }
-.layoutSwitch .selectedLayout { color: var(--accent); background: var(--tint-accent); }
+.layoutSwitch .selectedLayout { color: var(--text); background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
 .disclosure { position: relative; }
 .popover { position: absolute; top: calc(100% + 10px); right: 0; width: 290px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px); overflow-y: auto; z-index: 100; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-md); animation: reveal 140ms var(--ease); transform-origin: top right; }
 @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
@@ -57,3 +57,8 @@
 .optionRow input { accent-color: var(--accent); width: 16px; height: 16px; }
 @media (max-width: 1000px) { .optionalAction { display: none; } .toolbar { padding-inline: 12px; } .actions { gap: 4px; } }
 @media (max-width: 760px) { .toolbar { gap: 6px; } .layoutSwitch button { padding-inline: 8px; } .actionLabel { display: none; } .primaryBtn { min-width: 32px; padding-inline: 8px; } }
+
+.menuItem:disabled, .textBtn:disabled { opacity: 0.5; cursor: default; }
+.advanced { margin-top: 6px; border-top: 1px solid var(--border); }
+.advanced summary { padding: 10px; color: var(--text-muted); cursor: pointer; font-size: 0.9em; }
+.toolbar button:focus-visible, .advanced summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

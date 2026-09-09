@@ -59,12 +59,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     set({ tabs: [...get().tabs, tab], activeTabId: tab.id });
   },
   closeTab(id) {
-    const closing = get().tabs.find(t => t.id === id);
+    const index = get().tabs.findIndex(t => t.id === id);
+    const closing = get().tabs[index];
     const remaining = get().tabs.filter(t => t.id !== id);
     const wasActive = get().activeTabId === id;
     set({
       tabs: remaining,
-      activeTabId: wasActive ? remaining.at(-1)?.id ?? null : get().activeTabId,
+      activeTabId: wasActive ? (remaining[index] ?? remaining[index - 1])?.id ?? null : get().activeTabId,
     });
     // Best-effort: drop the LaTeX workdir on disk so we don't leak temp files
     // across long sessions. Done via dynamic import to keep this store free

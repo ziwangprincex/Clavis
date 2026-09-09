@@ -3,8 +3,9 @@
 .workArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .editorRow { flex: 1; display: flex; min-height: 0; }
 .editorPane { flex: 1.12; min-width: 0; display: flex; flex-direction: column; }
-/* Only ordinary Write mode is compact; preserve Split and opt-in Focus spacing. */
-.app[data-layout='editor']:not(.focusMode) .editorPane :global(.cm-scroller) { padding-inline: 12px; }
+/* Centering belongs to opt-in Focus, never ordinary Write or Split. */
+.focusMode .editorPane { --editor-inline-padding: max(24px, calc((100% - 78ch) / 2)); --editor-top-padding: 48px; }
+.focusMode .editorPane [data-language='markdown'] { --editor-inline-padding: max(24px, calc((100% - 68ch) / 2)); }
 .previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .hiddenPane { display: none; }
 .tabStrip { flex: none; min-width: 0; }

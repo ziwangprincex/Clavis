@@ -232,3 +232,8 @@
   font-family: var(--font-mono);
   white-space: pre-wrap;
 }
+
+.emptyActions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.emptyActions .btn { min-height: 32px; height: auto; padding: 6px 10px; border: 1px solid var(--border); }
+
+.empty { flex-direction: column; gap: 16px; padding: 24px; overflow: auto; overflow-wrap: anywhere; text-align: center; }

@@ -33,6 +33,13 @@ export const IconFolder = (p: IconProps) => (
   </svg>
 );
 
+export const IconBook = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M8 3.5C6 2.2 3.8 2 1.75 2.5v10c2.05-.5 4.25-.3 6.25 1 2-1.3 4.2-1.5 6.25-1v-10C12.2 2 10 2.2 8 3.5z" />
+    <path d="M8 3.5v10" />
+  </svg>
+);
+
 export const IconClock = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="8" cy="8" r="6.25" />

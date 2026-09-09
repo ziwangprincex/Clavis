@@ -81,10 +81,16 @@ export function FolderTreeSection({
     setRoot(r => (r ? { ...r } : null));
   }
 
+  if (!rootPath) {
+    return <button type="button" className={styles.openFolder} onClick={onOpenFolder}>
+      <IconFolder size={14} aria-hidden="true" />{t('Open folder')}
+    </button>;
+  }
+
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.name}>{rootPath ? root?.name ?? '…' : t("No folder")}</span>
+        <span className={styles.name} title={rootPath}>{root?.name ?? rootPath.split(/[\\/]/).filter(Boolean).pop()}</span>
         <button className={styles.btn} onClick={onOpenFolder} title={t("Open folder")}><IconFolder size={13} /></button>
         <button className={styles.btn} onClick={onRefresh} title={t("Rescan")}>⟳</button>
         {rootPath && (
@@ -94,9 +100,6 @@ export function FolderTreeSection({
         )}
       </div>
       {error && <div className={styles.error}>{error}</div>}
-      {!rootPath && !error && (
-        <div className={styles.empty}>{t("No folder open")}</div>
-      )}
       {root && root.children.length > 0 && (
         <ul className={styles.tree}>
           {root.children.map((c, i) => (

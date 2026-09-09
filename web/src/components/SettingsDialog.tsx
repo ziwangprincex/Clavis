@@ -183,7 +183,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   </select>
                 </label>
                 <p className={styles.hint}>{t('Language changes after saving. Document contents and compiler output are not translated.')}</p>
-                <ThemePicker value={draft.editor_theme} selectedSpec={sampleTheme} overrides={draft.ui_color_overrides} uiFont={draft.ui_font_family} monoFont={draft.ui_mono_font_family || draft.editor_font_family}
+                <ThemePicker value={draft.editor_theme} selectedSpec={sampleTheme} overrides={draft.ui_color_overrides} uiFont={draft.ui_font_family}
                   onChange={id => update('editor_theme', id)} />
                 <label> {t("Theme")} <select
                     value={draft.editor_theme}

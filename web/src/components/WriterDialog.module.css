@@ -162,3 +162,11 @@
     max-height: 120px;
   }
 }
+
+.readiness { padding: 0 0 16px; }
+.inlineActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.field { flex-wrap: wrap; }
+.field input { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.backdrop[hidden] { display: none; }

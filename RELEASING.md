@@ -85,10 +85,12 @@ commands it prints.
    and runs the reusable CI workflow on that exact commit (frontend checks/tests,
    production build, Rust checks/tests and release-guard tests). Only after both
    pass does it create the Release and build/upload Windows, macOS and Linux
-   installers plus signed updater artifacts and `latest.json`. In practice
-   `tauri-action` marks the Release published once uploads finish, so pushing
-   the tag is the publish step; there is no manual draft review in between.
-5. After the workflow finishes, verify the public
+   installers plus signed updater artifacts and `latest.json`. Whether
+   `tauri-action` flips the draft to published on its own has varied between
+   releases, so treat the tag push as "build and stage", not "publish".
+5. When the workflow is green, run `gh release view <tag> --json isDraft`. If
+   it is still a draft, `gh release edit <tag> --draft=false`. Publishing
+   triggers the Homebrew cask update. Then verify the public
    `releases/latest/download/latest.json` (version, six platform entries,
    notes) and the Homebrew cask checksum.
 

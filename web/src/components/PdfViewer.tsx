@@ -18,16 +18,20 @@ import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '..
 import { usePdfSearch } from '../hooks/usePdfSearch';
 import { fmtShortcut } from '../platform';
 import { belongsToPdf } from '../compile/target';
+import { guidance } from '../compile/guidance';
 // We import a minimal subset of pdfjs's textLayer CSS — see ../pdf/textLayer.css.
 import '../pdf/textLayer.css';
 import styles from './PdfViewer.module.css';
 
 export interface PdfViewerProps {
   visible?: boolean;
+  onCompile?: () => void;
+  onEnvironment?: () => void;
+  onProblems?: () => void;
   onSyncTexBackward?: (page: number, x: number, y: number) => void;
 }
 
-export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps) {
+export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvironment, onProblems }: PdfViewerProps) {
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const pdf = usePdfStore();
   const bytes = belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
@@ -47,6 +51,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
   const containerRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PDFDocumentProxy | null>(null);
   const pagesRef = useRef<PdfPages | null>(null);
+  const attachedBytesRef = useRef<Uint8Array | null>(null);
+  const handledScrollRef = useRef<number | null>(null);
   const zoomRef = useRef(zoom);
   const zoomPoint = useRef<ZoomPoint>();
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +112,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
         pagesRef.current = null;
         const previous = docRef.current;
         docRef.current = null;
+        attachedBytesRef.current = null;
+        handledScrollRef.current = usePdfStore.getState().scrollRequest?.seq ?? null;
         if (previous) void previous.destroy();
         host.replaceChildren();
         setSearchDoc(null);
@@ -130,12 +138,14 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
         candidate.attach(zoomRef.current);
         pagesRef.current = candidate;
         docRef.current = candidateDoc;
+        attachedBytesRef.current = bytes;
         setSearchDoc(candidateDoc);
         candidate = undefined;
         candidateDoc = undefined;
         if (previous) void previous.destroy();
         setNumPages(docRef.current.numPages);
         setCurrentPage(Math.min(usePdfStore.getState().currentPage, docRef.current.numPages));
+        applyPendingScroll();
         setError(null);
       } catch (error) {
         candidate?.destroy();
@@ -164,25 +174,32 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
       pagesRef.current = null;
       const previous = docRef.current;
       docRef.current = null;
+      attachedBytesRef.current = null;
       if (previous) void previous.destroy();
     };
   }, [visible]);
 
-  // Honor external scroll requests (forward SyncTeX: editor line → PDF spot).
-  useEffect(() => {
-    if (!scrollRequest) return;
+  // A jump can arrive before the first page attaches, or while Write hides it.
+  // Consume it once on a matching attached PDF, not on stale page wrappers.
+  function applyPendingScroll() {
+    const request = usePdfStore.getState().scrollRequest;
     const container = containerRef.current;
-    if (!container) return;
+    if (!visible || !bytes || attachedBytesRef.current !== bytes || !request || !container
+      || request.seq === handledScrollRef.current) return;
     const wrap = container.querySelector<HTMLDivElement>(
-      `.${styles.page}[data-page="${scrollRequest.page}"]`,
+      `.${styles.page}[data-page="${request.page}"]`,
     );
     if (!wrap) return;
-    // PDF.js viewport scale 1 maps one PDF point to one CSS pixel.
-    const yPx = scrollRequest.y != null ? scrollRequest.y * zoom : 0;
+    const yPx = request.y != null ? request.y * zoomRef.current : 0;
     container.scrollTop = Math.max(0, wrap.offsetTop + yPx - container.clientHeight / 3);
-    setCurrentPage(scrollRequest.page);
+    handledScrollRef.current = request.seq;
+    setCurrentPage(request.page);
+  }
+
+  useEffect(() => {
+    applyPendingScroll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollRequest]);
+  }, [scrollRequest, visible]);
 
   function onScroll() {
     const container = containerRef.current;
@@ -335,9 +352,14 @@ export function PdfViewer({ onSyncTexBackward, visible = true }: PdfViewerProps)
         ) : !bytes ? (
           <div className={styles.overlay}>
             <div className={styles.empty} role="status">
-              {compiling ? t("Compiling LaTeX…") : compileStatus === 'error'
-                ? `Compilation failed: ${compileError ?? 'See problems for details.'}`
-                : t("Compile your LaTeX document to show the preview.")}
+              <span>{compiling ? t("Compiling LaTeX…") : compileStatus === 'error'
+                ? t('Compilation failed: {message}', { message: compileError ?? t('See problems for details.') })
+                : t("Compile your LaTeX document to show the preview.")}</span>
+              {!compiling && <div className={styles.emptyActions}>
+                {onCompile && <button className={styles.btn} onClick={onCompile}>{compileStatus === 'error' ? t('Try compiling again') : t('Compile')}</button>}
+                {compileStatus === 'error' && onProblems && <button className={styles.btn} onClick={onProblems}>{t('Show problems')}</button>}
+                {(compileStatus !== 'error' || guidance('latex', compileError ?? '').action === 'environment') && onEnvironment && <button className={styles.btn} onClick={onEnvironment}>{t('Check environment')}</button>}
+              </div>}
             </div>
           </div>
         ) : null}

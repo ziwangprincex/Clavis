@@ -40,8 +40,10 @@ describe('language selection', () => {
   it('translates sidebar navigation without altering user content', () => {
     useSettingsStore.setState({ settings: { ...defaultSettings, ui_language: 'zh-CN' } });
     act(() => { tree = create(<Sidebar outline={<span>My title</span>} />); });
-    const output = JSON.stringify(tree!.toJSON());
-    expect(output).toContain('工作区'); expect(output).toContain('目录'); expect(output).toContain('My title');
+    const tabs = tree!.root.findAllByProps({ role: 'tab' });
+    expect(tabs.map(tab => tab.props['aria-label'])).toEqual(['文档', '研究']);
+    expect(tabs.map(tab => tab.props.title)).toEqual(['文档', '研究']);
+    expect(JSON.stringify(tree!.toJSON())).toContain('My title');
   });
   it('uses a neutral command list icon, not a macOS Command key', () => {
     act(() => { tree = create(<IconCommandPalette />); });

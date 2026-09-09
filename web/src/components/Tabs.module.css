@@ -5,8 +5,8 @@
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 0 28px;
-  gap: 22px;
+  padding: 0 12px;
+  gap: 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 2px;
   border-bottom: 1px solid transparent;
   color: var(--text-muted);
@@ -47,4 +47,4 @@
 .tab.active .close,
 .tab:focus-within .close { opacity: 1; }
 .close:hover { background: var(--panel-soft); color: var(--text); }
-@media (max-width: 850px) { .bar { padding-inline: 16px; gap: 16px; } }
+@media (max-width: 850px) { .bar { gap: 12px; } }

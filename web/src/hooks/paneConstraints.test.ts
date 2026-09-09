@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constrainSidebarWidth, constrainEditorRatio } from './paneConstraints';
+import { constrainSidebarWidth, constrainEditorRatio, constrainLogHeight } from './paneConstraints';
 
 describe('pane constraints', () => {
   it('reserves both writing panes at the minimum supported window width', () => {
@@ -26,5 +26,21 @@ describe('pane constraints', () => {
     expect(constrainEditorRatio(0.9, 601)).toBeCloseTo(380 / 600);
     expect(constrainEditorRatio(0.1, 601)).toBeCloseTo(220 / 600);
     expect(constrainEditorRatio(0.7, 1400)).toBe(0.7);
+  });
+});
+
+
+describe('problems panel height', () => {
+  it('reserves tabs and writing space after a large saved panel meets a small window', () => {
+    expect(constrainLogHeight(600, 400)).toBe(220);
+    expect(constrainLogHeight(600, 800)).toBe(600);
+  });
+  it('preserves a short preference and gives malformed settings the ordinary default', () => {
+    expect(constrainLogHeight(100, 400)).toBe(100);
+    expect(constrainLogHeight(0, 400)).toBe(220);
+    expect(constrainLogHeight(NaN, 500)).toBe(220);
+    expect(constrainLogHeight(Infinity, 500)).toBe(220);
+    expect(constrainLogHeight(220, 0)).toBe(220);
+    expect(constrainLogHeight(220, 240)).toBe(80);
   });
 });

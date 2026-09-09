@@ -45,6 +45,23 @@ afterEach(() => {
 });
 
 describe('theme settings without a browser', () => {
+  it.each(['en', 'zh-CN'] as const)('shows only Clavis and theme names in %s previews', locale => {
+    useSettingsStore.getState().patch({ ui_language: locale });
+    mountDialog();
+    const picker = tree!.root.findByType('legend').parent!;
+    expect(picker.findByType('legend').children).toEqual([locale === 'zh-CN' ? '主题' : 'Theme']);
+    const choices = picker.findAllByType('label');
+    expect(choices).toHaveLength(4);
+    choices.forEach((choice, index) => {
+      const id = ['paper', 'ink', 'mist', 'dusk'][index];
+      const sample = choice.findAllByType('span').find(span => span.props['aria-hidden'] === 'true')!;
+      const text = (node: typeof sample): string[] => node.children.flatMap(child => typeof child === 'string' ? [child] : text(child));
+      expect(text(sample)).toEqual(['Clavis']);
+      expect(text(choice)).toEqual(['Clavis', BUILTIN_THEMES[id].label.replace('Clavis ', ''), ...(index === 0 ? ['✓'] : [])]);
+      expect(choice.findByType('input').props['aria-label']).toBe(BUILTIN_THEMES[id].label);
+    });
+  });
+
   it('changes the sample immediately but only saves when asked', async () => {
     mountDialog();
     act(() => radio('ink').props.onChange());

@@ -144,3 +144,59 @@ describe('LaTeX compile snapshot', () => {
   });
 
 });
+
+
+it.each(['snapshot', 'compile'])('does not publish a late %s failure into another document', async stage => {
+  const switchAndFail = async () => {
+    useTabsStore.getState().addTab({ id: 'other', title: 'other.tex', filePath: '/other/doc.tex', lang: 'latex', content: 'other', isDirty: false });
+    usePdfStore.setState({ ownerTabId: 'other', sourceRoot: '/other/doc.tex', sourceFiles: [], bytes: new Uint8Array([9]), workdirToken: 'other-token', stale: false });
+    throw new Error('old project failed');
+  };
+  if (stage === 'snapshot') vi.mocked(ipc.collectLatexSnapshot).mockImplementationOnce(switchAndFail);
+  else vi.mocked(ipc.compileLatex).mockImplementationOnce(switchAndFail);
+  await runLatexCompile();
+  expect(useCompileStore.getState().status).toBe('idle');
+  expect(useCompileStore.getState().errors).toEqual([]);
+  expect(usePdfStore.getState()).toMatchObject({ bytes: new Uint8Array([9]), workdirToken: 'other-token', stale: false });
+});
+
+it('reports failure normally after switching between chapters of the same project', async () => {
+  vi.mocked(ipc.compileLatex).mockImplementationOnce(async () => {
+    useTabsStore.getState().setActive('main');
+    throw new Error('engine exited');
+  });
+  await runLatexCompile();
+  expect(useCompileStore.getState().status).toBe('error');
+  expect(useCompileStore.getState().errors[0].message).toContain('engine exited');
+});
+
+it('does not clear the current document PDF when an unrelated compile succeeds late', async () => {
+  vi.mocked(ipc.compileLatex).mockImplementationOnce(async () => {
+    useTabsStore.getState().addTab({ id: 'other', title: 'other.tex', filePath: '/other/doc.tex', lang: 'latex', content: 'other', isDirty: false });
+    usePdfStore.setState({ ownerTabId: 'other', sourceRoot: '/other/doc.tex', sourceFiles: [], bytes: new Uint8Array([9]), workdirToken: 'other-token', stale: false });
+    return result;
+  });
+  await runLatexCompile();
+  expect(usePdfStore.getState()).toMatchObject({ bytes: new Uint8Array([9]), workdirToken: 'other-token', stale: false });
+});
+
+
+it('reports a snapshot failure for the active magic-root chapter before dependencies are known', async () => {
+  useProjectStore.getState().reset();
+  useTabsStore.getState().patchTab('chapter', { projectRoot: '/p/paper.tex' });
+  vi.mocked(ipc.collectLatexSnapshot).mockRejectedValueOnce(new Error('snapshot unreadable'));
+  await runLatexCompile();
+  expect(useCompileStore.getState().status).toBe('error');
+  expect(useCompileStore.getState().errors[0].message).toContain('snapshot unreadable');
+});
+
+it('does not borrow an older project dependency list for a new root that fails collection', async () => {
+  useTabsStore.getState().addTab({ id: 'new', title: 'new.tex', filePath: '/new/main.tex', lang: 'latex', content: 'new', isDirty: false });
+  vi.mocked(ipc.collectLatexSnapshot).mockImplementationOnce(async () => {
+    useTabsStore.getState().setActive('chapter');
+    throw new Error('new root failed');
+  });
+  await runLatexCompile();
+  expect(useCompileStore.getState().status).toBe('idle');
+  expect(useCompileStore.getState().errors).toEqual([]);
+});

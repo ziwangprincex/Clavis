@@ -5,10 +5,19 @@ import { openFileByPath } from '../files/files';
 import { retainLocalCopy } from '../files/documentSync';
 import { newTabId, useTabsStore, type Tab } from '../store/tabs';
 import { proseDiff } from '../git/proseDiff';
+import { TemplateEnvironment } from './TemplateEnvironment';
 import styles from './WriterDialog.module.css';
 
 export type WriterTool = 'templates' | 'history' | 'environment';
-export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () => void }) {
+export interface WriterDialogProps {
+  tool: WriterTool;
+  onClose: () => void;
+  onCreated?: (main: string) => Promise<void>;
+  onSettings?: () => void;
+  onBlank?: () => void;
+  hidden?: boolean;
+}
+export function WriterDialog({ tool, onClose, onCreated, onSettings, onBlank, hidden = false }: WriterDialogProps) {
   const ref = useRef<HTMLElement>(null);
   const initial = useRef(
     useTabsStore.getState().tabs.find((t) => t.id === useTabsStore.getState().activeTabId),
@@ -27,17 +36,18 @@ export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () 
     }
   }
   useEffect(() => {
+    if (hidden) return;
     const before = document.activeElement as HTMLElement;
     ref.current?.focus();
     return () => before?.focus();
-  }, []);
+  }, [hidden]);
   const title = t({
-    templates: 'Start with a clean page',
+    templates: 'New document',
     history: 'Local version timeline',
     environment: 'Writing environment',
   }[tool]);
   return (
-    <div className={styles.backdrop}>
+    <div className={styles.backdrop} hidden={hidden}>
       <section
         ref={ref}
         tabIndex={-1}
@@ -53,7 +63,7 @@ export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () 
           }
           if (event.key === 'Tab') {
             const items = [
-              ...ref.current!.querySelectorAll<HTMLElement>('button:not(:disabled),input,select,textarea'),
+              ...ref.current!.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)'),
             ];
             const first = items[0],
               last = items.at(-1);
@@ -83,28 +93,23 @@ export function WriterDialog({ tool, onClose }: { tool: WriterTool; onClose: () 
           </p>
         )}
         <div className={styles.body}>
-          {tool === 'templates' && <Templates busy={busy} run={run} onClose={onClose} />}
-          {tool === 'environment' && <Environment />}
+          {tool === 'templates' && <Templates busy={busy} run={run} onClose={onClose} onCreated={onCreated} onSettings={onSettings} onBlank={onBlank} hidden={hidden} />}
+          {tool === 'environment' && <Environment onSettings={onSettings} enabled={!hidden} />}
           {tool === 'history' && <Timeline tab={initial.current} busy={busy} run={run} onClose={onClose} />}
         </div>
       </section>
     </div>
   );
 }
-function Templates({
-  busy,
-  run,
-  onClose,
-}: {
+function Templates({ busy, run, onClose, onCreated, onSettings, onBlank, hidden }: {
   busy: boolean;
   run: (f: () => Promise<void>) => Promise<void>;
-  onClose: () => void;
-}) {
+} & Omit<WriterDialogProps, 'tool'>) {
   const [template, setTemplate] = useState('typst-paper'),
     [name, setName] = useState('My paper');
   return (
     <>
-      <p>{t("Three offline starters. No package downloads, generated scripts or template marketplace.")}</p>
+      {onBlank && <button disabled={busy} onClick={() => { onBlank(); onClose(); }}>{t("Blank note")}</button>}
       <div className={styles.choices}>
         {[
           [
@@ -115,13 +120,14 @@ function Templates({
           ['latex-paper', 'LaTeX paper', 'Local TeX required · article + amsmath, split introduction'],
           ['research-note', 'Research note', 'Markdown · question, evidence and next step'],
         ].map(([id, title, description]) => (
-          <button key={id} aria-pressed={template === id} onClick={() => setTemplate(id)}>
+          <button key={id} disabled={busy} aria-pressed={template === id} onClick={() => setTemplate(id)}>
             <strong>{t(title)}</strong>
             <span>{t(description)}</span>
           </button>
         ))}
       </div>
-      <label className={styles.field}> {t("New project folder")} <input value={name} onChange={(e) => setName(e.target.value)} />
+      {template === 'latex-paper' && <TemplateEnvironment onSettings={busy ? undefined : onSettings} enabled={!hidden} />}
+      <label className={styles.field}> {t("New project folder")} <input disabled={busy} value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <button
         disabled={busy || !name.trim()}
@@ -129,12 +135,13 @@ function Templates({
           void run(async () => {
             const parent = await dialogOpen({
               directory: true,
-              title: 'Choose parent folder for the new project',
+              title: t('Choose parent folder for the new project'),
             });
             if (typeof parent !== 'string') return;
             const main = await createTemplate(parent, name, template);
             if (!(await openFileByPath(main)))
               throw new Error('Project created, but could not open its main document.');
+            await onCreated?.(main);
             onClose();
           })
         }
@@ -142,11 +149,15 @@ function Templates({
     </>
   );
 }
-function Environment() {
+function Environment({ onSettings, enabled }: { onSettings?: () => void; enabled: boolean }) {
   const [engines, setEngines] = useState<EngineInfo[]>(),
     [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
+    if (!enabled) return;
+    setError('');
+    setEngines(undefined);
     Promise.all([ipc.detectLatexEngines(), ipc.detectBibEngines()]).then(
       ([a, b]) => {
         if (alive) setEngines([...a, ...b]);
@@ -158,9 +169,13 @@ function Environment() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [attempt, enabled]);
   return (
     <>
+      <div className={styles.inlineActions}>
+        {onSettings && <button onClick={onSettings}>{t("Open settings")}</button>}
+        <button onClick={() => setAttempt(value => value + 1)} disabled={!engines && !error}>{t("Check again")}</button>
+      </div>
       <p> {t("Typst and Markdown rendering are bundled and available offline. No external installation is needed for the Typst starter.")} </p>
       {error ? (
         <p role="alert">{error}</p>

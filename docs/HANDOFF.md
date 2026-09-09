@@ -7,7 +7,8 @@ guard only requires that this page still describes the tree after a change.
 
 ## What Clavis is
 
-A quiet, native writing tool for Markdown, LaTeX and Typst. Tauri v1, Rust
+A quiet, native research-writing tool: LaTeX/Typst for papers, Markdown for
+notes and drafts, with format-specific tools shown only as needed. Tauri v1, Rust
 backend in `src/`, React + TypeScript frontend in `web/`. Real LaTeX
 compilation with SyncTeX and BibTeX/Biber, native Typst rendering, PDF reading
 with search, save-conflict protection, local version timeline, in-document
@@ -19,14 +20,37 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
+- Preparing v1.6.0 release. Version set in Cargo.toml/Cargo.lock/tauri.conf.json;
+  passing `python tools/check_release.py --tag v1.6.0`. Notes:
+  `docs/releases/v1.6.0.md`. Release follows `RELEASING.md`; only commit/tag/push
+  after the owner authorizes this version.
 - Published: v1.5.0 (2026-09-09), all three platforms, updater manifest verified
   with the deployed public key, Homebrew cask updated. `origin/main` carries the
   release. Notes: `docs/releases/v1.5.0.md`.
 - The 1.5.0 release folded in the theme convergence (community themes now derive
   a legible syntax palette instead of a hard-coded VS Code fallback), Typst and
   paper previews following the active theme, the history archive, and this page.
-  Five untracked one-off scripts under `tools/` stay local and unversioned.
-- Tests at last full run: 716 frontend (Vitest), 144 Rust (3 optional ignored),
+- Tree cleanup after 1.5.0: the untracked Chrome-driven UI checks and one-off
+  patch scripts under `tools/` are deleted; the two session notes
+  `TYPESETTING_WORKFLOW.md` and `UI_PREFERENCES.md` moved to `docs/history/`.
+  `tools/` now holds only what CI, the release runbook, and the icon pipeline
+  call.
+- v1.6.0 content, accumulated locally since 1.5.0:
+  - Writing refinement: compact titlebar/sidebar, neutral Paper and Ink
+    defaults, normal Write/Split insets fixed (centering is Focus-only). Theme
+    cards show only Clavis and theme names; no slogans or palette prose. Closing
+    a tab selects its neighbor; problems height reclamps on resize; delayed PDF
+    jumps wait for attach without replay; late compile results stay scoped to
+    their source document. `docs/history/WRITING-REFINEMENT-2026-09-09.md`.
+  - Product-flow pass: first-run actions without a wizard; visible New and PDF
+    export; template creation opens the project and preview; LaTeX starter
+    checks its environment without blocking drafting. Sidebar and menus are
+    contextual, with project/build tools folded. `docs/history/PRODUCT-FLOW-2026-09-09.md`.
+  - Sidebar correction: no visible Workspace heading or underlined text tabs;
+    compact labelled icons, stable Research entry with an Open folder action,
+    one folder header, no empty outline or blank-draft checks.
+    `docs/history/SIDEBAR-2026-09-09.md`.
+- Tests at last full run: 782 frontend (Vitest), 144 Rust (3 optional ignored),
   10 Python guard tests. Run `npm --prefix web test`, `cargo test`, and
   `python3 -m unittest discover -s tools`.
 
@@ -77,9 +101,12 @@ else derives from it at runtime:
 - Frontend uses `window.__TAURI__` directly; IPC wrappers live in
   `web/src/api/tauri.ts`. Guard UI calls with `hasTauri()`.
 - Compare paths with `pathsEqual`/`normalizePath`, never `===` (Windows `\\?\`).
-- `tauri-action` publishes the release itself despite the "draft" wording in
-  `release.yml`; the owner has accepted this. Verify the public `latest.json`
-  and Homebrew checksum after each tag.
+- `release.yml` creates a draft and `tauri-action` uploads into it. Whether the
+  draft flips to published on its own has varied (1.4.0 yes, 1.5.0 no). After
+  the Windows job finishes, check `gh release view <tag>`; if `isDraft` is
+  still true run `gh release edit <tag> --draft=false`. Publishing fires
+  `update-homebrew.yml`. Then verify the public `latest.json` and the cask
+  checksum.
 - `.cm-selectionLayer` sits above content; its fill must stay translucent
   (`selectionFill()` in `web/src/editor/controller.ts`).
 - Rust `Settings` has `#[serde(flatten)] extra`; frontend-only settings
