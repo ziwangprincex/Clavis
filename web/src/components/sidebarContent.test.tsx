@@ -16,12 +16,14 @@ const visibleButtons = () => tree.root.findAllByType('button').filter(node => {
 });
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   useSettingsStore.setState({ settings: { ...defaultSettings, ui_language: 'en' } });
   useProjectStore.getState().reset();
   useTabsStore.setState({ activeTabId: 'draft', tabs: [{ id: 'draft', title: 'Untitled', filePath: null, lang: 'markdown', content: '', isDirty: false }] });
   vi.mocked(ipc.scanFolderShallow).mockResolvedValue({ name: 'paper', path: '/paper', isDir: true, children: [{ name: 'main.tex', path: '/paper/main.tex', isDir: false, children: [] }] });
 });
-afterEach(() => { act(() => tree?.unmount()); });
+afterEach(() => { act(() => tree?.unmount()); vi.unstubAllGlobals(); });
 
 describe('compact sidebar contents', () => {
   it('shows only navigation icons and one open-folder row for a blank note', async () => {
@@ -67,16 +69,14 @@ describe('compact sidebar contents', () => {
   });
   it('keeps the real folder name and file actions without a second Folder heading', async () => {
     const activate = vi.fn();
-    const refresh = vi.fn();
     const close = vi.fn();
-    await act(async () => { tree = create(<Sidebar folderTree={<FolderTreeSection rootPath="/paper" onFileActivate={activate} onRefresh={refresh} onCloseFolder={close} />} />); });
+    await act(async () => { tree = create(<Sidebar folderTree={<FolderTreeSection rootPath="/paper" onFileActivate={activate} onCloseFolder={close} />} />); });
     expect(button('Folder')).toBeUndefined();
     expect(text(tree.root)).toContain('paper');
-    await act(async () => { await tree.root.findByType('li').props.onClick(); });
+    await act(async () => { await button('main.tex')!.props.onClick(); });
     expect(activate).toHaveBeenCalledWith('/paper/main.tex');
-    act(() => tree.root.findByProps({ title: 'Rescan' }).props.onClick());
+    expect(tree.root.findAllByProps({ title: 'Rescan' })).toHaveLength(0);
     act(() => tree.root.findByProps({ title: 'Close folder' }).props.onClick());
-    expect(refresh).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });
   it('returns to the single folder action after closing a folder', async () => {

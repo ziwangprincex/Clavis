@@ -20,39 +20,39 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
-- Preparing v1.6.0 release. Version set in Cargo.toml/Cargo.lock/tauri.conf.json;
-  passing `python tools/check_release.py --tag v1.6.0`. Notes:
-  `docs/releases/v1.6.0.md`. Release follows `RELEASING.md`; only commit/tag/push
-  after the owner authorizes this version.
-- Published: v1.5.0 (2026-09-09), all three platforms, updater manifest verified
-  with the deployed public key, Homebrew cask updated. `origin/main` carries the
-  release. Notes: `docs/releases/v1.5.0.md`.
-- The 1.5.0 release folded in the theme convergence (community themes now derive
-  a legible syntax palette instead of a hard-coded VS Code fallback), Typst and
-  paper previews following the active theme, the history archive, and this page.
-- Tree cleanup after 1.5.0: the untracked Chrome-driven UI checks and one-off
-  patch scripts under `tools/` are deleted; the two session notes
-  `TYPESETTING_WORKFLOW.md` and `UI_PREFERENCES.md` moved to `docs/history/`.
-  `tools/` now holds only what CI, the release runbook, and the icon pipeline
-  call.
-- v1.6.0 content, accumulated locally since 1.5.0:
-  - Writing refinement: compact titlebar/sidebar, neutral Paper and Ink
-    defaults, normal Write/Split insets fixed (centering is Focus-only). Theme
-    cards show only Clavis and theme names; no slogans or palette prose. Closing
-    a tab selects its neighbor; problems height reclamps on resize; delayed PDF
-    jumps wait for attach without replay; late compile results stay scoped to
-    their source document. `docs/history/WRITING-REFINEMENT-2026-09-09.md`.
-  - Product-flow pass: first-run actions without a wizard; visible New and PDF
-    export; template creation opens the project and preview; LaTeX starter
-    checks its environment without blocking drafting. Sidebar and menus are
-    contextual, with project/build tools folded. `docs/history/PRODUCT-FLOW-2026-09-09.md`.
-  - Sidebar correction: no visible Workspace heading or underlined text tabs;
-    compact labelled icons, stable Research entry with an Open folder action,
-    one folder header, no empty outline or blank-draft checks.
-    `docs/history/SIDEBAR-2026-09-09.md`.
-- Tests at last full run: 782 frontend (Vitest), 144 Rust (3 optional ignored),
-  10 Python guard tests. Run `npm --prefix web test`, `cargo test`, and
-  `python3 -m unittest discover -s tools`.
+- Preparing v1.7.0 under the owner's explicit 2026-09-09 request to push and
+  publish a new version. This authorizes this release, its installers/updater
+  manifest and the associated Homebrew update, not future releases. Version
+  metadata matches; notes: `docs/releases/v1.7.0.md`. Follow `RELEASING.md`;
+  publication and signature checks are pending, not implied by the version bump.
+- v1.6.0 is already public at `d406626` (2026-09-09). Its Release, main CI and
+  Homebrew workflows succeeded. Keep the existing tag and release unchanged.
+- v1.7.0 includes all post-1.6.0 local source and regression tests, not just the
+  latest sidebar edits. Explicit biblatex `backend=bibtex` now takes precedence;
+  bibliography entry errors retain source locations and a usable generated bbl
+  can continue to PDF output. Font collection has a separate 64 MiB limit.
+- PDF citation/reference links use annotations over the text layer. Detached
+  preparation no longer drops hit areas; stale clicks cannot navigate a replaced
+  surface. Tests cover actual viewer scroll wiring; a real XeLaTeX/biblatex
+  sample resolves citations. External links allow only http/https/mailto and
+  open via system handlers without a Windows command shell. Details:
+  `docs/history/PDF-LINKS-2026-09-09.md`.
+- Explicit open folders survive restart; Close folder persists that choice.
+  Save stays in the menu/shortcut, folder refresh runs on foreground with a
+  command-menu fallback. File and outline trees are nested/foldable; duplicate
+  flat project files are hidden when the folder tree covers them. Old sessions
+  need the folder opened once (no guessed recovery), noted in release notes.
+  `docs/history/SIDEBAR-SESSION-2026-09-09.md`.
+- Existing 1.6.0 writing/first-run/sidebar work remains unchanged: compact normal
+  editing, centering only in Focus, contextual research/project tools and no
+  visible Workspace heading. Details are in `docs/history/WRITING-REFINEMENT-2026-09-09.md`,
+  `docs/history/PRODUCT-FLOW-2026-09-09.md`, and `docs/history/SIDEBAR-2026-09-09.md`.
+- Fresh v1.7.0 local checks passed: TypeScript, frontend production build,
+  820 frontend tests, Rust all-target check, 146 Rust tests (3 optional ignored),
+  10 Python guard tests, version/tag validation and working-tree HANDOFF guard.
+  Remote exact-tag CI, three-platform packages and public update verification
+  still must complete. Native GUI, user-thesis clicks and MacBook Air
+  quit/relaunch acceptance remain separate from automated checks.
 
 ## Boundaries the owner set
 

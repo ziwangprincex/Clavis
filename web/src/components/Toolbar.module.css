@@ -55,7 +55,7 @@
 .optionRow { justify-content: space-between; }
 .optionRow select { min-height: 28px; max-width: 140px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel-solid); color: var(--text); font: inherit; font-size: 0.95em; }
 .optionRow input { accent-color: var(--accent); width: 16px; height: 16px; }
-@media (max-width: 1000px) { .optionalAction { display: none; } .toolbar { padding-inline: 12px; } .actions { gap: 4px; } }
+@media (max-width: 1000px) { .toolbar { padding-inline: 12px; } .actions { gap: 4px; } }
 @media (max-width: 760px) { .toolbar { gap: 6px; } .layoutSwitch button { padding-inline: 8px; } .actionLabel { display: none; } .primaryBtn { min-width: 32px; padding-inline: 8px; } }
 
 .menuItem:disabled, .textBtn:disabled { opacity: 0.5; cursor: default; }

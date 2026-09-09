@@ -17,6 +17,8 @@ export interface ProjectFile {
 }
 
 interface ProjectStore {
+  /** Explicitly opened folder, independent of the active LaTeX main file. */
+  folderPath: string | null;
   workspace: WorkspaceInspection | null;
   rootAbs: string | null;
   rootBasename: string | null;
@@ -29,6 +31,7 @@ interface ProjectStore {
 }
 
 export const useProjectStore = create<ProjectStore>(set => ({
+  folderPath: null,
   workspace: null,
   rootAbs: null,
   rootBasename: null,
@@ -40,6 +43,7 @@ export const useProjectStore = create<ProjectStore>(set => ({
   },
   reset() {
     set({
+      folderPath: null,
       workspace: null,
       rootAbs: null,
       rootBasename: null,

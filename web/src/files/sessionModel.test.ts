@@ -18,6 +18,16 @@ function raw(tabs: unknown[], activeIndex = 0, version = 2): string {
 }
 
 describe('Session Snapshot', () => {
+  it.each(['/paper', 'C:\\Papers\\Thesis', '\\\\?\\C:\\Papers\\Thesis', '\\\\server\\papers'])('preserves an explicit absolute folder: %s', folderPath => {
+    expect(decodeSessionSnapshot(encodeSessionSnapshot([], null, folderPath))).toMatchObject({ folderPath, tabs: [] });
+  });
+
+  it.each(['relative/path', '', 42, '/paper\0bad'])('ignores an invalid folder without losing recoverable documents: %s', folderPath => {
+    const result = decodeSessionSnapshot(JSON.stringify({ version: 2, folderPath, tabs: [persistedTab()], activeIndex: 0 }));
+    expect(result?.folderPath).toBeNull();
+    expect(result?.tabs).toHaveLength(1);
+  });
+
   it('rejects unreadable, unsupported, and empty snapshots', () => {
     expect(decodeSessionSnapshot('{')).toBeNull();
     expect(decodeSessionSnapshot(raw([], 0))).toBeNull();
@@ -103,6 +113,7 @@ describe('Session Snapshot', () => {
     const encoded = encodeSessionSnapshot(tabs, 'runtime-only');
     expect(JSON.parse(encoded)).toEqual({
       version: 2,
+      folderPath: null,
       activeIndex: 0,
       tabs: [persistedTab({ title: 'draft', content: 'text', isDirty: true })],
     });

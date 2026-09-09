@@ -13,6 +13,7 @@ use unicode_normalization::UnicodeNormalization;
 
 pub(crate) const MAX_PROJECT_FILES: usize = 200;
 pub(crate) const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
+pub(crate) const MAX_FONT_BYTES: u64 = 64 * 1024 * 1024;
 pub(crate) const MAX_DEPTH: u32 = 5;
 
 /// Reject paths that escape the project root or contain absolute components.
@@ -144,7 +145,9 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
 
     fn read_binary(p: &Path) -> Option<String> {
         let meta = std::fs::metadata(p).ok()?;
-        if meta.len() > MAX_FILE_BYTES { return None; }
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+        let limit = if is_font_like_ext(&ext) { MAX_FONT_BYTES } else { MAX_FILE_BYTES };
+        if meta.len() > limit { return None; }
         let bytes = std::fs::read(p).ok()?;
         Some(base64::engine::general_purpose::STANDARD.encode(bytes))
     }

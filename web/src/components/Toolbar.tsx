@@ -68,7 +68,6 @@ export function Toolbar(props: ToolbarProps) {
         {tab?.isDirty && <span className={styles.dirty} aria-label={t('Unsaved changes')} title={t('Unsaved changes')} />}
       </div>
       <div className={styles.actions}>
-        <button className={`${styles.iconBtn} ${styles.optionalAction}`} onClick={props.onSave} aria-label={t('Save document')} title={`${t('Save')} (${fmtShortcut('Ctrl+S')})`} disabled={!tab}><IconSave aria-hidden="true" /></button>
         <div className={styles.layoutSwitch} role="group" aria-label={t('Editor layout')}>
           {(['editor', 'split', 'preview'] as const).map(mode => (
             <button key={mode} className={props.layout === mode ? styles.selectedLayout : ''} onClick={() => props.onLayoutChange(mode)} aria-pressed={props.layout === mode} title={mode === 'editor' ? t('Editor only') : mode === 'preview' ? t('Preview only') : t('Split view')}>

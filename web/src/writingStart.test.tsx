@@ -7,7 +7,7 @@ import { WriterDialog } from './components/WriterDialog';
 import { useTabsStore, useSettingsStore, useProjectStore, useGitStore, useTaskStore, defaultSettings } from './store';
 import { useCommandsStore } from './store/commands';
 import { restoreSession } from './files/session';
-import { ipc } from './api/tauri';
+import { ipc, dialogConfirm } from './api/tauri';
 
 vi.mock('./components/EditorPane', () => ({ EditorPane: () => null }));
 vi.mock('./components/PreviewPane', () => ({ PreviewPane: () => null }));
@@ -85,6 +85,47 @@ it('dismisses first-run actions on typing and does not resurrect them on undo', 
   act(() => useTabsStore.getState().patchTab(id, { content: '', isDirty: false }));
   expect(starter()).toHaveLength(0);
 });
+it('restores the folder beside the recovered document without prompting for execution trust', async () => {
+  vi.mocked(restoreSession).mockImplementationOnce(async () => {
+    useProjectStore.getState().setProject({ folderPath: '/paper' });
+    useTabsStore.getState().addTab({ id: 'restored', title: 'main.tex', filePath: '/paper/main.tex', lang: 'latex', content: 'Keep me', isDirty: true });
+    return true;
+  });
+  vi.mocked(ipc.inspectWorkspace).mockResolvedValueOnce({ root: '/paper', config: null, issues: [], trust: 'untrusted', hasExecutableTasks: true });
+  await mount();
+  expect(ipc.inspectWorkspace).toHaveBeenCalledWith('/paper');
+  expect(dialogConfirm).not.toHaveBeenCalled();
+  expect(useProjectStore.getState().workspace?.trust).toBe('untrusted');
+  expect(tree.root.findByType(Sidebar).props.folderTree.props.rootPath).toBe('/paper');
+  expect(starter()).toHaveLength(0);
+  expect(useTabsStore.getState().tabs[0].content).toBe('Keep me');
+  await act(async () => { await useCommandsStore.getState().commands.get('workspace.closeFolder')!.run(); });
+  expect(useProjectStore.getState().folderPath).toBeNull();
+  expect(useTabsStore.getState().tabs).toHaveLength(1);
+});
+
+it('restores a folder-only session without showing the first-run overlay', async () => {
+  vi.mocked(restoreSession).mockImplementationOnce(async () => {
+    useProjectStore.getState().setProject({ folderPath: '/paper' });
+    return false;
+  });
+  await mount();
+  expect(tree.root.findByType(Sidebar).props.folderTree.props.rootPath).toBe('/paper');
+  expect(useTabsStore.getState().tabs).toHaveLength(1);
+  expect(starter()).toHaveLength(0);
+});
+
+it('does not duplicate a flat dependency list under the real folder tree', async () => {
+  await mount();
+  act(() => {
+    useProjectStore.getState().setProject({ folderPath: '/paper', rootAbs: '/paper/main.tex', files: [{ absPath: '/paper/main.tex', relPath: 'main.tex', content: '' }] });
+    useTabsStore.getState().patchTab(useTabsStore.getState().activeTabId!, { filePath: '/paper/main.tex', lang: 'latex' });
+  });
+  expect(tree.root.findByType(Sidebar).props.files).toBeNull();
+  act(() => useProjectStore.getState().setProject({ folderPath: null }));
+  expect(tree.root.findByType(Sidebar).props.files).not.toBeNull();
+});
+
 it('does not replace or duplicate an already-open unsaved draft at boot', async () => {
   useTabsStore.getState().addTab({ id: 'draft', title: 'Untitled', filePath: null, lang: 'typst', content: 'Keep me', isDirty: true });
   await mount();

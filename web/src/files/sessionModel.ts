@@ -19,11 +19,13 @@ export interface PersistedTab {
 interface PersistedSession {
   version: number;
   activeIndex: number;
+  folderPath: string | null;
   tabs: PersistedTab[];
 }
 
 export interface RestoredSession {
   activeIndex: number;
+  folderPath: string | null;
   tabs: PersistedTab[];
 }
 
@@ -119,7 +121,6 @@ export function decodeSessionSnapshot(raw: string): RestoredSession | null {
     typeof version !== 'number'
     || !SUPPORTED_SESSION_VERSIONS.has(version)
     || !Array.isArray(tabs)
-    || tabs.length === 0
   ) {
     return null;
   }
@@ -128,7 +129,10 @@ export function decodeSessionSnapshot(raw: string): RestoredSession | null {
     ? Number(activeIndex)
     : 0;
   const candidates = deduplicateTabs(tabs);
-  if (candidates.length === 0) return null;
+  const folderPath = typeof value.folderPath === 'string'
+    && /^(?:\/|[a-z]:\/)/i.test(normalizePath(value.folderPath))
+    && !value.folderPath.includes('\0') ? value.folderPath : null;
+  if (candidates.length === 0 && !folderPath) return null;
 
   let activeCandidate = candidates.findIndex(candidate =>
     candidate.sourceIndexes.includes(sourceActiveIndex),
@@ -137,15 +141,17 @@ export function decodeSessionSnapshot(raw: string): RestoredSession | null {
 
   return {
     activeIndex: activeCandidate,
+    folderPath,
     tabs: candidates.map(candidate => candidate.tab),
   };
 }
 
 /** Encode the persistent portion of a Workspace as the current Session Snapshot. */
-export function encodeSessionSnapshot(tabs: Tab[], activeTabId: string | null): string {
+export function encodeSessionSnapshot(tabs: Tab[], activeTabId: string | null, folderPath: string | null = null): string {
   const activeIndex = Math.max(0, tabs.findIndex(tab => tab.id === activeTabId));
   const snapshot: PersistedSession = {
     version: SESSION_VERSION,
+    folderPath,
     activeIndex,
     tabs: tabs.map(tab => ({
       title: tab.title,

@@ -1,7 +1,9 @@
 import { t } from '../i18n';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ipc, type TreeNode } from '../api/tauri';
-import { IconChevronDown, IconClose, IconFolder } from './icons';
+import { useTabsStore } from '../store';
+import { pathsEqual } from '../files/projectPaths';
+import { IconChevronDown, IconClose, IconDoc, IconFolder } from './icons';
 import styles from './FolderTreeSection.module.css';
 
 export interface FolderTreeSectionProps {
@@ -9,8 +11,7 @@ export interface FolderTreeSectionProps {
   onOpenFolder?: () => void;
   onCloseFolder?: () => void;
   onFileActivate?: (absPath: string) => void;
-  onRefresh?: () => void;
-  /** Bumped externally to force a re-scan (e.g. after refresh button click) */
+  /** Command-palette refresh; foregrounding also refreshes the visible tree. */
   refreshKey?: number;
 }
 
@@ -21,64 +22,85 @@ interface NodeWithChildren extends TreeNode {
 }
 
 function adopt(n: TreeNode): NodeWithChildren {
-  return {
-    ...n,
-    loaded: false,
-    expanded: false,
-    children: (n.children ?? []).map(adopt),
-  };
+  return { ...n, loaded: false, expanded: false, children: (n.children ?? []).map(adopt) };
 }
 
-export function FolderTreeSection({
-  rootPath,
-  onOpenFolder,
-  onCloseFolder,
-  onFileActivate,
-  onRefresh,
-  refreshKey = 0,
-}: FolderTreeSectionProps) {
+// Re-scan only expanded directories, preserving their open state. Closed
+// directories are lazy-loaded again when opened, not crawled in the background.
+async function scan(path: string, previous: NodeWithChildren | null): Promise<NodeWithChildren> {
+  const fresh = adopt(await ipc.scanFolderShallow(path));
+  const oldChildren = new Map(previous?.children.map(child => [child.path, child]));
+  fresh.children = await Promise.all(fresh.children.map(async child => {
+    const old = oldChildren.get(child.path);
+    if (!child.isDir || !old?.expanded) return child;
+    return scan(child.path, old);
+  }));
+  return { ...fresh, loaded: true, expanded: true };
+}
+
+function replaceNode(root: NodeWithChildren, next: NodeWithChildren): NodeWithChildren {
+  if (root.path === next.path) return next;
+  return { ...root, children: root.children.map(child => replaceNode(child, next)) };
+}
+
+export function FolderTreeSection({ rootPath, onOpenFolder, onCloseFolder, onFileActivate, refreshKey = 0 }: FolderTreeSectionProps) {
   const [root, setRoot] = useState<NodeWithChildren | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const currentRoot = useRef(root);
+  currentRoot.current = root;
+  const request = useRef(0);
+  const treeId = useId();
+  const activePath = useTabsStore(s => s.tabs.find(tab => tab.id === s.activeTabId)?.filePath);
 
   const loadRoot = useCallback(async () => {
-    if (!rootPath) {
-      setRoot(null);
-      return;
-    }
+    const seq = ++request.current;
+    if (!rootPath) { setRoot(null); setError(null); return; }
     try {
-      const node = await ipc.scanFolderShallow(rootPath);
-      const adopted = adopt(node);
-      adopted.loaded = true;
-      adopted.expanded = true;
-      setRoot(adopted);
+      const previous = currentRoot.current?.path === rootPath ? currentRoot.current : null;
+      const fresh = await scan(rootPath, previous);
+      if (seq !== request.current) return;
+      setRoot(fresh);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      if (seq === request.current) setError(String(e));
     }
   }, [rootPath]);
 
   useEffect(() => {
+    setCollapsed(false);
+    setError(null);
+  }, [rootPath]);
+
+  useEffect(() => {
     void loadRoot();
+    return () => { request.current += 1; };
   }, [loadRoot, refreshKey]);
 
+  useEffect(() => {
+    if (!rootPath) return;
+    const foreground = () => {
+      if (document.visibilityState !== 'hidden') void loadRoot();
+    };
+    window.addEventListener('focus', foreground);
+    document.addEventListener('visibilitychange', foreground);
+    return () => {
+      window.removeEventListener('focus', foreground);
+      document.removeEventListener('visibilitychange', foreground);
+    };
+  }, [rootPath, loadRoot]);
+
   async function expand(node: NodeWithChildren) {
-    if (!node.isDir) {
-      onFileActivate?.(node.path);
-      return;
+    if (!node.isDir) { onFileActivate?.(node.path); return; }
+    const seq = ++request.current;
+    try {
+      const next = node.loaded ? { ...node, expanded: !node.expanded } : await scan(node.path, node);
+      if (seq !== request.current) return;
+      setRoot(previous => previous ? replaceNode(previous, next) : null);
+      setError(null);
+    } catch (e) {
+      if (seq === request.current) setError(String(e));
     }
-    if (!node.loaded) {
-      try {
-        const fresh = await ipc.scanFolderShallow(node.path);
-        node.children = (fresh.children ?? []).map(adopt);
-        node.loaded = true;
-      } catch (e) {
-        setError(String(e));
-        return;
-      }
-    }
-    node.expanded = !node.expanded;
-    // Force re-render by cloning the root.
-    setRoot(r => (r ? { ...r } : null));
   }
 
   if (!rootPath) {
@@ -86,64 +108,43 @@ export function FolderTreeSection({
       <IconFolder size={14} aria-hidden="true" />{t('Open folder')}
     </button>;
   }
-
+  const visibleRoot = root?.path === rootPath ? root : null;
+  const name = visibleRoot?.name ?? rootPath.split(/[\\/]/).filter(Boolean).pop();
   return (
-    <div className={styles.root}>
+    <section className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.name} title={rootPath}>{root?.name ?? rootPath.split(/[\\/]/).filter(Boolean).pop()}</span>
-        <button className={styles.btn} onClick={onOpenFolder} title={t("Open folder")}><IconFolder size={13} /></button>
-        <button className={styles.btn} onClick={onRefresh} title={t("Rescan")}>⟳</button>
-        {rootPath && (
-          <button className={styles.btn} onClick={onCloseFolder} title={t("Close folder")}>
-            <IconClose size={11} />
-          </button>
-        )}
+        <button type="button" className={styles.folderTitle} title={rootPath} aria-expanded={!collapsed} aria-controls={treeId} onClick={() => setCollapsed(value => !value)}>
+          <IconChevronDown size={11} aria-hidden="true" className={`${styles.caret} ${collapsed ? styles.iconClosed : ''}`} />
+          <IconFolder size={14} aria-hidden="true" />
+          <span className={styles.name}>{name}</span>
+        </button>
+        <button type="button" className={styles.btn} onClick={onCloseFolder} aria-label={t('Close folder')} title={t('Close folder')}>
+          <IconClose size={11} aria-hidden="true" />
+        </button>
       </div>
       {error && <div className={styles.error}>{error}</div>}
-      {root && root.children.length > 0 && (
-        <ul className={styles.tree}>
-          {root.children.map((c, i) => (
-            <TreeRow key={i} node={c} depth={0} onActivate={expand} />
-          ))}
-        </ul>
-      )}
-    </div>
+      <ul id={treeId} className={styles.tree} hidden={collapsed} aria-label={name}>
+        {visibleRoot?.children.map(node => <TreeRow key={node.path} node={node} activePath={activePath} onActivate={expand} />)}
+      </ul>
+    </section>
   );
 }
 
-function TreeRow({
-  node,
-  depth,
-  onActivate,
-}: {
+function TreeRow({ node, activePath, onActivate }: {
   node: NodeWithChildren;
-  depth: number;
-  onActivate: (n: NodeWithChildren) => void;
+  activePath: string | null | undefined;
+  onActivate: (node: NodeWithChildren) => void;
 }) {
-  return (
-    <>
-      <li
-        className={styles.row}
-        style={{ paddingLeft: 8 + depth * 12 }}
-        onClick={() => onActivate(node)}
-      >
-        {node.isDir ? (
-          <IconChevronDown
-            size={9}
-            className={`${styles.icon} ${node.expanded ? '' : styles.iconClosed}`}
-          />
-        ) : (
-          <span className={styles.icon}>·</span>
-        )}
-        <span className={styles.label}>{node.name}</span>
-      </li>
-      {node.isDir && node.expanded && node.children.length > 0 && (
-        <>
-          {node.children.map((c, i) => (
-            <TreeRow key={i} node={c} depth={depth + 1} onActivate={onActivate} />
-          ))}
-        </>
-      )}
-    </>
-  );
+  const active = !node.isDir && pathsEqual(node.path, activePath);
+  return <li>
+    <button type="button" className={`${styles.row} ${active ? styles.active : ''}`} title={node.path}
+      aria-current={active ? 'page' : undefined} aria-expanded={node.isDir ? node.expanded : undefined} onClick={() => onActivate(node)}>
+      {node.isDir ? <IconChevronDown size={10} aria-hidden="true" className={`${styles.caret} ${node.expanded ? '' : styles.iconClosed}`} /> : <span className={styles.caret} />}
+      {node.isDir ? <IconFolder size={14} aria-hidden="true" className={styles.icon} /> : <IconDoc size={13} aria-hidden="true" className={styles.icon} />}
+      <span className={styles.label}>{node.name}</span>
+    </button>
+    {node.isDir && node.expanded && <ul className={styles.children} aria-label={node.name}>
+      {node.children.map(child => <TreeRow key={child.path} node={child} activePath={activePath} onActivate={onActivate} />)}
+    </ul>}
+  </li>;
 }

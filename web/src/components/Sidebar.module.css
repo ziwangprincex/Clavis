@@ -5,13 +5,14 @@
 .view:hover { background: var(--panel-soft); color: var(--text); }
 .view.selected { background: var(--panel-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .content { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 8px 12px; }
-.section { margin-top: 4px; }
-.sectionHeader { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 6px 8px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; font-weight: 550; cursor: pointer; text-align: left; }
+.section { margin-top: 10px; }
+.section + .section { border-top: 1px solid var(--border); padding-top: 6px; }
+.sectionHeader { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 6px 8px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; font-weight: 600; cursor: pointer; text-align: left; }
 .sectionHeader:hover { background: var(--panel-soft); color: var(--text); }
 .sectionTitle { flex: 1; }
 .caret { flex: none; transform: rotate(-90deg); transition: transform 160ms var(--ease); }
 .caretOpen { transform: rotate(0); }
-.sectionBody { padding: 2px 0; }
+.sectionBody { margin: 2px 0 4px 13px; padding: 0 0 0 7px; border-left: 1px solid var(--border); }
 .empty { margin: 8px; color: var(--text-muted); font-size: 0.92em; line-height: 1.6; }
 .empty p { margin: 0 0 8px; }
 .openFolder { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text); font: inherit; cursor: pointer; }

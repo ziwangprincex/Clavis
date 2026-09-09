@@ -44,6 +44,16 @@ const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
   },
   {
     language: 'latex',
+    pattern: /^bibliography entry:/i,
+    result: {
+      explanation:
+        'The .bib file has a malformed or duplicated entry at this line; bibtex/biber skipped it, so any citation of it stays unresolved. Fix the entry (usually a missing comma or brace on the previous field) and recompile.',
+      action: 'source',
+      label: 'Open .bib entry',
+    },
+  },
+  {
+    language: 'latex',
     pattern: /undefined.*(reference|citation)|rerun|biber|bibtex|cross.reference/i,
     result: {
       explanation:

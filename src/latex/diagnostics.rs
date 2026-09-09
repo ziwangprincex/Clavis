@@ -3,6 +3,11 @@
 use super::types::LatexDiag;
 
 pub(crate) fn detect_bib_kind(source: &str) -> Option<&'static str> {
+    // biblatex with an explicit backend wins: `\usepackage[..., backend=bibtex, ...]{biblatex}`
+    // uses \addbibresource too, so the presence of that macro alone says nothing.
+    if let Some(backend) = biblatex_backend(source) {
+        return Some(backend);
+    }
     if source.contains("\\addbibresource") {
         Some("biber")
     } else if source.contains("\\bibliography{") {
@@ -10,6 +15,30 @@ pub(crate) fn detect_bib_kind(source: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+fn biblatex_backend(source: &str) -> Option<&'static str> {
+    let mut rest = source;
+    while let Some(i) = rest.find("\\usepackage[") {
+        let after = &rest[i + "\\usepackage[".len()..];
+        let close = after.find(']')?;
+        let (opts, tail) = after.split_at(close);
+        if tail.trim_start_matches(']').trim_start().starts_with("{biblatex}") {
+            for opt in opts.split(',') {
+                let mut kv = opt.splitn(2, '=');
+                if kv.next().map(str::trim) == Some("backend") {
+                    return match kv.next().map(str::trim) {
+                        Some("bibtex" | "bibtex8") => Some("bibtex"),
+                        Some("biber") => Some("biber"),
+                        _ => None,
+                    };
+                }
+            }
+            return None;
+        }
+        rest = tail;
+    }
+    None
 }
 
 pub(crate) fn rerun_signal(text: &str) -> bool {
@@ -50,6 +79,15 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
     let re_warn = Regex::new(r"^LaTeX Warning:\s*(.*?)(?:\s+on input line\s+(\d+))?\.?\s*$").unwrap();
     let re_badbox = Regex::new(r"^(Overfull|Underfull) \\(?:hbox|vbox)\b.*$").unwrap();
     let re_bibtex_db = Regex::new(r"I couldn't open database file\s+(.+)$").unwrap();
+    // bibtex: "I was expecting a `,' or a `}'---line 917 of file refs.bib"
+    //         "Repeated entry---line 2455 of file refs.bib"
+    let re_bibtex_line = Regex::new(r"^(.*\S)---line (\d+) of file (.+?)\s*$").unwrap();
+    // biber:  "ERROR - BibTeX subsystem: /tmp/.../hash.utf8, line 917, syntax error: found "pages", expected end of entry"
+    //         "WARN - Duplicate entry key: 'x' in file '/tmp/.../refs.bib', skipping ..."
+    let re_biber_syntax = Regex::new(r"ERROR - BibTeX subsystem: \S+, line (\d+), (.+)$").unwrap();
+    let re_biber_dup = Regex::new(r"WARN - Duplicate entry key: '([^']+)' in file '([^']+)'").unwrap();
+    let re_biber_bibfile = Regex::new(r"Found BibTeX data source '([^']+)'").unwrap();
+    let mut biber_bib: Option<String> = None;
     // Missing files: handle a few common phrasings across MiKTeX / TeX Live.
     let re_file_not_found = Regex::new(r"(?i)!?\s*(?:LaTeX Error:\s*)?File\s+[`'](.+?)['`]\s+not found").unwrap();
     let re_miktex = Regex::new(r"(?i)the\s+package\s+(\S+?)\s+(?:is\s+)?(?:not\s+installed|could\s+not\s+be\s+found)").unwrap();
@@ -125,6 +163,32 @@ pub(crate) fn parse_diags(log: &str) -> Vec<LatexDiag> {
                 kind: "missing-ref",
                 package: None,
             });
+        } else if let Some(c) = re_bibtex_line.captures(line) {
+            out.push(LatexDiag {
+                line: c.get(2).and_then(|m| m.as_str().parse().ok()),
+                file: c.get(3).map(|m| bib_file_name(m.as_str())),
+                message: format!("Bibliography entry: {}", c.get(1).map_or("", |m| m.as_str())),
+                kind: "bib-error",
+                package: None,
+            });
+        } else if let Some(c) = re_biber_bibfile.captures(line) {
+            biber_bib = c.get(1).map(|m| bib_file_name(m.as_str()));
+        } else if let Some(c) = re_biber_syntax.captures(line) {
+            out.push(LatexDiag {
+                line: c.get(1).and_then(|m| m.as_str().parse().ok()),
+                file: biber_bib.clone(),
+                message: format!("Bibliography entry: {}", c.get(2).map_or("", |m| m.as_str())),
+                kind: "bib-error",
+                package: None,
+            });
+        } else if let Some(c) = re_biber_dup.captures(line) {
+            out.push(LatexDiag {
+                line: None,
+                file: c.get(2).map(|m| bib_file_name(m.as_str())),
+                message: format!("Bibliography entry: duplicate key '{}'", c.get(1).map_or("", |m| m.as_str())),
+                kind: "warning",
+                package: None,
+            });
         }
     }
     // Dedup adjacent identical diagnostics. Include file+line so that the same
@@ -156,6 +220,16 @@ pub(crate) fn merge_diags(mut base: Vec<LatexDiag>, extras: &[LatexDiag]) -> Vec
         }
     }
     base
+}
+
+/// bib runners print the .bib either bare (bibtex, cwd-relative) or as an
+/// absolute path inside the compile workdir (biber). Only the file name is
+/// meaningful to the editor, which resolves it against the project files.
+fn bib_file_name(raw: &str) -> String {
+    std::path::Path::new(raw.trim())
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| raw.trim().to_string())
 }
 
 fn strip_known_ext(name: &str) -> String {
@@ -257,5 +331,38 @@ mod tests {
         let log = "! Undefined control sequence.\n! Undefined control sequence.";
         let d = parse_diags(log);
         assert_eq!(d.len(), 1);
+    }
+
+    #[test]
+    fn parse_diags_locates_bib_entry_errors() {
+        let bibtex = "I was expecting a `,' or a `}'---line 917 of file refs.bib\n :   pages = {26},\n(Error may have been on previous line)\nRepeated entry---line 2455 of file refs.bib\n(There were 254 error messages)";
+        let d = parse_diags(bibtex);
+        assert_eq!(d.len(), 2);
+        assert_eq!(d[0].kind, "bib-error");
+        assert_eq!(d[0].file.as_deref(), Some("refs.bib"));
+        assert_eq!(d[0].line, Some(917));
+        assert!(d[0].message.contains("expecting a `,'"));
+        assert_eq!(d[1].line, Some(2455));
+
+        let biber = "[148] bibtex.pm:1519> INFO - Found BibTeX data source '/var/tmp/.tmpX/我的文库.bib'\n[325] Utils.pm:479> ERROR - BibTeX subsystem: /var/tmp/biber_tmp/0f8f.utf8, line 917, syntax error: found \"pages\", expected end of entry (\"}\" or \")\") (skipping to next \"@\")\n[325] Biber.pm:132> WARN - Duplicate entry key: 'reed2000' in file '/var/tmp/.tmpX/我的文库.bib', skipping ...";
+        let d = parse_diags(biber);
+        assert_eq!(d.len(), 2);
+        assert_eq!(d[0].kind, "bib-error");
+        assert_eq!(d[0].file.as_deref(), Some("我的文库.bib"));
+        assert_eq!(d[0].line, Some(917));
+        assert_eq!(d[1].kind, "warning");
+        assert!(d[1].message.contains("reed2000"));
+    }
+
+    #[test]
+    fn detect_bib_kind_honours_biblatex_backend() {
+        let bibtex = "\\usepackage[backend = bibtex, doi = false,style=authoryear]{biblatex}\n\\addbibresource{refs.bib}";
+        assert_eq!(detect_bib_kind(bibtex), Some("bibtex"));
+        let biber = "\\usepackage[style=apa,backend=biber]{biblatex}\n\\addbibresource{refs.bib}";
+        assert_eq!(detect_bib_kind(biber), Some("biber"));
+        let default = "\\usepackage[style=apa]{biblatex}\n\\addbibresource{refs.bib}";
+        assert_eq!(detect_bib_kind(default), Some("biber"));
+        assert_eq!(detect_bib_kind("\\usepackage[margin=1in]{geometry}\n\\bibliography{refs}"), Some("bibtex"));
+        assert_eq!(detect_bib_kind("plain text"), None);
     }
 }

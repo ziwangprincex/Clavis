@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { PdfPages } from './pages';
+import type { LinkAnnotation } from './links';
+import styles from '../components/PdfViewer.module.css';
 
 const textRender = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('pdfjs-dist', () => ({
@@ -11,8 +13,10 @@ vi.mock('pdfjs-dist', () => ({
   },
 }));
 
-class Element {
-  style = Object.assign({ width: '', height: '', transform: '' }, { setProperty: vi.fn() });
+class Element extends EventTarget {
+  connected = false;
+  get isConnected(): boolean { return this.connected || (this.parent?.isConnected ?? false); }
+  style = Object.assign({ width: '', height: '', transform: '', left: '', top: '' }, { setProperty: vi.fn() });
   dataset: Record<string, string> = {};
   className = '';
   children: Element[] = [];
@@ -30,6 +34,7 @@ class Element {
     }
   }
   replaceChildren(...children: Element[]) {
+    for (const child of this.children) child.parent = undefined;
     this.children = [];
     this.append(...children);
   }
@@ -73,11 +78,16 @@ const render = vi.fn(() => {
   return { promise, cancel: vi.fn(() => reject?.(new Error('cancelled'))) };
 });
 const getTextContent = vi.fn(async () => ({ items: [], styles: {} }));
+const getAnnotations = vi.fn(async (): Promise<LinkAnnotation[]> => []);
 const getPage = vi.fn(async (index: number) => ({
   getViewport: ({ scale }: { scale: number }) => ({
     width: (index % 2 ? 600 : 700) * scale,
     height: 800 * scale,
+    convertToViewportRectangle: ([x1, y1, x2, y2]: number[]) =>
+      [x1 * scale, (800 - y1) * scale, x2 * scale, (800 - y2) * scale],
+    convertToViewportPoint: (x: number, y: number) => [x * scale, (800 - y) * scale],
   }),
+  getAnnotations,
   render,
   getTextContent,
 }));
@@ -94,6 +104,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   textRender.mockReset().mockResolvedValue(undefined);
   getTextContent.mockReset().mockResolvedValue({ items: [], styles: {} });
+  getAnnotations.mockReset().mockResolvedValue([]);
   hold = false;
   resolveRender = undefined;
   vi.stubGlobal('document', { createElement: () => new Element() });
@@ -112,6 +123,7 @@ beforeEach(() => {
     },
   );
   host = new Element();
+  host.connected = true;
   painted = vi.fn();
   failed = vi.fn();
   pages = new PdfPages(
@@ -323,4 +335,122 @@ it('restarts text extraction cancelled before TextLayer exists, discarding its l
   await flush();
   expect(textRender).toHaveBeenCalledTimes(2);
   expect(render).not.toHaveBeenCalled();
+});
+
+// Model real DOM connection state: prepare() paints detached pages, and
+// annotations can finish before either the canvas or the host attachment.
+describe('PDF link hit areas', () => {
+  const citation: LinkAnnotation = {
+    subtype: 'Link', rect: [20, 700, 100, 720], dest: 'cite.0@reed2000',
+  };
+  let followed: ReturnType<typeof vi.fn>;
+  let destination: ReturnType<typeof vi.fn>;
+  const linkLayer = (surface: Element) => surface.children.find(el => el.className === styles.linkLayer)!;
+  const click = async (link: Element) => {
+    const event = new Event('click', { bubbles: true, cancelable: true });
+    const stop = vi.spyOn(event, 'stopPropagation');
+    link.dispatchEvent(event);
+    await flush();
+    expect(event.defaultPrevented).toBe(true);
+    expect(stop).toHaveBeenCalledOnce();
+  };
+
+  beforeEach(() => {
+    pages.destroy();
+    followed = vi.fn();
+    destination = vi.fn(async () => [{ num: 42, gen: 0 }, { name: 'XYZ' }, 72, 700, null]);
+    getAnnotations.mockResolvedValue([citation]);
+    pages = new PdfPages(host as unknown as HTMLDivElement, {
+      numPages: 3, getPage, getDestination: destination, getPageIndex: vi.fn(async () => 2),
+    } as unknown as PDFDocumentProxy, 1, painted, failed, followed);
+  });
+
+  it('keeps early annotations while prepare paints pages outside the document', async () => {
+    await pages.prepare();
+    const surface = (pages.elements[0] as unknown as Element).children[0];
+    expect(surface.isConnected).toBe(false);
+    expect(linkLayer(surface).children).toHaveLength(1);
+    pages.attach(1);
+    expect(surface.isConnected).toBe(true);
+    const hit = linkLayer(surface).children[0];
+    expect(hit.style).toMatchObject({ left: '20px', top: '80px', width: '80px', height: '20px' });
+    await click(hit);
+    expect(destination).toHaveBeenCalledWith('cite.0@reed2000');
+    expect(followed).toHaveBeenCalledWith({ kind: 'page', page: 3, y: 100 });
+  });
+
+  it('keeps annotations that arrive before a slow canvas finishes on a later page', async () => {
+    await pages.prepare(); pages.attach(1);
+    const wrap = host.children[2];
+    hold = true;
+    observer.fire([wrap], true);
+    await flush();
+    expect(wrap.children).toHaveLength(0);
+    resolveRender!();
+    await flush();
+    expect(linkLayer(wrap.children[0]).children).toHaveLength(1);
+    await click(linkLayer(wrap.children[0]).children[0]);
+    expect(followed).toHaveBeenCalledWith({ kind: 'page', page: 3, y: 100 });
+  });
+
+  it('adds delayed annotations after the canvas is already attached', async () => {
+    let complete!: (value: LinkAnnotation[]) => void;
+    getAnnotations.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    await pages.prepare(); pages.attach(1);
+    const layer = linkLayer(host.children[0].children[0]);
+    expect(layer.children).toHaveLength(0);
+    complete([citation]);
+    await flush();
+    expect(layer.children).toHaveLength(1);
+    await click(layer.children[0]);
+    expect(followed).toHaveBeenCalledOnce();
+  });
+
+  it('recreates working hit areas after offscreen eviction and zoom', async () => {
+    await pages.prepare(); pages.attach(1);
+    const wrap = host.children[0];
+    observer.fire([wrap], false);
+    observer.fire([wrap], true);
+    await flush();
+    await click(linkLayer(wrap.children[0]).children[0]);
+    pages.setZoom(2);
+    await vi.advanceTimersByTimeAsync(140);
+    const hit = linkLayer(wrap.children[0]).children[0];
+    expect(hit.style).toMatchObject({ left: '40px', top: '160px', width: '160px', height: '40px' });
+    await click(hit);
+    expect(followed).toHaveBeenCalledTimes(2);
+    expect(followed).toHaveBeenLastCalledWith({ kind: 'page', page: 3, y: 100 });
+  });
+
+  it('never adds annotations when their document was destroyed while loading', async () => {
+    let complete!: (value: LinkAnnotation[]) => void;
+    getAnnotations.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    await pages.prepare(); pages.attach(1);
+    const layer = linkLayer(host.children[0].children[0]);
+    pages.destroy();
+    complete([citation]);
+    await flush();
+    expect(layer.children).toHaveLength(0);
+    expect(followed).not.toHaveBeenCalled();
+  });
+
+  it('ignores a resolved click from a surface evicted while its destination was loading', async () => {
+    let complete!: (value: unknown[]) => void;
+    destination.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    await pages.prepare(); pages.attach(1);
+    const wrap = host.children[0];
+    await click(linkLayer(wrap.children[0]).children[0]);
+    observer.fire([wrap], false);
+    complete([2, { name: 'XYZ' }, 72, 700, null]);
+    await flush();
+    expect(followed).not.toHaveBeenCalled();
+  });
+
+  it('delivers external links without triggering page selection or browser navigation', async () => {
+    getAnnotations.mockResolvedValue([{ subtype: 'Link', rect: [20, 700, 100, 720], url: 'https://doi.org/10.1000/test' }]);
+    await pages.prepare(); pages.attach(1);
+    await click(linkLayer(host.children[0].children[0]).children[0]);
+    expect(followed).toHaveBeenCalledWith({ kind: 'url', url: 'https://doi.org/10.1000/test' });
+    expect(destination).not.toHaveBeenCalled();
+  });
 });

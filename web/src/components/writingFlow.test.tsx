@@ -21,7 +21,7 @@ const rendered = () => JSON.stringify(tree.toJSON());
 const props: ToolbarProps = {
   lang: 'markdown', onLangChange: vi.fn(), layout: 'split', onLayoutChange: vi.fn(),
   focusMode: false, onToggleFocus: vi.fn(), sidebarVisible: true, onToggleSidebar: vi.fn(),
-  onWriterTool: vi.fn(), onExportLatexPdf: vi.fn(), onExportTypstPdf: vi.fn(), onOpenFile: vi.fn(),
+  onSave: vi.fn(), onWriterTool: vi.fn(), onExportLatexPdf: vi.fn(), onExportTypstPdf: vi.fn(), onOpenFile: vi.fn(),
 };
 const listeners = new Map<string, (event: unknown) => void>();
 beforeEach(() => {
@@ -49,6 +49,18 @@ function toolbar(lang: ToolbarProps['lang']) {
 }
 
 describe('task-oriented toolbar', () => {
+  it('keeps save in the document menu without a duplicate toolbar icon', () => {
+    toolbar('latex');
+    expect(button('Save document')).toBeUndefined();
+    expect(button('Save')).toBeUndefined();
+    act(() => useTabsStore.getState().patchTab('one', { isDirty: true }));
+    expect(tree.root.findAllByProps({ 'aria-label': 'Unsaved changes' })).toHaveLength(1);
+    act(() => button('Document tools').props.onClick());
+    expect(button('Save')).toBeDefined();
+    expect(button('Save').findByType('kbd')).toBeDefined();
+    act(() => button('Save').props.onClick());
+    expect(props.onSave).toHaveBeenCalledOnce();
+  });
   it('keeps New visible and TeX tools absent for Markdown', () => {
     toolbar('markdown');
     act(() => button('New document').props.onClick());

@@ -177,6 +177,35 @@ pub async fn open_artifact_path(root: String, path: String) -> Result<(), String
     Ok(())
 }
 
+/// Open a web or mail link from the PDF preview in the system default handler.
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:")) {
+        return Err("only http, https and mailto links can be opened".to_string());
+    }
+    let mut command = if cfg!(windows) {
+        let mut command = tokio::process::Command::new("explorer.exe");
+        command.arg(&url);
+        command
+    } else if cfg!(target_os = "macos") {
+        let mut command = tokio::process::Command::new("open");
+        command.arg(&url);
+        command
+    } else {
+        let mut command = tokio::process::Command::new("xdg-open");
+        command.arg(&url);
+        command
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|error| format!("cannot open link: {error}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

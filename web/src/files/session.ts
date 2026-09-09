@@ -10,7 +10,7 @@
 //     Session Snapshot instead.
 
 import { ipc, hasTauri } from '../api/tauri';
-import { useTabsStore, newTabId } from '../store';
+import { useTabsStore, useProjectStore, newTabId } from '../store';
 import { useSettingsStore } from '../store';
 import { decodeSessionSnapshot, encodeSessionSnapshot } from './sessionModel';
 import { checkExternalDocuments } from './documentSync';
@@ -20,7 +20,7 @@ const AUTOSAVE_INTERVAL_MS = 30_000;
 
 function snapshot(): string {
   const { tabs, activeTabId } = useTabsStore.getState();
-  return encodeSessionSnapshot(tabs, activeTabId);
+  return encodeSessionSnapshot(tabs, activeTabId, useProjectStore.getState().folderPath);
 }
 
 /** Restore a previous Session Snapshot. Returns true when Documents survived validation. */
@@ -39,6 +39,7 @@ export async function restoreSession(): Promise<boolean> {
 
   const tabs = restored.tabs.map(tab => ({ ...tab, id: newTabId() }));
   const activeTabId = tabs[restored.activeIndex]?.id ?? tabs[0]?.id ?? null;
+  useProjectStore.getState().setProject({ folderPath: restored.folderPath });
   useTabsStore.setState({ tabs, activeTabId });
   await checkExternalDocuments(true).catch(() => {});
   return tabs.length > 0;

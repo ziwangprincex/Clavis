@@ -13,6 +13,7 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 import { PdfPages } from '../pdf/pages';
 import { bindPreviewZoom, capturePageAnchor, type ZoomPoint } from '../pdf/zoom';
 import { ensurePdfjs } from '../pdf/pdfjs';
+import { ipc } from '../api/tauri';
 import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '../store';
 import { usePdfSearch } from '../hooks/usePdfSearch';
@@ -130,6 +131,10 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
           host, candidateDoc, zoomRef.current,
           () => highlightRef.current(),
           error => { if (!cancelled) setError(String(error)); },
+          target => {
+            if (target.kind === 'page') usePdfStore.getState().requestScroll(target.page, target.y);
+            else void ipc.openExternalUrl(target.url).catch(error => console.warn('Could not open link', error));
+          },
         );
         await candidate.prepare();
         if (cancelled) return;

@@ -62,7 +62,8 @@
 }
 
 .kind-missing-file,
-.kind-missing-ref {
+.kind-missing-ref,
+.kind-bib-error {
   border-left-color: var(--accent);
   background: var(--tint-accent);
 }

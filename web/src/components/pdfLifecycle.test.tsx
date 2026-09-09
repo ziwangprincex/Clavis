@@ -2,8 +2,10 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PdfViewer } from './PdfViewer';
 import { usePdfStore, useTabsStore, useSettingsStore, useCompileStore, defaultSettings } from '../store';
+import type { PdfLinkTarget } from '../pdf/links';
 
 const mocks = vi.hoisted(() => ({
+  link: vi.fn(),
   load: vi.fn(),
   prepare: vi.fn(),
   attach: vi.fn(),
@@ -14,6 +16,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../pdf/pdfjs', () => ({ ensurePdfjs: () => ({ getDocument: mocks.load }) }));
 vi.mock('../pdf/pages', () => ({
   PdfPages: class {
+    constructor(_host: unknown, _doc: unknown, _zoom: number, _paint: unknown, _error: unknown, onLink: (target: PdfLinkTarget) => void) {
+      mocks.link.mockImplementation(onLink);
+    }
     prepare = mocks.prepare;
     attach = mocks.attach;
     setZoom = mocks.zoom;
@@ -124,6 +129,26 @@ it('converts forward SyncTeX PDF points using the displayed scale exactly once',
   act(() => usePdfStore.getState().setZoom(2));
   act(() => usePdfStore.getState().requestScroll(2, 300));
   expect(host.scrollTop).toBe(1600);
+});
+
+it('scrolls citation clicks to the bibliography in Read mode, including repeated clicks and after reopening', async () => {
+  const syncTex = vi.fn();
+  await mount(<PdfViewer onSyncTexBackward={syncTex} />);
+  host.querySelector.mockReturnValue({ offsetTop: 3600 });
+  act(() => usePdfStore.getState().setZoom(2));
+  act(() => mocks.link({ kind: 'page', page: 8, y: 100 }));
+  expect(host.querySelector).toHaveBeenLastCalledWith(expect.stringContaining('data-page="8"'));
+  expect(host.scrollTop).toBe(3600);
+  expect(usePdfStore.getState().currentPage).toBe(8);
+  host.scrollTop = 0;
+  act(() => mocks.link({ kind: 'page', page: 8, y: 100 }));
+  expect(host.scrollTop).toBe(3600);
+  act(() => tree.update(<PdfViewer visible={false} onSyncTexBackward={syncTex} />));
+  await act(async () => tree.update(<PdfViewer onSyncTexBackward={syncTex} />));
+  host.scrollTop = 0;
+  act(() => mocks.link({ kind: 'page', page: 8, y: 100 }));
+  expect(host.scrollTop).toBe(3600);
+  expect(syncTex).not.toHaveBeenCalled();
 });
 
 it('shows synchronous PDF worker initialization errors instead of failing the effect', async () => {

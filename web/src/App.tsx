@@ -113,7 +113,7 @@ export function App() {
   const workspaceOpenSeqRef = useRef(0);
   const pendingRenderRef = useRef<RenderContext | null>(null);
 
-  const [workspaceFolder, setWorkspaceFolder] = useState<string | null>(null);
+  const workspaceFolder = useProjectStore(s => s.folderPath);
   const [folderRefreshKey, setFolderRefreshKey] = useState(0);
 
   // Pane widths + drag handlers (owns mainRef / workAreaRef).
@@ -159,9 +159,11 @@ export function App() {
 
     void (async () => {
       const restored = hasTauri() ? await restoreSession() : false;
+      const folder = useProjectStore.getState().folderPath;
+      if (folder) void openWorkspaceFolder(folder, true);
       if (!restored && useTabsStore.getState().tabs.length === 0) {
         seedScratchTab();
-        setStartTabId(useTabsStore.getState().activeTabId);
+        if (!folder) setStartTabId(useTabsStore.getState().activeTabId);
       }
       setBootReady(true);
     })();
@@ -203,7 +205,7 @@ export function App() {
 
   // Persist session (debounced) on tab changes + flush on unload; manage the
   // opt-in disk-autosave interval.
-  useSessionPersistence(settings.autosave_enabled);
+  useSessionPersistence(settings.autosave_enabled, bootReady);
   useDocumentSync();
 
   function refreshReferences(root = workspaceFolder) {
@@ -233,7 +235,7 @@ export function App() {
 
   // Set the workspace folder, inspect optional clavis.toml metadata, and ask
   // before granting execution trust. Inspection never runs project commands.
-  async function openWorkspaceFolder(path: string) {
+  async function openWorkspaceFolder(path: string, restoring = false) {
     if (useTaskStore.getState().status === 'running') {
       const stop = await dialogConfirm(
         'A project task is still running. Stop it before opening another workspace?',
@@ -243,10 +245,10 @@ export function App() {
       await useTaskStore.getState().cancel();
     }
     const openSeq = ++workspaceOpenSeqRef.current;
-    setWorkspaceFolder(path);
+    useProjectStore.getState().setProject({ folderPath: path });
     useGitStore.getState().clear();
     useProjectStore.getState().setProject({ workspace: null });
-    void pushRecentFolder(path);
+    if (!restoring) void pushRecentFolder(path);
     if (!hasTauri()) return;
 
     try {
@@ -254,7 +256,7 @@ export function App() {
         path,
         ipc,
         inspection =>
-          openSeq === workspaceOpenSeqRef.current
+          !restoring && openSeq === workspaceOpenSeqRef.current
             ? dialogConfirm(
                 `This workspace defines ${Object.keys(inspection.config?.tasks ?? {}).length} task(s) that can run local commands.\n\nTrust this workspace? No command will run until you start a task.`,
                 { title: 'Trust workspace?' },
@@ -290,7 +292,7 @@ export function App() {
       await useTaskStore.getState().cancel();
     }
     workspaceOpenSeqRef.current += 1;
-    setWorkspaceFolder(null);
+    useProjectStore.getState().setProject({ folderPath: null });
     useProjectStore.getState().setProject({ workspace: null });
     useReferencesStore.getState().clear();
     useArtifactsStore.getState().clear();
@@ -820,13 +822,12 @@ export function App() {
               rootPath={workspaceFolder}
               onOpenFolder={openFolder}
               onCloseFolder={() => { void closeWorkspaceFolder(); }}
-              onRefresh={() => setFolderRefreshKey(k => k + 1)}
               onFileActivate={path => void openFileByPath(path)}
               refreshKey={folderRefreshKey}
             />
           }
           files={
-            lang === 'latex' && projectRoot && projectFiles.length > 0 && activeTab && (pathsEqual(activeTab.filePath, projectRoot) || projectFiles.some(file => pathsEqual(file.absPath, activeTab.filePath))) ? (
+            !(workspaceFolder && projectRoot && inside(projectRoot, workspaceFolder)) && lang === 'latex' && projectRoot && projectFiles.length > 0 && activeTab && (pathsEqual(activeTab.filePath, projectRoot) || projectFiles.some(file => pathsEqual(file.absPath, activeTab.filePath))) ? (
               <FilesSection onFileActivate={path => void openFileByPath(path)} />
             ) : null
           }

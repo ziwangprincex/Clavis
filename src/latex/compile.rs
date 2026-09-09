@@ -241,16 +241,24 @@ pub async fn compile_latex(
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
                         match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs, &cancel).await {
                             Ok((bib_code, bo)) => {
-                                if bib_code != 0 {
-                                    bib_diags.push(LatexDiag { line: None, file: None, message: format!("{bib_name} exited with code {bib_code}"), kind: "error", package: None });
-                                }
                                 // Harvest persistent diagnostics from bib runner output
-                                // (e.g. "I couldn't open database file ..."). LaTeX runs
-                                // after this won't reproduce them, so capture here.
+                                // (e.g. "I couldn't open database file ...", or a .bib
+                                // syntax error with its line). LaTeX runs after this
+                                // won't reproduce them, so capture here.
+                                let mut entry_errors = 0usize;
                                 for d in parse_diags(&bo) {
-                                    if d.kind == "missing-ref" || d.kind == "missing-file" {
+                                    if d.kind == "bib-error" { entry_errors += 1; }
+                                    if matches!(d.kind, "missing-ref" | "missing-file" | "bib-error" | "warning") {
                                         bib_diags.push(d);
                                     }
+                                }
+                                // bibtex exits 2 and biber exits 2 for *any* entry-level
+                                // error even though they still write a usable .bbl with
+                                // the remaining entries (that is what a plain terminal
+                                // run does too). Only a run that produced no .bbl is fatal.
+                                let bbl_ok = std::fs::metadata(workdir.join("main.bbl")).map(|m| m.len() > 0).unwrap_or(false);
+                                if bib_code != 0 && !(bbl_ok && entry_errors > 0) {
+                                    bib_diags.push(LatexDiag { line: None, file: None, message: format!("{bib_name} exited with code {bib_code}"), kind: "error", package: None });
                                 }
                                 log_full.push_str(&bo);
                             }

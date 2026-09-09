@@ -715,6 +715,7 @@ export const ipc = {
     invoke<ArtifactStatus[]>('inspect_artifacts', { root }),
   openArtifactPath: (root: string, path: string) =>
     invoke<void>('open_artifact_path', { root, path }),
+  openExternalUrl: (url: string) => invoke<void>('open_external_url', { url }),
   indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<AssetIndexResult>('index_assets', { options }),
   listSystemFonts: () => invoke<string[]>('list_system_fonts'),

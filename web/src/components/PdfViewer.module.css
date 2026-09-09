@@ -164,6 +164,28 @@
   text-align: initial;
 }
 
+/* Link hit areas sit above the text layer but let clicks elsewhere fall
+ * through to text selection and SyncTeX. */
+.linkLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.link {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.link:hover {
+  background: rgba(64, 128, 255, 0.14);
+}
+
 /* Match highlights — yellow tint for all matches, orange for the active one.
  * These wrap individual text fragments inside the pdfjs <span> structure. */
 .match {

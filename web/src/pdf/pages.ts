@@ -1,5 +1,6 @@
 import { TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTask } from 'pdfjs-dist';
 import { capturePageAnchor, restorePageAnchor, type ZoomPoint } from './zoom';
+import { isLink, resolveLink, type LinkAnnotation, type PdfLinkTarget } from './links';
 import styles from '../components/PdfViewer.module.css';
 
 type Slot = {
@@ -35,6 +36,7 @@ export class PdfPages {
     zoom: number,
     private onPaint: () => void,
     private onError: (error: unknown) => void,
+    private onLink?: (target: PdfLinkTarget) => void,
   ) {
     this.zoom = zoom;
   }
@@ -169,6 +171,7 @@ export class PdfPages {
     const layer = document.createElement('div');
     layer.className = `textLayer ${styles.textLayer}`;
     surface.append(canvas, layer);
+    if (this.onLink) surface.append(this.linkLayer(slot, viewport));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Could not create the PDF canvas.');
     try {
@@ -195,6 +198,43 @@ export class PdfPages {
         slot.task = undefined;
       }
     }
+  }
+
+  // Hyperref targets (\cite, \ref, ToC) are Link annotations. One hit area per
+  // annotation, sized in CSS pixels at paint zoom; the surface transform keeps
+  // it aligned while a zoom step is still rasterizing. Resolution happens on
+  // click because named destinations require a document lookup.
+  private linkLayer(slot: Slot, viewport: ReturnType<PDFPageProxy['getViewport']>) {
+    const layer = document.createElement('div');
+    layer.className = styles.linkLayer;
+    void slot.page.getAnnotations().then((annotations: LinkAnnotation[]) => {
+      // prepare() and zoom paint off-DOM. Fast annotations are still valid
+      // before the canvas finishes; only clicks require an attached surface.
+      if (this.disposed) return;
+      for (const annotation of annotations) {
+        if (!isLink(annotation)) continue;
+        const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(annotation.rect!);
+        const hit = document.createElement('a');
+        hit.className = styles.link;
+        hit.href = typeof annotation.url === 'string' ? annotation.url : '#';
+        hit.title = typeof annotation.url === 'string' ? annotation.url : '';
+        hit.style.left = `${Math.min(x1, x2)}px`;
+        hit.style.top = `${Math.min(y1, y2)}px`;
+        hit.style.width = `${Math.abs(x2 - x1)}px`;
+        hit.style.height = `${Math.abs(y2 - y1)}px`;
+        hit.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void resolveLink(this.doc, annotation)
+            .then((target) => {
+              if (target && !this.disposed && layer.isConnected) this.onLink?.(target);
+            })
+            .catch((error) => console.warn('PDF link unresolved', error));
+        });
+        layer.append(hit);
+      }
+    }).catch((error) => console.warn('PDF links unavailable', slot.wrap.dataset.page, error));
+    return layer;
   }
 
   private async paintText(

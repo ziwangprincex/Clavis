@@ -350,6 +350,7 @@ fn main() {
             document_tools::open_document_artifact,
             artifacts::inspect_artifacts,
             artifacts::open_artifact_path,
+            artifacts::open_external_url,
             assets::index_assets,
             assets::asset_preview,
             git_inspect::inspect_git_workspace,
