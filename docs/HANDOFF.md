@@ -102,6 +102,11 @@ else derives from it at runtime:
   still true run `gh release edit <tag> --draft=false`. Publishing fires
   `update-homebrew.yml`. Then verify the public `latest.json` and the cask
   checksum.
+- Homebrew 6 rejects string comparisons in `depends_on macos:` (`">= 11.0"`
+  made `brew install` fail with "unknown or unsupported macOS version"). The
+  cask template in `update-homebrew.yml` and the published tap
+  (`ziwangprincex/homebrew-clavis`, fixed at `1a57c3a` on 2026-09-10) use the
+  symbol form `:big_sur`. Keep it a symbol.
 - `.cm-selectionLayer` sits above content; its fill must stay translucent
   (`selectionFill()` in `web/src/editor/controller.ts`).
 - Rust `Settings` has `#[serde(flatten)] extra`; frontend-only settings
