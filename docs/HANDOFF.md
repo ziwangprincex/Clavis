@@ -20,11 +20,12 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
-- Preparing v1.7.1 under the owner's explicit 2026-09-10 instruction to push
-  and publish this version. This authorizes the release, signed updater assets,
-  public manifest and associated Homebrew update, not future releases.
-  All three version fields are 1.7.1; notes: `docs/releases/v1.7.1.md`.
-  Follow `RELEASING.md`; publication is pending, not implied by the version bump.
+- v1.7.1 is public at `a1a2ffe` (2026-09-10), following the owner's explicit
+  authorization for this release and its Homebrew update, not future releases.
+  Main CI, exact-tag Release and Homebrew workflows succeeded. All 11 asset
+  hashes, 3 updater signatures and 6 platform entries were verified, including
+  unauthenticated public downloads. Homebrew is 1.7.1 with the matching DMG hash.
+  Notes: `docs/releases/v1.7.1.md`; verification: `docs/history/RELEASE-1.7.1.md`.
 - v1.7.1 includes the complete local bibliography/guidance changes and regression
   tests reviewed on 2026-09-10. Guidance separates missing tools/files, processor
   failure, duplicate labels and additional passes. Source actions require a line;
@@ -37,7 +38,7 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 - Fresh v1.7.1 local checks pass: 858 frontend tests, 152 Rust tests (3 optional
   ignored), TypeScript, Rust all-target check, frontend production build, 10
   Python guard tests, version/tag validation and working-tree HANDOFF guard.
-  Exact-tag CI, three-platform builds and public update checks remain pending.
+  Exact-tag CI, three-platform builds and public update checks also passed.
   The prior local updater-disabled candidate built and its ad-hoc signature
   verified; it was not installed and is not a formal update package.
   Details: `docs/history/BIBLIOGRAPHY-REVIEW-2026-09-10.md`.
