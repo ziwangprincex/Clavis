@@ -1,5 +1,5 @@
 import type { Lang } from '../store/tabs';
-export type DiagnosticAction = 'source' | 'environment' | 'full-build' | 'engine';
+export type DiagnosticAction = 'source' | 'environment' | 'full-build' | 'engine' | 'none';
 export interface Guidance {
   explanation: string;
   action: DiagnosticAction;
@@ -13,6 +13,24 @@ const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
       explanation: 'The LaTeX executable could not be found. Install a TeX distribution or configure its path in Settings → LaTeX; your document can still be edited.',
       action: 'environment',
       label: 'Check environment',
+    },
+  },
+  {
+    language: 'latex',
+    pattern: /^(?:biber|bibtex) (?:not found in PATH|not available)/i,
+    result: {
+      explanation: 'The bibliography tool could not be found. Check that the backend selected by the document (bibtex or biber) is installed and available in the TeX environment. Recompiling alone will not install it.',
+      action: 'environment',
+      label: 'Check environment',
+    },
+  },
+  {
+    language: 'latex',
+    pattern: /^missing bibliography database:|couldn't open (?:database|style) file|file.*\.(?:bib|bst).*not found/i,
+    result: {
+      explanation: 'The bibliography database (.bib) or style (.bst) could not be opened. Check the named file and its path relative to the main document; another compile will not restore a missing file.',
+      action: 'source',
+      label: 'Check source path',
     },
   },
   {
@@ -54,12 +72,31 @@ const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
   },
   {
     language: 'latex',
-    pattern: /undefined.*(reference|citation)|rerun|biber|bibtex|cross.reference/i,
+    pattern: /^(?:biber|bibtex) (?:exited with code|failed)/i,
     result: {
       explanation:
-        'References need another pass or bibliography processing. Run a full build; then verify citation keys if they remain unresolved.',
+        'The bibliography processor reported a failure. Expand the raw output for its specific error, then check the named .bib entry, file or backend setting. Running it again without fixing the cause may repeat the failure.',
+      action: 'none',
+      label: '',
+    },
+  },
+  {
+    language: 'latex',
+    pattern: /label.*multiply[ -]defined|multiply[ -]defined labels/i,
+    result: {
+      explanation: 'The same label is defined more than once. Find its label definitions in the project and rename or remove the duplicate; compiling again alone cannot fix this.',
+      action: 'source',
+      label: 'Inspect source',
+    },
+  },
+  {
+    language: 'latex',
+    pattern: /undefined.*(reference|citation)|rerun|\(re\)run|cross.reference|citation.*undefined/i,
+    result: {
+      explanation:
+        'Cross references and citations may need additional passes. Compile again with latexmk. If they remain unresolved, check earlier bibliography errors, the loaded .bib files and the spelling of citation keys or labels.',
       action: 'full-build',
-      label: 'Full build',
+      label: 'Compile again with latexmk',
     },
   },
   {
@@ -95,9 +132,9 @@ export function guidance(language: Lang, message: string): Guidance {
     rules.find((rule) => (!rule.language || rule.language === language) && rule.pattern.test(message))
       ?.result ?? {
       explanation:
-        'Start at the reported source location. The original compiler message remains above; no automatic rewrite is applied.',
+        'The compiler message above is shown as-is. If it names a line, start there; otherwise open the raw output below to see what came just before it.',
       action: 'source',
-      label: 'Go to source',
+      label: 'Go to line',
     }
   );
 }

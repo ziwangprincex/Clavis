@@ -101,6 +101,9 @@ describe('complete reading index', () => {
 describe('diagnostics and formulas', () => {
   it('routes common failures to one relevant action', () => {
     expect(guidance('latex', 'Citation undefined; rerun biber').action).toBe('full-build');
+    expect(guidance('latex', 'biber exited with code 2').action).toBe('none');
+    expect(guidance('latex', "I couldn't open database file refs.bib").action).toBe('source');
+    expect(guidance('latex', 'bibliography entry: syntax error').action).toBe('source');
     expect(guidance('latex', 'fontspec requires XeTeX').action).toBe('engine');
     expect(guidance('typst', 'unknown variable: foo').action).toBe('source');
     expect(guidance('latex', 'failed to spawn engine').action).toBe('environment');

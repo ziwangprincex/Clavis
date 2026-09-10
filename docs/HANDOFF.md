@@ -1,6 +1,6 @@
 # Clavis - Handoff
 
-Updated 2026-09-09. This is the one page the next session reads first. It states
+Updated 2026-09-10. This is the one page the next session reads first. It states
 what is true now and where the boundaries are. It is not a log: per-session
 narratives live in `docs/history/`, release notes in `docs/releases/`, and the
 guard only requires that this page still describes the tree after a change.
@@ -20,39 +20,33 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
-- Preparing v1.7.0 under the owner's explicit 2026-09-09 request to push and
-  publish a new version. This authorizes this release, its installers/updater
-  manifest and the associated Homebrew update, not future releases. Version
-  metadata matches; notes: `docs/releases/v1.7.0.md`. Follow `RELEASING.md`;
-  publication and signature checks are pending, not implied by the version bump.
-- v1.6.0 is already public at `d406626` (2026-09-09). Its Release, main CI and
-  Homebrew workflows succeeded. Keep the existing tag and release unchanged.
-- v1.7.0 includes all post-1.6.0 local source and regression tests, not just the
-  latest sidebar edits. Explicit biblatex `backend=bibtex` now takes precedence;
-  bibliography entry errors retain source locations and a usable generated bbl
-  can continue to PDF output. Font collection has a separate 64 MiB limit.
-- PDF citation/reference links use annotations over the text layer. Detached
-  preparation no longer drops hit areas; stale clicks cannot navigate a replaced
-  surface. Tests cover actual viewer scroll wiring; a real XeLaTeX/biblatex
-  sample resolves citations. External links allow only http/https/mailto and
-  open via system handlers without a Windows command shell. Details:
-  `docs/history/PDF-LINKS-2026-09-09.md`.
-- Explicit open folders survive restart; Close folder persists that choice.
-  Save stays in the menu/shortcut, folder refresh runs on foreground with a
-  command-menu fallback. File and outline trees are nested/foldable; duplicate
-  flat project files are hidden when the folder tree covers them. Old sessions
-  need the folder opened once (no guessed recovery), noted in release notes.
-  `docs/history/SIDEBAR-SESSION-2026-09-09.md`.
-- Existing 1.6.0 writing/first-run/sidebar work remains unchanged: compact normal
-  editing, centering only in Focus, contextual research/project tools and no
-  visible Workspace heading. Details are in `docs/history/WRITING-REFINEMENT-2026-09-09.md`,
-  `docs/history/PRODUCT-FLOW-2026-09-09.md`, and `docs/history/SIDEBAR-2026-09-09.md`.
-- Fresh v1.7.0 local checks passed: TypeScript, frontend production build,
-  820 frontend tests, Rust all-target check, 146 Rust tests (3 optional ignored),
-  10 Python guard tests, version/tag validation and working-tree HANDOFF guard.
-  Remote exact-tag CI, three-platform packages and public update verification
-  still must complete. Native GUI, user-thesis clicks and MacBook Air
-  quit/relaunch acceptance remain separate from automated checks.
+- Preparing v1.7.1 under the owner's explicit 2026-09-10 instruction to push
+  and publish this version. This authorizes the release, signed updater assets,
+  public manifest and associated Homebrew update, not future releases.
+  All three version fields are 1.7.1; notes: `docs/releases/v1.7.1.md`.
+  Follow `RELEASING.md`; publication is pending, not implied by the version bump.
+- v1.7.1 includes the complete local bibliography/guidance changes and regression
+  tests reviewed on 2026-09-10. Guidance separates missing tools/files, processor
+  failure, duplicate labels and additional passes. Source actions require a line;
+  Chinese explanations no longer send users into ineffective repeat builds.
+- Citation hovers reuse the existing Rust bibliography parser via editor snapshots,
+  including unsaved .bib buffers. They show full authors/organizations, title,
+  year and source; parenthesized entries and grouped TeX quoting are covered.
+  Ref commands are not confused by `cite` in label names. Missing-key wording is
+  limited to loaded files. Cache invalidation and stale async results are tested.
+- Fresh v1.7.1 local checks pass: 858 frontend tests, 152 Rust tests (3 optional
+  ignored), TypeScript, Rust all-target check, frontend production build, 10
+  Python guard tests, version/tag validation and working-tree HANDOFF guard.
+  Exact-tag CI, three-platform builds and public update checks remain pending.
+  The prior local updater-disabled candidate built and its ad-hoc signature
+  verified; it was not installed and is not a formal update package.
+  Details: `docs/history/BIBLIOGRAPHY-REVIEW-2026-09-10.md`.
+- v1.7.0 is already public at `3ecc05e` (2026-09-09). Its explicit biblatex backend
+  selection, PDF citation links, folder restoration and compact sidebar remain.
+  Keep published tags/assets unchanged. Details: `docs/history/PDF-LINKS-2026-09-09.md`
+  and `docs/history/SIDEBAR-SESSION-2026-09-09.md`.
+- Native GUI/readability acceptance on the owner's thesis and MacBook Air remains
+  separate from automated checks. No new architecture or full UI redesign.
 
 ## Boundaries the owner set
 

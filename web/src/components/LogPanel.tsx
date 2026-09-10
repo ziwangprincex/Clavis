@@ -30,7 +30,10 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
         {errors.length === 0 ? (
           <div className={styles.muted}>{t("No errors.")}</div>
         ) : (
-          errors.map((err, i) => (
+          errors.map((err, i) => {
+            const guide = guidance('latex', err.message);
+            const canAct = guide.action !== 'none' && (guide.action !== 'source' || !!err.line);
+            return (
             <div key={i} className={`${styles.row} ${styles[`kind-${err.kind ?? 'error'}`] ?? ''}`}>
               {typeof err.line === 'number' && err.line > 0 ? (
                 <a
@@ -44,14 +47,13 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
                 <span className={styles.muted}>--</span>
               )}
               <span className={styles.kindLabel}>{err.kind || 'error'}</span>
-              <span className={styles.message}>{err.message}<small style={{ display: 'block', marginTop: 5, color: 'var(--text-muted)' }}>{guidance('latex', err.message).explanation}</small>
-                <button className={styles.guide} onClick={() => {
-                  const action = guidance('latex', err.message).action;
-                  if (action === 'environment') onEnvironment?.();
-                  else if (action === 'engine') onSettings?.();
-                  else if (action === 'full-build') onFullBuild?.();
+              <span className={styles.message}>{err.message}<small style={{ display: 'block', marginTop: 5, color: 'var(--text-muted)' }}>{t(guide.explanation)}</small>
+                {canAct && <button className={styles.guide} onClick={() => {
+                  if (guide.action === 'environment') onEnvironment?.();
+                  else if (guide.action === 'engine') onSettings?.();
+                  else if (guide.action === 'full-build') onFullBuild?.();
                   else if (err.line) onJumpTo?.(err.file, err.line);
-                }} disabled={guidance('latex', err.message).action === 'source' && !err.line}>{guidance('latex', err.message).label}</button>
+                }}>{t(guide.label)}</button>}
               </span>
               {err.kind === 'missing-file' && err.package && (
                 <button
@@ -61,7 +63,8 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
                 </button>
               )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

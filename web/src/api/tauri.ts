@@ -780,8 +780,8 @@ export const ipc = {
     invoke<DistroInfo>('detect_distro', { enginePath }),
   installPackage: (manager: string, name: string) =>
     invoke<void>('install_package', { manager, name }),
-  parseBib: (bibPaths: string[]) =>
-    invoke<BibEntry[]>('parse_bib', { bibPaths }),
+  parseBib: (bibPaths: string[], documents?: Array<{ path: string; content: string }>) =>
+    invoke<BibEntry[]>('parse_bib', { bibPaths, documents }),
 
   // --- Completion data (.cwl) ---
   // Served by package name rather than path: the names come from

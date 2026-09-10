@@ -4,7 +4,7 @@
 //! pretending to evaluate the full BibTeX macro language. Malformed entries are
 //! skipped independently so one bad record does not discard the library.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 const MAX_BIB_FILES: usize = 200;
@@ -33,6 +33,31 @@ pub struct BibEntry {
     pub source_file: String,
     pub source_line: u32,
     pub source_end_line: u32,
+}
+
+#[derive(Deserialize)]
+pub struct BibDocument {
+    pub path: String,
+    pub content: String,
+}
+
+/// Parse editor snapshots with the same parser as the bibliography browser.
+/// Reject incomplete requests rather than reporting unparsed keys as missing.
+pub fn parse_bib_documents(documents: Vec<BibDocument>) -> Result<Vec<BibEntry>, String> {
+    if documents.len() > MAX_BIB_FILES {
+        return Err("Too many bibliography files to parse".into());
+    }
+    let mut out = Vec::new();
+    for document in documents {
+        if document.content.len() as u64 > MAX_BIB_FILE_BYTES {
+            return Err("Bibliography file exceeds the parsing limit".into());
+        }
+        parse_bib_text(&document.content, &document.path, &mut out);
+        if out.len() > MAX_BIB_ENTRIES {
+            return Err("Too many bibliography entries to parse".into());
+        }
+    }
+    Ok(out)
 }
 
 pub fn parse_bib_files(bib_paths: Vec<String>) -> Vec<BibEntry> {
@@ -85,7 +110,7 @@ fn parse_bib_text(text: &str, source: &str, out: &mut Vec<BibEntry>) {
             continue;
         }
         let close = if open == b'{' { b'}' } else { b')' };
-        let Some(entry_end) = find_entry_end(bytes, index, open, close) else {
+        let Some(entry_end) = find_entry_end(bytes, index, close) else {
             // Do not let one unclosed entry consume later valid entries.
             cursor = entry_start + 1;
             continue;
@@ -156,61 +181,30 @@ fn at_indented_line_start(bytes: &[u8], index: usize) -> bool {
         .all(|byte| byte.is_ascii_whitespace())
 }
 
-fn find_entry_end(bytes: &[u8], open_at: usize, open: u8, close: u8) -> Option<usize> {
-    let mut outer_depth = 1i32;
-    let mut brace_depth = if open == b'{' { 1i32 } else { 0 };
+fn find_entry_end(bytes: &[u8], open_at: usize, close: u8) -> Option<usize> {
+    let mut brace_depth = 0i32;
     let mut in_quote = false;
-    let mut escaped = false;
     let mut index = open_at + 1;
     while index < bytes.len() {
         let byte = bytes[index];
-        if in_quote {
-            if byte == b'"' && !escaped {
-                in_quote = false;
-            }
-            escaped = byte == b'\\' && !escaped;
-            if byte != b'\\' {
-                escaped = false;
-            }
-            index += 1;
+        if byte == b'\\' {
+            index += 2;
             continue;
         }
-        if byte == b'"' {
-            in_quote = true;
-            index += 1;
-            continue;
-        }
-        // Recovery: a new entry at the start of a line while the current
-        // entry is still only at its outer level means the previous entry is
-        // malformed. Do not consume the next valid record.
-        if outer_depth == 1
-            && brace_depth <= 1
-            && byte == b'@'
-            && at_indented_line_start(bytes, index)
-        {
-            return None;
-        }
-        if open == b'{' {
-            if byte == b'{' {
-                outer_depth += 1;
-            } else if byte == b'}' {
-                outer_depth -= 1;
-                if outer_depth == 0 {
-                    return Some(index);
-                }
+        // Quotes inside a braced value (e.g. TeX accents) are ordinary text.
+        if byte == b'"' && brace_depth == 0 {
+            in_quote = !in_quote;
+        } else if byte == b'{' {
+            brace_depth += 1;
+        } else if byte == b'}' && brace_depth > 0 {
+            brace_depth -= 1;
+        } else if !in_quote && brace_depth == 0 {
+            if byte == close {
+                return Some(index);
             }
-        } else {
-            if byte == b'{' {
-                brace_depth += 1;
-            } else if byte == b'}' && brace_depth > 0 {
-                brace_depth -= 1;
-            } else if brace_depth == 0 && byte == open {
-                outer_depth += 1;
-            } else if brace_depth == 0 && byte == close {
-                outer_depth -= 1;
-                if outer_depth == 0 {
-                    return Some(index);
-                }
+            // Recover at the next entry rather than swallowing valid records.
+            if byte == b'@' && at_indented_line_start(bytes, index) {
+                return None;
             }
         }
         index += 1;
@@ -279,6 +273,10 @@ fn read_value(body: &str, start: usize) -> (String, usize) {
             let mut depth = 1i32;
             let mut index = start + 1;
             while index < bytes.len() && depth > 0 {
+                if bytes[index] == b'\\' {
+                    index += 2;
+                    continue;
+                }
                 if bytes[index] == b'{' {
                     depth += 1;
                 } else if bytes[index] == b'}' {
@@ -293,14 +291,16 @@ fn read_value(body: &str, start: usize) -> (String, usize) {
         }
         b'"' => {
             let mut index = start + 1;
-            let mut escaped = false;
+            let mut depth = 0i32;
             while index < bytes.len() {
-                if bytes[index] == b'"' && !escaped {
-                    return (body[start + 1..index].to_string(), index + 1);
-                }
-                escaped = bytes[index] == b'\\' && !escaped;
-                if bytes[index] != b'\\' {
-                    escaped = false;
+                match bytes[index] {
+                    b'\\' => { index += 2; continue; }
+                    b'{' => depth += 1,
+                    b'}' if depth > 0 => depth -= 1,
+                    b'"' if depth == 0 => {
+                        return (body[start + 1..index].to_string(), index + 1);
+                    }
+                    _ => {}
                 }
                 index += 1;
             }
@@ -339,6 +339,13 @@ fn line_at(text: &str, offset: usize) -> u32 {
 }
 
 fn clean_value(value: &str) -> String {
+    // Do not partially interpret TeX commands/accents and lose information.
+    let mut chars = value.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' && !matches!(chars.next(), Some('&' | '_' | '%')) {
+            return value.split_whitespace().collect::<Vec<_>>().join(" ");
+        }
+    }
     let stripped: String = value
         .chars()
         .filter(|character| *character != '{' && *character != '}')
@@ -347,7 +354,6 @@ fn clean_value(value: &str) -> String {
         .replace("\\&", "&")
         .replace("\\_", "_")
         .replace("\\%", "%")
-        .replace("\\\"", "\"")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -434,4 +440,54 @@ mod tests {
         let entries = parse(r#"@misc{k, date = {2023-05-01}}"#);
         assert_eq!(entries[0].year.as_deref(), Some("2023-05-01"));
     }
+
+    #[test]
+    fn editor_snapshots_use_the_same_parser_without_reading_disk() {
+        let source = "@article(key, title={Existing paper}, author={{World Health Organization}}, year=2024)";
+        let entries = parse_bib_documents(vec![BibDocument {
+            path: "/unsaved/refs.bib".into(), content: source.into(),
+        }]).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].title, parse(source)[0].title);
+        assert_eq!(entries[0].author.as_deref(), Some("World Health Organization"));
+        assert_eq!(entries[0].source_file, "/unsaved/refs.bib");
+    }
+
+    #[test]
+    fn quoted_tex_accents_are_not_truncated_or_partially_rewritten() {
+        let entries = parse(r#"@article(key, title="M{\"u}ller study", year=2024)
+@book{other, title="A {"grouped"} title", author={{Research and Development, Inc.}}}"#);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].title.as_deref(), Some(r#"M{\"u}ller study"#));
+        assert_eq!(entries[0].year.as_deref(), Some("2024"));
+        assert_eq!(entries[1].title.as_deref(), Some("A \"grouped\" title"));
+        assert_eq!(entries[1].author.as_deref(), Some("Research and Development, Inc."));
+    }
+
+    #[test]
+    fn braces_quotes_and_parentheses_do_not_end_a_value_early() {
+        let entries = parse(r#"@book(key, title={An "unfinished quote (inside)}, year=2024)
+@book{next, title={An escaped \} brace}, year=2025}"#);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].title.as_deref(), Some("An \"unfinished quote (inside)"));
+        assert_eq!(entries[0].year.as_deref(), Some("2024"));
+        assert_eq!(entries[1].title.as_deref(), Some(r"An escaped \} brace"));
+        assert_eq!(entries[1].year.as_deref(), Some("2025"));
+    }
+
+    #[test]
+    fn too_many_snapshots_report_failure_instead_of_missing_keys() {
+        let documents = (0..=MAX_BIB_FILES).map(|i| BibDocument {
+            path: format!("{i}.bib"), content: "@book(key, title={Report})".into(),
+        }).collect();
+        assert!(parse_bib_documents(documents).is_err());
+    }
+
+    #[test]
+    fn keeps_existing_plain_text_escape_decoding() {
+        let entries = parse(r"@book{key, title={Research \& Development}, doi={10.1000/foo\_bar}, author={{Company}}, year=2024}");
+        assert_eq!(entries[0].title.as_deref(), Some("Research & Development"));
+        assert_eq!(entries[0].doi.as_deref(), Some("10.1000/foo_bar"));
+    }
+
 }

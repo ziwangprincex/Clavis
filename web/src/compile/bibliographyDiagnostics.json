@@ -1,0 +1,8 @@
+[
+  {"raw":"I couldn't open database file refs.bib","message":"Missing bibliography database: refs.bib","action":"source","explanation":"database (.bib)"},
+  {"raw":"LaTeX Warning: Label `sec:intro' multiply defined.","message":"Label `sec:intro' multiply defined","action":"source","explanation":"rename or remove"},
+  {"raw":"LaTeX Warning: There were multiply-defined labels.","message":"There were multiply-defined labels","action":"source","explanation":"rename or remove"},
+  {"raw":"LaTeX Warning: Citation `key' undefined.","message":"Citation `key' undefined","action":"full-build","explanation":"additional passes"},
+  {"raw":"./main.tex:12: Package biblatex Warning: Please (re)run Biber on the file:","message":"Package biblatex Warning: Please (re)run Biber on the file:","action":"full-build","explanation":"additional passes"},
+  {"raw":"Repeated entry---line 42 of file refs.bib","message":"Bibliography entry: Repeated entry","action":"source","explanation":"malformed or duplicated"}
+]

@@ -365,4 +365,19 @@ mod tests {
         assert_eq!(detect_bib_kind("\\usepackage[margin=1in]{geometry}\n\\bibliography{refs}"), Some("bibtex"));
         assert_eq!(detect_bib_kind("plain text"), None);
     }
+
+    #[test]
+    fn diagnostics_match_frontend_guidance_fixtures() {
+        let fixtures: serde_json::Value = serde_json::from_str(include_str!(
+            "../../web/src/compile/bibliographyDiagnostics.json"
+        )).unwrap();
+        for case in fixtures.as_array().unwrap() {
+            let raw = case["raw"].as_str().unwrap();
+            let expected = case["message"].as_str().unwrap();
+            let diagnostics = parse_diags(raw);
+            assert_eq!(diagnostics.len(), 1, "{raw}");
+            assert_eq!(diagnostics[0].message, expected, "{raw}");
+        }
+    }
+
 }
