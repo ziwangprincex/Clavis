@@ -34,21 +34,30 @@ const rules: { language?: Lang; pattern: RegExp; result: Guidance }[] = [
     },
   },
   {
+    pattern: /font.*(cannot be found|not found|unknown)|font-not-found|unknown font/i,
+    result: {
+      explanation:
+        'The named font could not be found. Check its spelling in the source (no stray spaces inside the braces), the file path relative to the main document, or whether it is installed on this Mac. Switching engines will not help.',
+      action: 'source',
+      label: 'Check font name',
+    },
+  },
+  {
+    pattern: /fontspec.*requires|unicode character|not set up for use with latex|inputenc error/i,
+    result: {
+      explanation:
+        'This document uses fontspec or Unicode text that pdfLaTeX cannot handle. Select XeLaTeX or LuaLaTeX in Typesetting.',
+      action: 'engine',
+      label: 'Engine settings',
+    },
+  },
+  {
     pattern: /not cached|package.*not found|file.*not found|cannot find file|could not find file/i,
     result: {
       explanation:
         'Check the path relative to the project main and the installed package version. Typst package downloads require your confirmation.',
       action: 'source',
       label: 'Check source path',
-    },
-  },
-  {
-    pattern: /font.*(not found|unknown)|unknown font|fontspec|unicode character/i,
-    result: {
-      explanation:
-        'Check installed fonts. For a Unicode or fontspec LaTeX document, select XeLaTeX or LuaLaTeX in Typesetting.',
-      action: 'engine',
-      label: 'Engine and font settings',
     },
   },
   {

@@ -112,6 +112,26 @@ it('cancels a superseded candidate and never attaches its late output', async ()
   expect(mocks.attach).toHaveBeenCalledTimes(1);
 });
 
+it('waits for the superseded document to finish destroying before loading the next PDF', async () => {
+  let finishDestroy!: () => void;
+  mocks.load.mockImplementationOnce(() => {
+    const loadingTask = {
+      destroy: vi.fn(() => new Promise<void>(done => { finishDestroy = done; })),
+      promise: new Promise<never>(() => {}),
+    };
+    tasks.push(loadingTask);
+    return loadingTask;
+  });
+  await mount();
+  await act(async () => usePdfStore.getState().setBytes(new Uint8Array([2])));
+  expect(tasks[0].destroy).toHaveBeenCalled();
+  expect(mocks.load).toHaveBeenCalledTimes(1);
+  await act(async () => finishDestroy());
+  expect(mocks.load).toHaveBeenCalledTimes(2);
+  expect(mocks.attach).toHaveBeenCalledTimes(1);
+  expect(tree.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+});
+
 it('tears down a hidden renderer and loads only the latest PDF when reopened', async () => {
   await mount();
   act(() => tree.update(<PdfViewer visible={false} />));

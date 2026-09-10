@@ -32,6 +32,13 @@ export interface PdfViewerProps {
   onSyncTexBackward?: (page: number, x: number, y: number) => void;
 }
 
+// pdf.js shares one worker and rejects getDocument() while any document on it
+// is still being destroyed, so every destroy is tracked and loads wait for them.
+let releasing: Promise<unknown> = Promise.resolve();
+function release(target: { destroy(): Promise<void> } | null | undefined) {
+  if (target) releasing = Promise.all([releasing, target.destroy().catch(() => {})]);
+}
+
 export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvironment, onProblems }: PdfViewerProps) {
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const pdf = usePdfStore();
@@ -115,7 +122,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         docRef.current = null;
         attachedBytesRef.current = null;
         handledScrollRef.current = usePdfStore.getState().scrollRequest?.seq ?? null;
-        if (previous) void previous.destroy();
+        release(previous);
         host.replaceChildren();
         setSearchDoc(null);
         setNumPages(0);
@@ -124,6 +131,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         return;
       }
       try {
+        await releasing;
+        if (cancelled) return;
         loading = ensurePdfjs().getDocument({ data: new Uint8Array(bytes) });
         candidateDoc = await loading.promise;
         if (cancelled) return;
@@ -147,7 +156,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         setSearchDoc(candidateDoc);
         candidate = undefined;
         candidateDoc = undefined;
-        if (previous) void previous.destroy();
+        release(previous);
         setNumPages(docRef.current.numPages);
         setCurrentPage(Math.min(usePdfStore.getState().currentPage, docRef.current.numPages));
         applyPendingScroll();
@@ -155,7 +164,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
       } catch (error) {
         candidate?.destroy();
         if (!cancelled) {
-          void loading?.destroy();
+          release(loading);
           setError(String(error));
         }
       }
@@ -164,7 +173,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     return () => {
       cancelled = true;
       candidate?.destroy();
-      if (!docRef.current || docRef.current.loadingTask !== loading) void loading?.destroy();
+      if (!docRef.current || docRef.current.loadingTask !== loading) release(loading);
     };
   }, [bytes, visible, retry, setNumPages, setCurrentPage]);
 
@@ -180,7 +189,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
       const previous = docRef.current;
       docRef.current = null;
       attachedBytesRef.current = null;
-      if (previous) void previous.destroy();
+      release(previous);
     };
   }, [visible]);
 

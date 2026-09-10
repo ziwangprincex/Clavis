@@ -22,7 +22,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
       <div className={styles.header}>
         <span className={styles.title}>{t("Compile Log")}</span>
         <span className={styles.errCount}>
-          {errors.length} {errors.length === 1 ? 'issue' : 'issues'}
+          {t('{count} issues', { count: errors.length })}
         </span>
       </div>
 
@@ -39,7 +39,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
                 <a
                   className={styles.jump}
                   onClick={() => onJumpTo?.(err.file, err.line!)}
-                  title={err.file ? `${err.file}:${err.line}` : `Line ${err.line}`}
+                  title={err.file ? `${err.file}:${err.line}` : t('Line {line}', { line: err.line })}
                 >
                   L{err.line}
                 </a>
@@ -69,7 +69,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
       </div>
 
       <details className={styles.rawDetails}>
-        <summary>{t("Raw output (")}{logLines.length} lines)</summary>
+        <summary>{t('Raw output ({count} lines)', { count: logLines.length })}</summary>
         <pre className={styles.raw}>
           {logLines.map((l, i) => (
             <span key={i} className={styles[`stream-${l.stream}`]}>

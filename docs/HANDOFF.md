@@ -20,6 +20,27 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
+- v1.7.2 release preparation (2026-09-10), authorized by the owner for this
+  version and its Homebrew update only. Versions in `Cargo.toml`, `Cargo.lock`
+  and `tauri.conf.json` are 1.7.2; notes in `docs/releases/v1.7.2.md` (three
+  short bullets). Contents:
+  - The PDF preview no longer fails with "PDFWorker.create - the worker is
+    being destroyed" when a new compile result arrives while the previous PDF is
+    still loading. `PdfViewer.tsx` tracks every `destroy()` on the shared pdf.js
+    worker in a module-level `releasing` promise and awaits it before
+    `getDocument()`. Heavy PDFs (embedded CJK fonts) hit this reliably. Covered
+    by `pdfLifecycle.test.tsx`.
+  - Compile guidance no longer sends a fontspec "font cannot be found" error to
+    engine settings. `guidance.ts` splits the old font rule: a missing or unknown
+    font is a `source` action ("Check font name": spelling, stray spaces, path,
+    installation); only "fontspec requires XeTeX/LuaTeX" or pdfLaTeX
+    Unicode/inputenc errors go to `engine`. Both font rules sit before the
+    generic file-not-found rule. Covered by `guidance.test.ts`.
+  - `LogPanel.tsx` header count, line tooltip and raw-output summary use
+    translated keys instead of hardcoded English.
+  Local checks: 864 frontend tests and TypeScript pass. Rust tests and release
+  validation run before tagging; verification of the published release goes to
+  `docs/history/RELEASE-1.7.2.md` after the workflow completes.
 - v1.7.1 is public at `a1a2ffe` (2026-09-10), following the owner's explicit
   authorization for this release and its Homebrew update, not future releases.
   Main CI, exact-tag Release and Homebrew workflows succeeded. All 11 asset
