@@ -20,9 +20,13 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
-- v1.7.3 release preparation (2026-09-14), explicitly authorized by the owner
-  for this version and its associated Homebrew update. All three project
-  versions are 1.7.3; `docs/releases/v1.7.3.md` has three short bullets.
+- v1.7.3 is public at `1d3f483` (2026-09-14 07:24:13 UTC), explicitly
+  authorized by the owner for this version and its associated Homebrew update.
+  Main CI, exact-tag Release and Homebrew workflows succeeded. All 11 asset
+  hashes, 3 updater signatures, 6 platform entries, public package downloads
+  and Homebrew 1.7.3 DMG checksum were verified; the cask retains `:big_sur`.
+  All three project versions are 1.7.3; `docs/releases/v1.7.3.md` has three
+  short bullets, also verified in the public update manifest.
   The LaTeX compile log moved out of the bottom of the
   work area into a fourth sidebar view, "Problems" (`Sidebar.tsx`, warning
   triangle icon, red dot while unselected and issues exist). It shares the
@@ -47,7 +51,7 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
   `target/local-builds/sidebar-problems-reviewed-20260914/Clavis-1.7.2-sidebar-reviewed-arm64.zip`.
   Updater disabled, ad-hoc signature and ZIP verified; not installed. Native
   small-screen visual acceptance remains separate. Formal updater stays active;
-  release verification will be recorded in `docs/history/RELEASE-1.7.3.md`.
+  release verification is recorded in `docs/history/RELEASE-1.7.3.md`.
   Fresh formal-config checks pass: TypeScript, 890 frontend tests, production
   build, Rust all-target check, 152 Rust tests (3 optional ignored), 10 Python
   guard tests, version/tag validation, HANDOFF guard and diff whitespace check.
