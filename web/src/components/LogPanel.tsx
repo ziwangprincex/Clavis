@@ -15,52 +15,61 @@ export interface LogPanelProps {
 }
 
 export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings, onFullBuild }: LogPanelProps) {
-  const { errors, logLines, logTail } = useCompileStore();
+  const { status, errors, logLines, logTail } = useCompileStore();
+  const emptyMessage = status === 'compiling' ? 'Compiling…'
+    : status === 'error' ? 'Compile failed. Open raw output for details.'
+    : status === 'ok' ? 'No errors.' : 'No compile result yet.';
 
   return (
     <div className={styles.root}>
       <div className={styles.header}>
         <span className={styles.title}>{t("Compile Log")}</span>
-        <span className={styles.errCount}>
+        {(errors.length > 0 || status === 'ok') && <span className={styles.errCount}>
           {t('{count} issues', { count: errors.length })}
-        </span>
+        </span>}
       </div>
 
       <div className={styles.errors}>
         {errors.length === 0 ? (
-          <div className={styles.muted}>{t("No errors.")}</div>
+          <div className={styles.muted}>{t(emptyMessage)}</div>
         ) : (
           errors.map((err, i) => {
             const guide = guidance('latex', err.message);
-            const canAct = guide.action !== 'none' && (guide.action !== 'source' || !!err.line);
+            const hasLine = typeof err.line === 'number' && Number.isInteger(err.line) && err.line > 0;
+            const canAct = guide.action !== 'none' && (guide.action !== 'source' || (hasLine && !!onJumpTo));
             return (
             <div key={i} className={`${styles.row} ${styles[`kind-${err.kind ?? 'error'}`] ?? ''}`}>
-              {typeof err.line === 'number' && err.line > 0 ? (
-                <a
-                  className={styles.jump}
-                  onClick={() => onJumpTo?.(err.file, err.line!)}
-                  title={err.file ? `${err.file}:${err.line}` : t('Line {line}', { line: err.line })}
-                >
-                  L{err.line}
-                </a>
-              ) : (
-                <span className={styles.muted}>--</span>
-              )}
-              <span className={styles.kindLabel}>{err.kind || 'error'}</span>
-              <span className={styles.message}>{err.message}<small style={{ display: 'block', marginTop: 5, color: 'var(--text-muted)' }}>{t(guide.explanation)}</small>
-                {canAct && <button className={styles.guide} onClick={() => {
-                  if (guide.action === 'environment') onEnvironment?.();
-                  else if (guide.action === 'engine') onSettings?.();
-                  else if (guide.action === 'full-build') onFullBuild?.();
-                  else if (err.line) onJumpTo?.(err.file, err.line);
-                }}>{t(guide.label)}</button>}
-              </span>
-              {err.kind === 'missing-file' && err.package && (
-                <button
-                  className={styles.installBtn}
-                  onClick={() => onInstallPackage?.(err.package!)}
-                > {t("Install")} {err.package}
-                </button>
+              <div className={styles.rowHead}>
+                <span className={styles.kindLabel}>{err.kind || 'error'}</span>
+                {hasLine && onJumpTo && (
+                  <button
+                    type="button"
+                    className={styles.jump}
+                    onClick={() => onJumpTo?.(err.file, err.line!)}
+                    title={err.file ? `${err.file}:${err.line}` : t('Line {line}', { line: err.line! })}
+                  >
+                    <bdi dir="ltr">{err.file ? `${err.file}:${err.line}` : `L${err.line}`}</bdi>
+                  </button>
+                )}
+              </div>
+              <div className={styles.message}>{err.message}</div>
+              <small className={styles.explanation}>{t(guide.explanation)}</small>
+              {(canAct || (err.kind === 'missing-file' && err.package)) && (
+                <div className={styles.actions}>
+                  {canAct && <button className={styles.guide} onClick={() => {
+                    if (guide.action === 'environment') onEnvironment?.();
+                    else if (guide.action === 'engine') onSettings?.();
+                    else if (guide.action === 'full-build') onFullBuild?.();
+                    else if (err.line) onJumpTo?.(err.file, err.line);
+                  }}>{t(guide.label)}</button>}
+                  {err.kind === 'missing-file' && err.package && (
+                    <button
+                      className={styles.installBtn}
+                      onClick={() => onInstallPackage?.(err.package!)}
+                    > {t("Install")} {err.package}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             );
@@ -73,7 +82,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
         <pre className={styles.raw}>
           {logLines.map((l, i) => (
             <span key={i} className={styles[`stream-${l.stream}`]}>
-              [{l.run}] {l.text}
+              [{l.run}] {l.text}{l.text.endsWith('\n') ? '' : '\n'}
             </span>
           ))}
           {logTail && (

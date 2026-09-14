@@ -61,8 +61,6 @@ export interface Settings {
   preview_font_size: number;
   /** Custom CSS variable overrides applied to :root. Hex or named colors. */
   ui_color_overrides: Record<string, string>;
-  /** Whether the LaTeX problems panel is open. */
-  problems_panel_open: boolean;
   /** Preview surface: keep it as a light paper page, or derive from the theme. */
   preview_paper: 'light' | 'match';
   /**
@@ -135,7 +133,6 @@ export const defaultSettings: Settings = {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   preview_font_size: 17,
   ui_color_overrides: {},
-  problems_panel_open: false,
   preview_paper: 'match',
   preview_reading_width: 'narrow',
   cwl_enabled: true,
@@ -169,6 +166,8 @@ export function migrateSettings(s: Settings): Settings {
   // Retire the old canvas-color preference: paper surroundings are not a color control.
   let migrated = { ...s };
   delete (migrated as Settings & { pdf_bg_color?: unknown }).pdf_bg_color;
+  // The compile log moved into the sidebar Problems view; it is no longer a persisted panel.
+  delete (migrated as Settings & { problems_panel_open?: unknown }).problems_panel_open;
   const legacyPx = (s as unknown as { pane_editor_width?: number }).pane_editor_width;
   if (!s.pane_editor_ratio && typeof legacyPx === 'number' && legacyPx > 120) {
     const ratio = legacyPx / 1200;

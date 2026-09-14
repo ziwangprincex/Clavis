@@ -60,6 +60,9 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const isLatex = activeTab?.lang === 'latex';
   const compiling = isLatex && compileStatus === 'compiling';
   const shownProblemCount = problemCount ?? errors.length;
+  const problemsLabel = shownProblemCount > 0 ? t('{count} issues', { count: shownProblemCount })
+    : compiling ? t('Compiling…') : compileStatus === 'error' ? t('Compile failed')
+    : compileStatus === 'ok' ? t('No issues') : t('Compile Log');
   const saveText = !activeTab ? t("No document") : activeTab.isDirty ? t("Unsaved changes") : activeTab.filePath ? t("Saved") : t("Not saved to disk");
   const statusText = settingsError ? t('Settings were not saved: {error}', { error: settingsError }) : compiling ? t("Compiling…") : kind === 'error' ? text : saveText;
   const statusKind = settingsError || kind === 'error' ? 'error' : activeTab?.isDirty || !activeTab?.filePath ? 'info' : 'ok';
@@ -90,8 +93,8 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
           </dl>
         </div>
       </details>
-      {isLatex && <button type="button" className={`${styles.cell} ${shownProblemCount > 0 ? styles.problems : ''}`} onClick={onToggleProblems} title={t("Toggle problems panel")}>
-        {shownProblemCount === 0 ? t("No issues") : t('{count} issues', { count: shownProblemCount })}
+      {isLatex && <button type="button" className={`${styles.cell} ${shownProblemCount > 0 || compileStatus === 'error' ? styles.problems : ''}`} onClick={onToggleProblems} title={t("Toggle problems panel")}>
+        {problemsLabel}
       </button>}
     </footer>
   );

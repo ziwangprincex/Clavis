@@ -1,6 +1,6 @@
 # Clavis - Handoff
 
-Updated 2026-09-10. This is the one page the next session reads first. It states
+Updated 2026-09-14. This is the one page the next session reads first. It states
 what is true now and where the boundaries are. It is not a log: per-session
 narratives live in `docs/history/`, release notes in `docs/releases/`, and the
 guard only requires that this page still describes the tree after a change.
@@ -20,10 +20,41 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
 
 ## State
 
-- v1.7.2 release preparation (2026-09-10), authorized by the owner for this
-  version and its Homebrew update only. Versions in `Cargo.toml`, `Cargo.lock`
-  and `tauri.conf.json` are 1.7.2; notes in `docs/releases/v1.7.2.md` (three
-  short bullets). Contents:
+- v1.7.3 release preparation (2026-09-14), explicitly authorized by the owner
+  for this version and its associated Homebrew update. All three project
+  versions are 1.7.3; `docs/releases/v1.7.3.md` has three short bullets.
+  The LaTeX compile log moved out of the bottom of the
+  work area into a fourth sidebar view, "Problems" (`Sidebar.tsx`, warning
+  triangle icon, red dot while unselected and issues exist). It shares the
+  sidebar with the folder tree and is visible only when that tab is selected,
+  so it can no longer take permanent vertical space or resist being closed.
+  The status-bar issue chip and palette command share a real toggle: an open
+  view returns to Document; a hidden/focused sidebar opens Problems. The PDF
+  empty-state action only opens it. The tab exists only for LaTeX documents;
+  leaving LaTeX clears this selection so returning does not reopen it unasked.
+  `LogPanel.tsx` stacks kind, `file:line`, message, explanation and actions for
+  the ~230px column. Review fixed joined raw log lines, misleading "No errors"
+  empty states (including the status chip), and keyboard-inaccessible source
+  locations. Paths retain left-to-right text inside leading ellipsis; invalid
+  line numbers expose no source action. The persisted `problems_panel_open`
+  setting is gone; migration drops it without changing sidebar preferences.
+  The bottom `logArea` now hosts only `TaskPanel`. Hidden/unselected Problems
+  unmounts the log view to avoid redrawing thousands of log rows in the
+  background; store data and the mounted document tree remain intact.
+  App integration, log/status, lazy log rendering, document-tree preservation
+  and migration regressions pass: 890 frontend tests, TypeScript, production
+  build, 152 Rust tests (3 optional ignored). Reviewed arm64 candidate:
+  `target/local-builds/sidebar-problems-reviewed-20260914/Clavis-1.7.2-sidebar-reviewed-arm64.zip`.
+  Updater disabled, ad-hoc signature and ZIP verified; not installed. Native
+  small-screen visual acceptance remains separate. Formal updater stays active;
+  release verification will be recorded in `docs/history/RELEASE-1.7.3.md`.
+  Fresh formal-config checks pass: TypeScript, 890 frontend tests, production
+  build, Rust all-target check, 152 Rust tests (3 optional ignored), 10 Python
+  guard tests, version/tag validation, HANDOFF guard and diff whitespace check.
+  Main push, new tag, release assets and tap update belong to this authorization;
+  no old tags/assets may change.
+- v1.7.2 is public at `020ea69` (2026-09-10 09:29:43 UTC), confirmed from
+  GitHub on 2026-09-14. Notes: `docs/releases/v1.7.2.md`. Contents:
   - The PDF preview no longer fails with "PDFWorker.create - the worker is
     being destroyed" when a new compile result arrives while the previous PDF is
     still loading. `PdfViewer.tsx` tracks every `destroy()` on the shared pdf.js
@@ -38,9 +69,9 @@ have shipped implementations; see `docs/WRITER_ROADMAP.md` and
     generic file-not-found rule. Covered by `guidance.test.ts`.
   - `LogPanel.tsx` header count, line tooltip and raw-output summary use
     translated keys instead of hardcoded English.
-  Local checks: 864 frontend tests and TypeScript pass. Rust tests and release
-  validation run before tagging; verification of the published release goes to
-  `docs/history/RELEASE-1.7.2.md` after the workflow completes.
+  Pre-release local checks recorded 864 frontend tests and TypeScript passing.
+  No `docs/history/RELEASE-1.7.2.md` closeout exists in this checkout; do not
+  infer additional historic asset verification from the published status.
 - v1.7.1 is public at `a1a2ffe` (2026-09-10), following the owner's explicit
   authorization for this release and its Homebrew update, not future releases.
   Main CI, exact-tag Release and Homebrew workflows succeeded. All 11 asset

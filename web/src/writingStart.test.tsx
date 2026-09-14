@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { StartActions } from './components/StartActions';
 import { Sidebar } from './components/Sidebar';
+import { StatusBar } from './components/StatusBar';
+import { PdfViewer } from './components/PdfViewer';
 import { WriterDialog } from './components/WriterDialog';
 import { useTabsStore, useSettingsStore, useProjectStore, useGitStore, useTaskStore, defaultSettings } from './store';
 import { useCommandsStore } from './store/commands';
@@ -200,4 +202,59 @@ it('keeps empty-note sidebar minimal but exposes research folder action', async 
   expect(sidebar.props.writing).not.toBeNull();
   act(() => useTabsStore.getState().patchTab(id, { content: '  ' }));
   expect(sidebar.props.writing).toBeNull();
+});
+
+const sidebar = () => tree.root.findByType(Sidebar);
+const command = async (id: string) => { await act(async () => { await useCommandsStore.getState().commands.get(id)!.run(); }); };
+async function mountLatex() {
+  useTabsStore.getState().addTab({ id: 'paper', title: 'Untitled', filePath: null, lang: 'latex', content: '', isDirty: false });
+  await mount();
+}
+it('toggles Problems from the palette in both directions using the latest selection', async () => {
+  await mountLatex();
+  expect(sidebar().props.view).toBe('documents');
+  await command('view.toggleProblems');
+  expect(sidebar().props.view).toBe('problems');
+  await command('view.toggleProblems');
+  expect(sidebar().props.view).toBe('documents');
+  act(() => sidebar().props.onViewChange('problems'));
+  await command('view.toggleProblems');
+  expect(sidebar().props.view).toBe('documents');
+});
+it('opens Problems instead of closing it when the sidebar is hidden or focused', async () => {
+  await mountLatex();
+  await command('view.toggleProblems');
+  await command('view.sidebar');
+  expect(sidebar().props.hidden).toBe(true);
+  await command('view.toggleProblems');
+  expect(sidebar().props.hidden).toBe(false);
+  expect(sidebar().props.view).toBe('problems');
+  await command('view.focus');
+  expect(sidebar().props.hidden).toBe(true);
+  await command('view.toggleProblems');
+  expect(sidebar().props.hidden).toBe(false);
+  expect(sidebar().props.view).toBe('problems');
+  await command('view.toggleProblems');
+  expect(sidebar().props.view).toBe('documents');
+});
+it('keeps the status toggle and PDF show action distinct', async () => {
+  await mountLatex();
+  act(() => tree.root.findByType(StatusBar).props.onToggleProblems());
+  expect(sidebar().props.view).toBe('problems');
+  act(() => tree.root.findByType(PdfViewer).props.onProblems());
+  expect(sidebar().props.view).toBe('problems');
+  act(() => tree.root.findByType(StatusBar).props.onToggleProblems());
+  expect(sidebar().props.view).toBe('documents');
+  expect(sidebar().props.hidden).toBe(false);
+});
+it('does not resurrect Problems after leaving LaTeX and returning', async () => {
+  await mountLatex();
+  await command('view.toggleProblems');
+  act(() => useTabsStore.getState().addTab({ id: 'note', title: 'Note', filePath: null, lang: 'markdown', content: '', isDirty: false }));
+  expect(sidebar().props.problems).toBeNull();
+  expect(sidebar().props.view).toBe('documents');
+  expect(useCommandsStore.getState().commands.get('view.toggleProblems')!.when!()).toBe(false);
+  act(() => useTabsStore.getState().setActive('paper'));
+  expect(sidebar().props.problems).not.toBeNull();
+  expect(sidebar().props.view).toBe('documents');
 });

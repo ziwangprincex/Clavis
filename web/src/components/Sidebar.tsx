@@ -1,7 +1,9 @@
 import { t } from '../i18n';
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { IconBook, IconChevronDown, IconDoc, IconFolder } from './icons';
+import { IconAlert, IconBook, IconChevronDown, IconDoc, IconFolder } from './icons';
 import styles from './Sidebar.module.css';
+
+export type SidebarView = 'documents' | 'research' | 'project' | 'problems';
 
 export interface SidebarProps {
   outline?: ReactNode;
@@ -13,6 +15,13 @@ export interface SidebarProps {
   assets?: ReactNode;
   writing?: ReactNode;
   git?: ReactNode;
+  /** Compile problems and raw log. The Problems view exists only when this is set. */
+  problems?: ReactNode;
+  /** Marks the Problems tab when it is not selected. */
+  problemCount?: number;
+  /** Controlled view. When omitted the sidebar keeps its own selection. */
+  view?: SidebarView;
+  onViewChange?: (view: SidebarView) => void;
   onOpenFolder?: () => void;
   width?: number;
   hidden?: boolean;
@@ -21,14 +30,17 @@ const VIEWS = [
   { id: 'documents', label: 'Document', icon: IconDoc },
   { id: 'research', label: 'Research', icon: IconBook },
   { id: 'project', label: 'Project', icon: IconFolder },
-] as const;
-type View = typeof VIEWS[number]['id'];
+  { id: 'problems', label: 'Problems', icon: IconAlert },
+] as const satisfies ReadonlyArray<{ id: SidebarView; label: string; icon: typeof IconDoc }>;
 
 export function Sidebar(props: SidebarProps) {
-  const [view, setView] = useState<View>('documents');
+  const [ownView, setOwnView] = useState<SidebarView>('documents');
+  const view = props.view ?? ownView;
+  const setView = (next: SidebarView) => { setOwnView(next); props.onViewChange?.(next); };
   const id = useId();
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
-  const views = VIEWS.filter(item => item.id !== 'project' || props.artifacts || props.git);
+  const views = VIEWS.filter(item =>
+    (item.id !== 'project' || props.artifacts || props.git) && (item.id !== 'problems' || props.problems));
   const selected = views.some(item => item.id === view) ? view : 'documents';
   const hasResearch = props.bibliography || props.references || props.assets;
   const widthStyle = props.width ? { flex: `0 0 ${props.width}px`, width: `${props.width}px` } : undefined;
@@ -50,7 +62,9 @@ export function Sidebar(props: SidebarProps) {
               event.preventDefault();
               setView(views[next].id);
               buttons.current[next]?.focus();
-            }}><item.icon size={16} aria-hidden="true" /></button>
+            }}><item.icon size={16} aria-hidden="true" />
+            {item.id === 'problems' && selected !== 'problems' && (props.problemCount ?? 0) > 0 && <span className={styles.badge} aria-hidden="true" />}
+          </button>
         ))}
       </div>
       <div className={styles.content}>
@@ -74,6 +88,9 @@ export function Sidebar(props: SidebarProps) {
         {views.some(item => item.id === 'project') && <div role="tabpanel" id={`${id}-project`} aria-labelledby={`${id}-project-tab`} hidden={selected !== 'project'} tabIndex={0}>
           {props.artifacts && <SidebarSection title={t('Build outputs')}>{props.artifacts}</SidebarSection>}
           {props.git && <SidebarSection title={t('Version control')}>{props.git}</SidebarSection>}
+        </div>}
+        {props.problems && <div role="tabpanel" id={`${id}-problems`} aria-labelledby={`${id}-problems-tab`} hidden={selected !== 'problems'} tabIndex={0} className={styles.fill}>
+          {selected === 'problems' && !props.hidden && props.problems}
         </div>}
       </div>
     </aside>

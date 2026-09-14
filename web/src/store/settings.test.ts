@@ -74,3 +74,15 @@ describe('retired PDF surround preference', () => {
     expect(migrateSettings(migrated)).toEqual(migrated);
   });
 });
+
+describe('retired bottom problems panel preference', () => {
+  it.each([true, false])('drops legacy problems_panel_open=%s without changing sidebar preferences', problems_panel_open => {
+    const source = { ...defaultSettings, problems_panel_open, sidebar_visible: false, pane_sidebar_width: 240 };
+    const migrated = migrateSettings(source);
+    expect(migrated).not.toHaveProperty('problems_panel_open');
+    expect(migrated.sidebar_visible).toBe(false);
+    expect(migrated.pane_sidebar_width).toBe(240);
+    expect(source.problems_panel_open).toBe(problems_panel_open);
+    expect(migrateSettings(migrated)).toEqual(migrated);
+  });
+});

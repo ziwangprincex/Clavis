@@ -1,10 +1,13 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
 .sidebar[hidden] { display: none; }
 .views { display: flex; align-items: center; flex: none; gap: 4px; padding: 8px 12px; }
-.view { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
+.view { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
 .view:hover { background: var(--panel-soft); color: var(--text); }
 .view.selected { background: var(--panel-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
-.content { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 8px 12px; }
+.badge { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--error); }
+.content { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 8px 12px; }
+.content > [role="tabpanel"][hidden] { display: none; }
+.fill { display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 0 -8px -12px; }
 .section { margin-top: 10px; }
 .section + .section { border-top: 1px solid var(--border); padding-top: 6px; }
 .sectionHeader { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 6px 8px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font: inherit; font-size: 0.88em; font-weight: 600; cursor: pointer; text-align: left; }

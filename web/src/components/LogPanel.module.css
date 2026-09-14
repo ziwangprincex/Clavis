@@ -1,21 +1,22 @@
 .root {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   height: 100%;
-  background: var(--bg-elevated);
   font-size: 0.9231rem;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 14px;
-  background: transparent;
+  gap: 8px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
 }
 
 .title {
+  flex: 1;
   font-weight: 600;
   font-size: 0.8462rem;
   color: var(--text-muted);
@@ -24,10 +25,12 @@
 
 .errCount {
   color: var(--text-muted);
+  font-size: 0.8462rem;
 }
 
 .errors {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 4px 0;
 }
@@ -39,12 +42,15 @@
 
 .row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 5px 12px;
-  font-family: var(--font-mono);
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px 8px;
   border-left: 3px solid transparent;
   transition: background-color var(--dur) var(--ease);
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
 }
 
 .row:hover {
@@ -72,34 +78,67 @@
   border-left-color: var(--text-dim);
 }
 
+.rowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kindLabel {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.8077rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
 .jump {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: right;
   color: var(--accent);
   cursor: pointer;
   text-decoration: none;
-  min-width: 36px;
+  font-family: var(--font-mono);
+  font-size: 0.8462rem;
 }
 
 .jump:hover {
   text-decoration: underline;
 }
 
-.kindLabel {
-  color: var(--text-muted);
-  font-size: 0.8462rem;
-  text-transform: uppercase;
-  min-width: 80px;
+.message {
+  font-family: var(--font-mono);
+  font-size: 0.8846rem;
+  word-break: break-word;
+  line-height: 1.45;
 }
 
-.message {
-  flex: 1;
-  word-break: break-word;
+.explanation {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
 }
 
 .installBtn {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.8462rem;
@@ -113,17 +152,18 @@
 .rawDetails {
   border-top: 1px solid var(--border);
   background: var(--bg);
-  /* Cap at ~half the (now resizable) panel so expanding Raw output never
-     squashes the error list above it to nothing; content scrolls within. */
+  /* Cap at ~half the panel so expanding Raw output never squashes the error
+     list above it to nothing; content scrolls within. */
   max-height: 50%;
   overflow: auto;
   flex: 0 0 auto;
 }
 
 .rawDetails summary {
-  padding: 4px 12px;
+  padding: 6px 12px;
   cursor: pointer;
   color: var(--text-muted);
+  font-size: 0.8462rem;
   user-select: none;
 }
 
@@ -131,8 +171,9 @@
   margin: 0;
   padding: 8px 12px;
   font-family: var(--font-mono);
-  font-size: 0.8462rem;
+  font-size: 0.8077rem;
   white-space: pre-wrap;
+  word-break: break-word;
   color: var(--text-dim);
 }
 
@@ -144,5 +185,5 @@
   color: var(--accent);
 }
 
-.guide { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 0.8462rem; padding: 5px 0; cursor: pointer; }
+.guide { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 0.8462rem; padding: 3px 0; cursor: pointer; }
 .guide:disabled { opacity: .4; cursor: default; }

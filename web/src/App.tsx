@@ -1,7 +1,7 @@
 import { t } from './i18n';
-import { useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, type Lang, newTabId } from './store';
+import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useTaskStore, useReferencesStore, useArtifactsStore, useAssetsStore, useWritingStore, useGitStore, useCompileStore, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
@@ -16,7 +16,7 @@ import { TaskPanel } from './components/TaskPanel';
 import { ProjectDoctorDialog } from './components/ProjectDoctorDialog';
 import { WorkspaceSearchDialog } from './components/WorkspaceSearchDialog';
 import { Tabs } from './components/Tabs';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, type SidebarView } from './components/Sidebar';
 import { OutlineSection } from './components/OutlineSection';
 import { FolderTreeSection } from './components/FolderTreeSection';
 import { FilesSection } from './components/FilesSection';
@@ -91,11 +91,13 @@ export function App() {
   const gitError = useGitStore(s => s.error);
   const taskStatus = useTaskStore(s => s.status);
   const taskPanelOpen = taskStatus !== 'idle';
+  const problemCount = useCompileStore(s => s.errors.length);
 
   const [startTabId, setStartTabId] = useState<string | null>(null);
   const [bootReady, setBootReady] = useState(() => tabs.length > 0);
   const [focusMode, setFocusMode] = useState(false);
   const layout = focusMode ? 'editor' : settings.editor_layout;
+  const [sidebarView, setSidebarView] = useState<SidebarView>('documents');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [writerTool, setWriterTool] = useState<WriterTool | null>(null);
@@ -108,6 +110,23 @@ export function App() {
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
   const setStatus = useStatusStore(s => s.set);
+  const showProblems = () => {
+    setFocusMode(false);
+    setSidebarView('problems');
+    if (!useSettingsStore.getState().settings.sidebar_visible) void patchAndSave({ sidebar_visible: true });
+  };
+
+  const toggleProblems = useCallback(() => {
+    const sidebarVisible = useSettingsStore.getState().settings.sidebar_visible;
+    const visible = sidebarVisible && !focusMode;
+    setFocusMode(false);
+    setSidebarView(view => visible && view === 'problems' ? 'documents' : 'problems');
+    if (!sidebarVisible) void patchAndSave({ sidebar_visible: true });
+  }, [focusMode, patchAndSave]);
+
+  useEffect(() => {
+    if (lang !== 'latex') setSidebarView(view => view === 'problems' ? 'documents' : view);
+  }, [lang]);
 
   const editorApiRef = useRef<EditorPaneRef | null>(null);
   const workspaceOpenSeqRef = useRef(0);
@@ -620,19 +639,13 @@ export function App() {
         name: 'Toggle math symbols panel',
         run: () => setSymbolsOpen(o => !o),
       }),
-      // The status-bar chip only appears when there ARE problems, so without a
-      // palette entry a user who closes the panel on a clean compile has no way
-      // to reopen it — and the setting persists to disk. This is the safety net.
-      // It also gets back the raw compile log, which is the only thing to look
-      // at when a compile fails in a way the diagnostic parser didn't catch.
+      // Keep the raw log reachable even when the parser found no diagnostics.
+      // Like the status chip, this command toggles the visible Problems view.
       reg({
         id: 'view.toggleProblems',
         name: 'Toggle problems panel (LaTeX)',
         when: () => lang === 'latex',
-        run: () =>
-          void patchAndSave({
-            problems_panel_open: !useSettingsStore.getState().settings.problems_panel_open,
-          }),
+        run: toggleProblems,
       }),
       reg({ id: 'lang.markdown', name: 'Switch to Markdown', run: () => setLang('markdown') }),
       reg({ id: 'lang.latex', name: 'Switch to LaTeX', run: () => setLang('latex') }),
@@ -700,7 +713,7 @@ export function App() {
     ];
     return () => offs.forEach(off => off());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus, startTabId, settings.editor_layout]);
+  }, [workspaceFolder, workspaceInspection, activeTab?.id, lang, taskStatus, startTabId, settings.editor_layout, toggleProblems]);
 
   // Focus is temporary: leaving it restores the user's exact pane preferences.
   useEffect(() => {
@@ -806,6 +819,24 @@ export function App() {
           hidden={focusMode || !settings.sidebar_visible}
           width={sidebarWidth || undefined}
           onOpenFolder={openFolder}
+          view={sidebarView}
+          onViewChange={setSidebarView}
+          problemCount={problemCount}
+          problems={lang === 'latex' ? (
+            <LogPanel
+              onEnvironment={() => setWriterTool('environment')}
+              onSettings={() => setSettingsOpen(true)}
+              onFullBuild={() => void runLatexCompile('full')}
+              onJumpTo={(file, line) => {
+                const project = useProjectStore.getState();
+                const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
+                void openFileAndScrollToLine(absPath, line, l =>
+                  editorApiRef.current?.scrollToLine(l),
+                );
+              }}
+              onInstallPackage={pkg => void installPackage(pkg)}
+            />
+          ) : null}
           outline={
             <OutlineSection
               onJumpTo={(absPath, line) => {
@@ -944,7 +975,7 @@ export function App() {
                       visible={layout !== 'editor'}
                       onCompile={compileNow}
                       onEnvironment={() => setWriterTool('environment')}
-                      onProblems={() => { setFocusMode(false); void patchAndSave({ problems_panel_open: true }); }}
+                      onProblems={showProblems}
                       onSyncTexBackward={(page, x, y) =>
                         syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
                           void openFileAndScrollToLine(absPath, line, l =>
@@ -960,7 +991,7 @@ export function App() {
               </Suspense>
             </div>
           </div>
-          {!focusMode && (taskPanelOpen || (lang === 'latex' && settings.problems_panel_open)) && (
+          {!focusMode && taskPanelOpen && (
             <>
               <Splitter
                 orientation="vertical"
@@ -972,35 +1003,14 @@ export function App() {
                 className={styles.logArea}
                 style={logHeight ? { height: `${logHeight}px` } : undefined}
               >
-                {taskPanelOpen ? (
-                  <TaskPanel />
-                ) : (
-                  <LogPanel
-                    onEnvironment={() => setWriterTool('environment')}
-                    onSettings={() => setSettingsOpen(true)}
-                    onFullBuild={() => void runLatexCompile('full')}
-                    onJumpTo={(file, line) => {
-                      const project = useProjectStore.getState();
-                      const absPath = resolveSyncTexFile(file, project.files, project.rootAbs);
-                      void openFileAndScrollToLine(absPath, line, l =>
-                        editorApiRef.current?.scrollToLine(l),
-                      );
-                    }}
-                    onInstallPackage={pkg => void installPackage(pkg)}
-                  />
-                )}
+                <TaskPanel />
               </div>
             </>
           )}
         </div>
       </div>
 
-      <StatusBar
-        onToggleProblems={() => {
-          setFocusMode(false);
-          void patchAndSave({ problems_panel_open: !settings.problems_panel_open });
-        }}
-      />
+      <StatusBar onToggleProblems={toggleProblems} />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       {writerTool && <WriterDialog key={writerTool} tool={writerTool} hidden={settingsOpen} onClose={() => setWriterTool(null)} onCreated={openCreatedProject} onBlank={newBlankNote} onSettings={() => setSettingsOpen(true)} />}

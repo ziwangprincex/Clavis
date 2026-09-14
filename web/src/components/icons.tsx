@@ -156,3 +156,10 @@ export const IconClose = (p: IconProps) => (
     <path d="M4 4l8 8M12 4l-8 8" />
   </svg>
 );
+
+export const IconAlert = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M8 2.25 14.25 13H1.75z" />
+    <path d="M8 6.25v3.25M8 11.5v.25" />
+  </svg>
+);
