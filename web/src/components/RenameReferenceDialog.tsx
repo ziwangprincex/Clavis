@@ -1,21 +1,20 @@
 import { t } from '../i18n';
 import { useModal } from '../hooks/useModal';
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { dialogConfirm, ipc, type RenameReferencePreview } from '../api/tauri';
-import type { Tab } from '../store';
+import { useTabsStore } from '../store';
 import styles from './RenameReferenceDialog.module.css';
 
 export interface RenameReferenceDialogProps {
   open: boolean;
   root: string | null;
-  tabs: Tab[];
   initialNamespace?: 'label' | 'citation';
   initialKey?: string;
   onClose: () => void;
   onApplied: (paths: string[]) => void;
 }
 
-export function RenameReferenceDialog({ open, root, tabs, initialNamespace = 'label', initialKey = '', onClose, onApplied }: RenameReferenceDialogProps) {
+export function RenameReferenceDialog({ open, root, initialNamespace = 'label', initialKey = '', onClose, onApplied }: RenameReferenceDialogProps) {
   const [namespace, setNamespace] = useState<'label' | 'citation'>(initialNamespace);
   const [oldKey, setOldKey] = useState(initialKey);
   const [newKey, setNewKey] = useState('');
@@ -33,13 +32,13 @@ export function RenameReferenceDialog({ open, root, tabs, initialNamespace = 'la
     setError(null);
   }, [open, initialNamespace, initialKey]);
 
-  const documents = tabs.filter(tab => tab.filePath).map(tab => ({
-    path: tab.filePath!, language: tab.lang, text: tab.content, isDirty: tab.isDirty,
-  }));
-
   async function loadPreview() {
     if (!root) return;
     setBusy(true); setError(null);
+    // Open buffers at the moment of preview, including unsaved edits.
+    const documents = useTabsStore.getState().tabs.filter(tab => tab.filePath).map(tab => ({
+      path: tab.filePath!, language: tab.lang, text: tab.content, isDirty: tab.isDirty,
+    }));
     try {
       setPreview(await ipc.previewReferenceRename({ root, documents, namespace, oldKey, newKey }));
     } catch (reason) { setPreview(null); setError(String(reason)); }
@@ -83,7 +82,7 @@ export function RenameReferenceDialog({ open, root, tabs, initialNamespace = 'la
         <div className={styles.body}>
           {preview ? (
             <><div className={styles.summary}>{preview.totalOccurrences} {t("occurrence(s) across")} {preview.files.length} {t("file(s)")}</div><ul>{preview.files.map(file => <li key={file.path}><strong>{file.relativePath}</strong><span>{file.language} · {file.occurrences} {t("occurrence(s) · first at line")} {file.firstLine}</span></li>)}</ul></>
-          ) : <p className={styles.empty}>{t("Preview validates collisions, dirty Documents, exact ranges, and file fingerprints before Apply is enabled.")}</p>}
+          ) : <p className={styles.empty}>{t("Apply is enabled only after the preview has checked name collisions, unsaved documents, exact ranges and file fingerprints.")}</p>}
         </div>
         <footer><button type="button" disabled={busy || !preview} onClick={() => void apply()}>{t("Apply Rename")}</button></footer>
       </section>

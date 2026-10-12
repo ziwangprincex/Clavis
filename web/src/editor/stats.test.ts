@@ -25,6 +25,10 @@ describe('countWords', () => {
   it('treats hyphenated tokens as one word', () => {
     expect(countWords('well-known thing')).toBe(2);
   });
+  it('counts each Chinese character, not each run between spaces', () => {
+    expect(countWords('这是一段加粗、斜体。')).toBe(8);
+    expect(countWords('使用 Clavis 写作 — two words')).toBe(7);
+  });
 });
 
 describe('countChars', () => {
@@ -78,6 +82,15 @@ Main text.`, 'typst').abstractWords).toBe(4);
     const stats = computeResearchStats('= Abstract\nShort abstract text.\n= Main\nVisible #image("x.png") prose $x^2$.', 'typst');
     expect(stats.abstractWords).toBe(3);
     expect(stats.mainWords).toBe(3);
+  });
+
+  it('counts Chinese prose by character and finds a 摘要 section', () => {
+    expect(computeResearchStats('# 摘要\n本文研究 LaTeX 排版。\n# 正文\n正文内容。', 'markdown'))
+      .toEqual({ abstractWords: 7, mainWords: 6 });
+  });
+
+  it('leaves the whole LaTeX abstract out of the main text', () => {
+    expect(computeResearchStats('\\begin{abstract}One two three.\\end{abstract}\nMain text.', 'latex').mainWords).toBe(2);
   });
 });
 

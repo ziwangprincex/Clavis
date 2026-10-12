@@ -22,8 +22,4 @@
 .details dt { color: var(--text-dim); } .details dd { margin: 0; }
 .empty { padding: 8px 12px; color: var(--text-muted); } .error { padding: 8px 12px; color: var(--error); font-size: 0.8462rem; }
 
-.exportStatus { padding: 0 8px 5px; color: var(--text-dim); font-size: 0.6923rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.zoteroTools{display:flex;align-items:center;gap:6px;padding:0 7px 6px;font-size: 0.7692rem}.zoteroTools button{border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);padding:4px 6px;cursor:pointer}.zoteroTools span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)}.zotero{margin:0 7px 8px;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-soft)}.zotero .filter{width:100%;box-sizing:border-box}.content:disabled{cursor:not-allowed;opacity:.72}
-
 .integrity{display:grid;gap:3px;margin:0 7px 6px;padding:5px 7px;border-left:2px solid var(--warning);background:var(--panel-soft);color:var(--text-muted);font-size: 0.6923rem;overflow-wrap:anywhere}

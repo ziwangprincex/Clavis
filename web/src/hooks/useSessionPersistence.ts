@@ -1,4 +1,4 @@
-// Wires up session persistence (crash-recovery) and the opt-in disk-autosave
+// Wires up session persistence (crash-recovery) and the disk-autosave
 // interval. Extracted verbatim from App.tsx.
 //
 // - Debounced session save on every tabs-store change, plus a flush on unload.

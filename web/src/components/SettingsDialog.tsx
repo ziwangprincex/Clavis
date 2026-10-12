@@ -20,14 +20,13 @@ import { ColorField } from './ColorField';
 import { headingSizes, previewTypography } from '../theme/typography';
 import { useModal } from '../hooks/useModal';
 import { t } from '../i18n';
-import previewStyles from './PreviewPane.module.css';
 
 export interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-const CATEGORIES = ['Appearance', 'Editor', 'LaTeX & PDF', 'Preview', 'Updates'] as const;
+const CATEGORIES = ['Appearance', 'Editor', 'Markdown', 'LaTeX & PDF', 'Updates'] as const;
 type Category = (typeof CATEGORIES)[number];
 
 /// Every value the bibliography dropdown offers, including the two that name no
@@ -134,7 +133,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     const keys: Record<Category, (keyof Settings)[]> = {
       Appearance: ['editor_theme', 'ui_font_family', 'ui_mono_font_family', 'ui_font_size', 'ui_accent_color', 'ui_color_overrides'],
       Editor: ['editor_font_family', 'editor_font_size', 'editor_line_height', 'editor_theme_overrides', 'editor_spellcheck', 'editor_tab_size', 'editor_indent_with_spaces', 'writing_main_word_limit', 'writing_abstract_word_limit', 'autosave_enabled'],
-      Preview: ['preview_font_family', 'preview_font_size', 'preview_line_height', 'preview_heading_fonts', 'preview_heading_sizes', 'preview_heading_weights', 'preview_quote_font_family', 'preview_inline_code_font_family', 'preview_code_font_family', 'preview_paper', 'preview_reading_width'],
+      Markdown: ['preview_font_family', 'preview_font_size', 'preview_line_height', 'preview_heading_fonts', 'preview_heading_sizes', 'preview_heading_weights', 'preview_quote_font_family', 'preview_inline_code_font_family', 'preview_code_font_family', 'preview_reading_width'],
       'LaTeX & PDF': ['latex_engine', 'bib_engine', 'auto_rerun', 'max_runs', 'pdf_dark_mode'],
       Updates: [],
     };
@@ -182,14 +181,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     <option value="en">English</option>
                   </select>
                 </label>
-                <p className={styles.hint}>{t('Language changes after saving. Document contents and compiler output are not translated.')}</p>
+                <p className={styles.hint}>{t('Applied after saving. Document contents and compiler output are not translated.')}</p>
                 <ThemePicker value={draft.editor_theme} selectedSpec={sampleTheme} overrides={draft.ui_color_overrides} uiFont={draft.ui_font_family}
                   onChange={id => update('editor_theme', id)} />
                 <label> {t("Theme")} <select
                     value={draft.editor_theme}
                     onChange={e => update('editor_theme', e.target.value)}
                   >
-                    <option value="auto">{t("Auto (Paper by day, Ink by night)")}</option>
+                    <option value="auto">{t("Automatic (Paper in light mode, Ink in dark mode)")}</option>
                     {Object.entries(BUILTIN_THEMES).map(([key, spec]) => (
                       <option key={key} value={key}>
                         {spec.label}
@@ -197,8 +196,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     ))}
                   </select>
                 </label>
-                <p className={styles.hint}> {t("Save applies the palette to the whole window. Printed pages stay unchanged.")} {Object.keys(draft.editor_theme_overrides ?? {}).length > 0 || draft.ui_accent_color || Object.keys(draft.ui_color_overrides ?? {}).length > 0
-                    ? t('Custom colors are kept; clear them to use the original palette.') : ''}
+                <p className={styles.hint}> {t("Applied to the whole window after saving. Compiled pages are not affected.")} {Object.keys(draft.editor_theme_overrides ?? {}).length > 0 || draft.ui_accent_color || Object.keys(draft.ui_color_overrides ?? {}).length > 0
+                    ? t('Custom colors are retained. Clearing them restores the original palette.') : ''}
                 </p>
                 {(Object.keys(draft.editor_theme_overrides ?? {}).length > 0 || draft.ui_accent_color || Object.keys(draft.ui_color_overrides ?? {}).length > 0) && (
                   <button type="button" className={styles.secondary} style={{ marginBottom: 16 }}
@@ -221,11 +220,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               </section>
             )}
 
-            {active === 'Preview' && (
+            {active === 'Markdown' && (
               <section className={styles.section}>
-                <h3>{t("Preview")}</h3>
-                <FontField label={t("Preview font family")} value={draft.preview_font_family} onChange={value => update('preview_font_family', value)} fonts={fonts} inheritedFamily={draft.ui_font_family || defaultSettings.ui_font_family} size={draft.preview_font_size} lineHeight={draft.preview_line_height} />
-                <label> {t("Preview font size (px)")} <input
+                <h3>{t("Markdown")}</h3>
+                <FontField label={t("Body font")} value={draft.preview_font_family} onChange={value => update('preview_font_family', value)} fonts={fonts} inheritedFamily={draft.ui_font_family || defaultSettings.ui_font_family} size={draft.preview_font_size} lineHeight={draft.preview_line_height} />
+                <label> {t("Body font size (px)")} <input
                     type="number"
                     min={10}
                     max={32}
@@ -234,7 +233,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   />
                 </label>
                 <label>{t('Line height')}<input type="number" min={1} max={3} step={0.05} value={draft.preview_line_height} onChange={e => update('preview_line_height', Math.max(1, Math.min(3, +e.target.value || 1.75)))} /></label>
-                <p className={styles.hint}>{t('Headings and quotes follow the body unless overridden. Code follows the editor. Math, PDF and Typst fonts are controlled by the document.')}</p>
+                <p className={styles.hint}>{t('Headings and quotes inherit the body font unless overridden; code inherits the editor font. Fonts in formulas, PDF and Typst output are defined by the document.')}</p>
                 <details className={styles.advanced}>
                   <summary>{t('Typography overrides')}</summary>
                   {Object.entries(headingSizes).map(([level, size]) => <div key={level} className={styles.headingField}>
@@ -250,25 +249,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   <FontField label={t("Inline code font")} value={draft.preview_inline_code_font_family} fonts={fonts} inheritedFamily={draft.editor_font_family} fallback="Follow editor" onChange={value => update('preview_inline_code_font_family', value)} />
                   <FontField label={t("Code block font")} value={draft.preview_code_font_family} fonts={fonts} inheritedFamily={draft.editor_font_family} fallback="Follow editor" onChange={value => update('preview_code_font_family', value)} />
                 </details>
-                <div className={`${styles.readingSample} ${previewStyles.markdown}`} style={previewTypography(draft)}>
+                <div className={styles.readingSample} style={previewTypography(draft)}>
                   <h1>中文标题 · Heading 1</h1><h2>二级标题 · Heading 2</h2>
                   <h3>三级标题 · Heading 3</h3><h4>四级标题 · Heading 4</h4>
                   <h5>五级标题 · Heading 5</h5><h6>六级标题 · Heading 6</h6>
                   <p>中文正文与 English body text。<code>inline code</code></p>
                   <blockquote>引用文字 · A quiet thought.</blockquote><pre><code>const words = "你好";</code></pre>
                 </div>
-                <label> {t("Preview surface")} <select
-                    value={draft.preview_paper}
-                    onChange={e =>
-                      update('preview_paper', e.target.value as 'light' | 'match')
-                    }
-                  >
-                    <option value="light">{t("Paper (white)")}</option>
-                    <option value="match">{t("Match app theme")}</option>
-                  </select>
-                </label>
-                <p className={styles.hint}>{t('Light paper adapts the accent only when needed for readable contrast.')}</p>
-                <label> {t("Reading width")} <select
+                <label> {t("Page width")} <select
                     value={draft.preview_reading_width}
                     onChange={e =>
                       update(
@@ -380,7 +368,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       <option value="sepia">{t("Sepia")}</option>
                     </select>
                   </label>
-                  <p className={styles.hint}>{t('Paper surroundings follow light or dark mode in neutral gray. Accent colors never tint the PDF.')}</p>
+                  <p className={styles.hint}>{t('The area around the page is a neutral gray that follows light or dark mode. Accent colors do not tint the PDF.')}</p>
                 </section>
               </>
             )}
@@ -422,7 +410,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       type="checkbox"
                       checked={draft.autosave_enabled}
                       onChange={e => update('autosave_enabled', e.target.checked)}
-                    /> {t("Autosave open files to disk (every 30s)")} </label>
+                    /> {t("Save open files automatically (every 30 s)")} </label>
                   <label> {t("Tab size (spaces)")} <input
                       type="number"
                       min={1}
@@ -436,12 +424,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       type="checkbox"
                       checked={draft.editor_indent_with_spaces}
                       onChange={e => update('editor_indent_with_spaces', e.target.checked)}
-                    /> {t("Indent with spaces (uncheck for hard tabs)")} </label>
+                    /> {t("Indent with spaces (otherwise tabs)")} </label>
                 </section>
 
                 <section className={styles.section}>
                   <h3>{t("Editor color overrides")}</h3>
-                  <p className={styles.hint}>{t('Use Follow theme to remove an override. Swatches show the current editor colors.')}</p>
+                  <p className={styles.hint}>{t('Follow theme removes an override. Swatches show the colors currently in use.')}</p>
                   <div className={styles.colorGrid}>
                     {(
                       [
@@ -480,7 +468,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => void checkForUpdates({ silent: false })}
                 > {t("Check for Updates")} </button>
-                <p className={styles.hint}> {t("Auto-update only works in an installed (released) build, not in dev mode.")} </p>
+                <p className={styles.hint}> {t("Automatic updates are available only in released builds, not in development mode.")} </p>
               </section>
             )}
           </div>

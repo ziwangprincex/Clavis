@@ -18,13 +18,20 @@
 }
 .host :global(.cm-content) { min-width: 0; padding-block: var(--editor-top-padding, 24px) 120px; }
 .host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 12px; }
-.host :global(.cm-gutters) { user-select: none; }
+.host :global(.cm-gutters) { -webkit-user-select: none; user-select: none; }
 .host :global(.cm-activeLineGutter) { font-weight: 500; }
 .host[data-language='markdown'] :global(.cm-gutters) { display: none; }
 .host[data-language='markdown'] :global(.cm-activeLine) { background: transparent; }
+/* Formatted Markdown is a centered page, like the reading view it replaces.
+ * The bottom inset lets the last line scroll up to mid-window. */
+.host[data-live] :global(.cm-scroller) { padding-inline: max(24px, calc((100% - var(--writing-measure, 36em)) / 2)); }
+.host[data-live] :global(.cm-content) { padding-block: 56px 40vh; }
 
 @container writing-pane (max-width: 560px) {
   .host :global(.cm-scroller),
   .host[data-language='markdown'] :global(.cm-scroller) { padding-inline: 12px; }
   .host :global(.cm-content) { padding-top: 24px; }
+  .host[data-live] :global(.cm-scroller) { padding-inline: 20px; }
 }
+/* Typewriter scrolling needs room below the last line to centre it. */
+.host :global(.cm-typewriter .cm-content) { padding-bottom: 50vh; }

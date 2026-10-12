@@ -20,8 +20,8 @@ it('recompiles after a newly opened template folder supplies its engine settings
   act(() => { vi.advanceTimersByTime(300); });
   expect(runLatexCompile).toHaveBeenCalledTimes(1);
   act(() => useProjectStore.getState().setProject({ workspace: {
-    root: '/paper', trust: 'not-required', issues: [], hasExecutableTasks: false,
-    config: { project: { main: 'main.tex' }, latex: { engine: 'pdflatex' }, paths: { generated: [], ignored: [] }, tasks: {} },
+    root: '/paper', issues: [],
+    config: { project: { main: 'main.tex' }, latex: { engine: 'pdflatex' }, paths: { generated: [], ignored: [] } },
   } }));
   act(() => { vi.advanceTimersByTime(300); });
   expect(runLatexCompile).toHaveBeenCalledTimes(2);

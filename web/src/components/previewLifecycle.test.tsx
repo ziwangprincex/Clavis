@@ -5,11 +5,9 @@ import { Sidebar } from './Sidebar';
 import { useTabsStore, useSettingsStore, defaultSettings } from '../store';
 import { ipc, type TypstResult } from '../api/tauri';
 import { useProjectStore } from '../store';
-import { markdownWithMath } from '../render/markdown';
 
 vi.mock('../api/tauri', () => ({ hasTauri: () => true, ipc: { compileTypst: vi.fn() }, dialogConfirm: vi.fn() }));
 const preview = (svg: string): TypstResult => ({ ok: true, pages: [{ svg, svgHash: svg, width: 100, height: 100, points: [], text: [], links: [] }], diagnostics: [], missingPackages: [], dependencies: [] });
-vi.mock('../render/markdown', () => ({ markdownWithMath: vi.fn((source: string) => `<p>${source}</p>`) }));
 let tree: ReactTestRenderer | undefined;
 const mount = (element: React.ReactElement) => act(() => { tree = create(element); });
 const advance = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(250); }); };
@@ -21,7 +19,7 @@ beforeEach(() => {
   vi.mocked(ipc.compileTypst).mockResolvedValue(preview('<svg>latest</svg>'));
   useProjectStore.getState().reset();
   useSettingsStore.setState({ settings: defaultSettings });
-  useTabsStore.setState({ activeTabId: 'one', tabs: [{ id: 'one', title: 'one.md', lang: 'markdown', content: 'first', filePath: null, isDirty: false }] });
+  useTabsStore.setState({ activeTabId: 'one', tabs: [{ id: 'one', title: 'one.typ', lang: 'typst', content: 'first', filePath: null, isDirty: false }] });
 });
 afterEach(() => {
   act(() => tree?.unmount());
@@ -30,29 +28,29 @@ afterEach(() => {
 });
 
 describe('preview lifecycle without a browser', () => {
-  it('does not render Markdown while hidden and resumes with only the latest text', async () => {
+  it('does not compile while hidden and resumes with only the latest text', async () => {
     mount(<PreviewPane visible={false} />);
     updateTab('second');
     await advance();
-    expect(markdownWithMath).not.toHaveBeenCalled();
+    expect(ipc.compileTypst).not.toHaveBeenCalled();
     act(() => tree!.update(<PreviewPane visible />));
     await advance();
-    expect(markdownWithMath).toHaveBeenCalledTimes(1);
-    expect(markdownWithMath).toHaveBeenLastCalledWith('second');
+    expect(ipc.compileTypst).toHaveBeenCalledTimes(1);
+    expect(ipc.compileTypst).toHaveBeenLastCalledWith('second', null, expect.anything());
     act(() => tree!.update(<PreviewPane visible={false} />));
     updateTab('third');
     await advance();
-    expect(markdownWithMath).toHaveBeenCalledTimes(1);
+    expect(ipc.compileTypst).toHaveBeenCalledTimes(1);
     act(() => tree!.update(<PreviewPane visible />));
     await advance();
-    expect(markdownWithMath).toHaveBeenLastCalledWith('third');
+    expect(ipc.compileTypst).toHaveBeenLastCalledWith('third', null, expect.anything());
   });
 
   it('clears a pending debounce on hide', async () => {
     mount(<PreviewPane visible />);
     act(() => tree!.update(<PreviewPane visible={false} />));
     await advance();
-    expect(markdownWithMath).not.toHaveBeenCalled();
+    expect(ipc.compileTypst).not.toHaveBeenCalled();
   });
 
   it('serializes Typst updates and never displays stale output', async () => {
@@ -120,12 +118,14 @@ describe('preview lifecycle without a browser', () => {
   });
 
   it('does not display the previous document during a tab-switch debounce', async () => {
+    vi.mocked(ipc.compileTypst).mockResolvedValueOnce(preview('<svg>first</svg>')).mockResolvedValueOnce(preview('<svg>other</svg>'));
     mount(<PreviewPane visible />);
     await advance();
-    act(() => useTabsStore.getState().addTab({ id: 'two', title: 'two.md', lang: 'markdown', content: 'other', filePath: null, isDirty: false }));
-    expect(JSON.stringify(tree!.toJSON())).not.toContain('<p>first</p>');
+    expect(JSON.stringify(tree!.toJSON())).toContain('<svg>first</svg>');
+    act(() => useTabsStore.getState().addTab({ id: 'two', title: 'two.typ', lang: 'typst', content: 'other', filePath: '/q/two.typ', isDirty: false }));
+    expect(JSON.stringify(tree!.toJSON())).not.toContain('<svg>first</svg>');
     await advance();
-    expect(JSON.stringify(tree!.toJSON())).toContain('<p>other</p>');
+    expect(JSON.stringify(tree!.toJSON())).toContain('<svg>other</svg>');
   });
 });
 

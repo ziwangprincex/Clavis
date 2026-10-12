@@ -1,9 +1,9 @@
 import { t } from '../i18n';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { IconAlert, IconBook, IconChevronDown, IconDoc, IconFolder } from './icons';
 import styles from './Sidebar.module.css';
 
-export type SidebarView = 'documents' | 'research' | 'project' | 'problems';
+export type SidebarView = 'documents' | 'research' | 'problems';
 
 export interface SidebarProps {
   outline?: ReactNode;
@@ -11,10 +11,8 @@ export interface SidebarProps {
   files?: ReactNode;
   bibliography?: ReactNode;
   references?: ReactNode;
-  artifacts?: ReactNode;
   assets?: ReactNode;
   writing?: ReactNode;
-  git?: ReactNode;
   /** Compile problems and raw log. The Problems view exists only when this is set. */
   problems?: ReactNode;
   /** Marks the Problems tab when it is not selected. */
@@ -29,7 +27,6 @@ export interface SidebarProps {
 const VIEWS = [
   { id: 'documents', label: 'Document', icon: IconDoc },
   { id: 'research', label: 'Research', icon: IconBook },
-  { id: 'project', label: 'Project', icon: IconFolder },
   { id: 'problems', label: 'Problems', icon: IconAlert },
 ] as const satisfies ReadonlyArray<{ id: SidebarView; label: string; icon: typeof IconDoc }>;
 
@@ -39,11 +36,12 @@ export function Sidebar(props: SidebarProps) {
   const setView = (next: SidebarView) => { setOwnView(next); props.onViewChange?.(next); };
   const id = useId();
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
-  const views = VIEWS.filter(item =>
-    (item.id !== 'project' || props.artifacts || props.git) && (item.id !== 'problems' || props.problems));
+  const views = VIEWS.filter(item => item.id !== 'problems' || props.problems);
   const selected = views.some(item => item.id === view) ? view : 'documents';
   const hasResearch = props.bibliography || props.references || props.assets;
-  const widthStyle = props.width ? { flex: `0 0 ${props.width}px`, width: `${props.width}px` } : undefined;
+  const widthStyle = props.width
+    ? { flex: `0 0 ${props.width}px`, width: `${props.width}px`, '--sidebar-width': `${props.width}px` } as CSSProperties
+    : undefined;
   return (
     <aside className={styles.sidebar} aria-label={t('Workspace')} hidden={props.hidden} style={widthStyle}>
       <div className={styles.views} role="tablist" aria-label={t('Workspace views')}>
@@ -79,16 +77,12 @@ export function Sidebar(props: SidebarProps) {
           {props.references && <SidebarSection title={t('References')} defaultOpen>{props.references}</SidebarSection>}
           {props.assets && <SidebarSection title={t('Assets')}>{props.assets}</SidebarSection>}
           {!hasResearch && <div className={styles.empty}>
-            <p>{t('Open a folder to browse your bibliography, references and assets.')}</p>
+            <p>{t('Open a folder to browse its bibliography, references and assets.')}</p>
             {props.onOpenFolder && <button type="button" className={styles.openFolder} onClick={props.onOpenFolder}>
               <IconFolder size={14} aria-hidden="true" />{t('Open folder')}
             </button>}
           </div>}
         </div>
-        {views.some(item => item.id === 'project') && <div role="tabpanel" id={`${id}-project`} aria-labelledby={`${id}-project-tab`} hidden={selected !== 'project'} tabIndex={0}>
-          {props.artifacts && <SidebarSection title={t('Build outputs')}>{props.artifacts}</SidebarSection>}
-          {props.git && <SidebarSection title={t('Version control')}>{props.git}</SidebarSection>}
-        </div>}
         {props.problems && <div role="tabpanel" id={`${id}-problems`} aria-labelledby={`${id}-problems-tab`} hidden={selected !== 'problems'} tabIndex={0} className={styles.fill}>
           {selected === 'problems' && !props.hidden && props.problems}
         </div>}

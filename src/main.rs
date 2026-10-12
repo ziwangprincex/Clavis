@@ -3,31 +3,25 @@
 
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
-mod artifacts;
 mod assets;
 mod bib;
-mod bibliography_export;
 mod cwl;
-mod document_tools;
 mod document_io;
 mod local_history;
+mod markdown_images;
 mod templates;
-mod git_inspect;
 mod latex;
 mod project_config;
 mod references;
 mod settings;
 mod system_fonts;
-mod submission_bundle;
-mod submission_check;
-mod tasks;
+mod system_open;
 mod typst_service;
 mod typst_preview;
 mod typst_packages;
 mod typst_sig;
 mod typst_world;
 mod workspace_search;
-mod zotero;
 
 use base64::Engine as _;
 use serde::Serialize;
@@ -74,12 +68,7 @@ async fn compile_typst_pdf(
     })
 }
 
-#[tauri::command]
-fn list_typst_fonts() -> Vec<String> {
-    typst_world::list_fonts()
-}
-
-/// One node in the folder-tree returned by `scan_folder`.
+/// One node in the folder-tree returned by `scan_folder_shallow`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TreeNode {
@@ -89,62 +78,6 @@ struct TreeNode {
     is_dir: bool,
     /// Only populated for directories
     children: Vec<TreeNode>,
-}
-
-/// Scan a folder recursively.
-///
-///  * Keep the tree permissive so the app can show all files it has access to.
-///  * Hard cap on depth and total node count so a wrong drag of `~` doesn't hang.
-#[tauri::command]
-fn scan_folder(root: String) -> Result<TreeNode, String> {
-    use std::path::Path;
-    let root_path = Path::new(&root);
-    if !root_path.is_dir() {
-        return Err(format!("not a directory: {root}"));
-    }
-    const MAX_NODES: usize = 5000;
-    const MAX_DEPTH: usize = 12;
-    let mut counter: usize = 0;
-    fn walk(p: &std::path::Path, depth: usize, counter: &mut usize, max_nodes: usize, max_depth: usize) -> TreeNode {
-        let name = p.file_name().map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| p.to_string_lossy().into_owned());
-        let mut node = TreeNode {
-            name,
-            path: p.to_string_lossy().into_owned(),
-            is_dir: p.is_dir(),
-            children: Vec::new(),
-        };
-        if !node.is_dir || depth >= max_depth { return node; }
-        let entries = match std::fs::read_dir(p) {
-            Ok(e) => e,
-            Err(_) => return node,
-        };
-        let mut kids: Vec<TreeNode> = Vec::new();
-        for entry in entries.flatten() {
-            if *counter >= max_nodes { break; }
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if skip_name(&name) { continue; }
-            *counter += 1;
-            kids.push(walk(&entry.path(), depth + 1, counter, max_nodes, max_depth));
-        }
-        // Directories first, then files; both alphabetical, case-insensitive.
-        kids.sort_by(|a, b| {
-            match (a.is_dir, b.is_dir) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
-        });
-        node.children = kids;
-        node
-    }
-    fn skip_name(name: &str) -> bool {
-        matches!(
-            name,
-            "node_modules" | ".git" | ".svn" | ".hg" | ".DS_Store" | "__pycache__"
-        )
-    }
-    Ok(walk(root_path, 0, &mut counter, MAX_NODES, MAX_DEPTH))
 }
 
 /// Write base64-encoded bytes to an arbitrary path the user picked in a save
@@ -160,7 +93,7 @@ fn save_binary_file(path: String, base64: String) -> Result<(), String> {
 
 /// Read a UTF-8 text file the user opened via the file dialog / recent list.
 ///
-/// These three commands replace the Tauri JS `fs` API so the frontend has no
+/// These commands replace the Tauri JS `fs` API so the frontend has no
 /// direct filesystem capability: the `fs` allowlist is removed entirely and all
 /// reads/writes funnel through Rust, where they can be audited and (later)
 /// gated by a path policy. Paths still come from user-driven dialogs.
@@ -168,19 +101,6 @@ fn save_binary_file(path: String, base64: String) -> Result<(), String> {
 fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))
 }
-
-/// Write UTF-8 text to a path the user chose (save / save-as dialog).
-#[tauri::command]
-fn write_text_file(path: String, contents: String) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|e| format!("{path}: {e}"))
-}
-
-/// Test whether a path exists (used to decide save-vs-save-as, recent-file pruning).
-#[tauri::command]
-fn path_exists(path: String) -> bool {
-    std::path::Path::new(&path).exists()
-}
-
 
 /// Scan only the current folder level so the UI can lazy-load children on demand.
 #[tauri::command]
@@ -266,7 +186,6 @@ fn main() {
 
     let state = Arc::new(AppState::default());
     let latex_state = latex::LatexState::default();
-    let task_state = Arc::new(tasks::TaskState::default());
 
     // macOS gets the standard system menu (provides ⌘Q, ⌘W, ⌘M, ⌘H, Edit menu
     // with Cut/Copy/Paste/Undo bindings, etc.). Other platforms use no menu —
@@ -280,7 +199,6 @@ fn main() {
         .menu(menu)
         .manage(state)
         .manage(latex_state)
-        .manage(task_state)
         .setup(|app| {
             #[cfg(windows)]
             if let Some(window) = app.get_window("main") {
@@ -306,14 +224,11 @@ fn main() {
             render_formula,
             compile_typst_pdf,
             typst_packages::download_typst_package,
-            list_typst_fonts,
             system_fonts::list_system_fonts,
             typst_sig::list_typst_signatures,
-            scan_folder,
             scan_folder_shallow,
             save_binary_file,
             read_text_file,
-            write_text_file,
             document_io::read_document,
             document_io::probe_documents,
             document_io::save_document,
@@ -321,53 +236,33 @@ fn main() {
             local_history::list_document_versions,
             local_history::read_document_version,
             templates::create_template,
-            path_exists,
             latex::compile::compile_latex,
             latex::workdir::cancel_latex_compile,
             latex::synctex::synctex_forward,
             latex::synctex::synctex_backward,
             latex::workdir::cleanup_workdir,
             latex::workdir::export_latex_pdf,
-            latex::workdir::read_latex_log,
             latex::project::collect_project_files,
             latex::project::collect_latex_snapshot,
             latex::distro::detect_distro,
             latex::distro::install_package,
             latex::parse_bib,
-            bibliography_export::inspect_bibliography_exports,
-            zotero::search_zotero_database,
             cwl::read_cwl,
             cwl::list_cwl_packages,
             project_config::inspect_workspace,
             project_config::set_workspace_trust,
-            project_config::doctor_workspace,
             references::index_references,
             references::preview_reference_rename,
             references::apply_reference_rename,
-            document_tools::inspect_document_tools,
-            document_tools::start_document_render,
-            document_tools::list_document_artifacts,
-            document_tools::open_document_artifact,
-            artifacts::inspect_artifacts,
-            artifacts::open_artifact_path,
-            artifacts::open_external_url,
+            system_open::open_workspace_file,
+            system_open::open_external_url,
             assets::index_assets,
             assets::asset_preview,
-            git_inspect::inspect_git_workspace,
-            git_inspect::git_history,
-            git_inspect::git_file_diff,
-            git_inspect::git_stage_file,
-            git_inspect::git_unstage_file,
-            git_inspect::git_create_commit,
-            tasks::start_project_task,
-            tasks::cancel_project_task,
+            markdown_images::save_markdown_image,
+            markdown_images::place_markdown_image,
+            workspace_search::list_workspace_documents,
             workspace_search::search_workspace,
             workspace_search::replace_workspace,
-            submission_check::check_submission,
-            submission_bundle::inspect_submission_bundle,
-            submission_bundle::create_submission_bundle,
-            submission_bundle::create_submission_archive,
-            submission_bundle::verify_submission_bundle,
             settings::get_settings,
             settings::set_settings,
             settings::load_session,
@@ -379,9 +274,6 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event.event() {
                 if let Some(s) = event.window().try_state::<latex::LatexState>() {
                     s.clear();
-                }
-                if let Some(s) = event.window().try_state::<Arc<tasks::TaskState>>() {
-                    s.cancel_all();
                 }
             }
         })

@@ -24,6 +24,7 @@ vi.mock('../pdf/pages', () => ({
     setZoom = mocks.zoom;
     destroy = mocks.destroy;
     elements = [];
+    widest = 612;
   },
 }));
 vi.mock('../pdf/zoom', () => ({ bindPreviewZoom: mocks.bind, capturePageAnchor: () => null }));
@@ -36,6 +37,7 @@ let host: EventTarget & {
   querySelector: ReturnType<typeof vi.fn>;
   scrollTop: number;
   clientHeight: number;
+  offsetWidth: number;
 };
 let documents: { destroy: ReturnType<typeof vi.fn> }[];
 let tasks: { destroy: ReturnType<typeof vi.fn> }[];
@@ -58,6 +60,7 @@ beforeEach(() => {
     querySelector: vi.fn(),
     scrollTop: 0,
     clientHeight: 600,
+    offsetWidth: 800,
   });
   useTabsStore.setState({
     activeTabId: 'one',
@@ -70,6 +73,7 @@ beforeEach(() => {
     sourceRoot: null,
     bytes: new Uint8Array([1]),
     zoom: 1,
+    fit: false,
     currentPage: 1,
     numPages: 0,
     scrollRequest: null,
@@ -93,6 +97,28 @@ it('changes only the existing page zoom without reloading or preparing a PDF aga
   expect(mocks.zoom).toHaveBeenLastCalledWith(1.4, undefined);
   expect(mocks.load).toHaveBeenCalledTimes(1);
   expect(mocks.prepare).toHaveBeenCalledTimes(1);
+});
+
+it('fits the page to the pane until the reader picks a zoom', async () => {
+  let resized!: () => void;
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {}
+    disconnect() {}
+  });
+  usePdfStore.setState({ fit: true });
+  host.offsetWidth = 560;
+  await mount();
+  // (560 - 48 padding - 12 scrollbar) / 612 points
+  expect(mocks.attach).toHaveBeenCalledWith(0.82);
+  host.offsetWidth = 1400;
+  act(() => resized());
+  expect(mocks.zoom).toHaveBeenLastCalledWith(1, undefined);
+  act(() => tree.root.findByProps({ 'aria-label': 'Zoom out' }).props.onClick());
+  expect(usePdfStore.getState()).toMatchObject({ zoom: 0.75, fit: false });
+  act(() => tree.root.findByProps({ title: 'Fit width' }).props.onClick());
+  expect(usePdfStore.getState().fit).toBe(true);
+  vi.unstubAllGlobals();
 });
 
 it('cancels a superseded candidate and never attaches its late output', async () => {
@@ -260,4 +286,22 @@ it('links real missing-engine errors to environment and problems without opening
   expect(problems).toHaveBeenCalledOnce();
   expect(tree.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
   useCompileStore.setState({ status: 'idle', errors: [] });
+});
+
+it('jumps to a typed page on Enter and discards a draft on leaving the field', async () => {
+  await mount();
+  const page = { offsetTop: 900 };
+  host.querySelector.mockReturnValue(page);
+  const field = () => tree.root.findByProps({ 'aria-label': 'Page number' });
+  const input = { select: vi.fn(), blur: vi.fn() };
+  act(() => field().props.onFocus({ currentTarget: input }));
+  act(() => field().props.onChange({ target: { value: '7' } }));
+  act(() => field().props.onKeyDown({ key: 'Enter', currentTarget: input }));
+  expect(host.querySelector).toHaveBeenLastCalledWith(expect.stringContaining('[data-page="7"]'));
+  expect(host.scrollTop).toBe(900);
+  act(() => field().props.onChange({ target: { value: '2' } }));
+  act(() => field().props.onBlur());
+  expect(field().props.value).toBe('1');
+  act(() => tree.root.findByProps({ 'aria-label': 'Last page' }).props.onClick());
+  expect(host.querySelector).toHaveBeenLastCalledWith(expect.stringContaining('[data-page="10"]'));
 });

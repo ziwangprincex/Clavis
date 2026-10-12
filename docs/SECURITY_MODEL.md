@@ -1,125 +1,111 @@
 # Clavis — Security Model
 
-This document describes the trust boundaries and defensive measures in Clavis,
-a desktop editor that opens, previews, and **compiles** Markdown / LaTeX / Typst
-documents. Compilation runs real external toolchains, and documents may come
-from untrusted sources (e.g. a `.tex` file someone emailed you), so the security
-model is stated explicitly rather than left to defaults.
+Clavis opens, previews and **compiles** Markdown / LaTeX / Typst documents.
+Compilation runs real external toolchains, and documents may come from
+untrusted sources (a `.tex` file someone emailed you), so the trust boundaries
+are stated here rather than left to defaults.
 
 ## Threat model
 
-- **Untrusted document input.** A user may open a `.tex` / `.typ` / `.md` file
-  they did not author. Opening or compiling such a file must not allow it to
-  execute arbitrary commands, read arbitrary files, or escape the intended
-  working directory.
-- **Trusted user, trusted machine.** The person running Clavis is trusted to
-  choose which files to open and where to save. We do not defend against a
-  malicious *local user*; we defend against malicious *document content*.
-- **No network server.** Clavis is a local desktop app. It does not listen on a
-  network port in production. (The Vite dev server exists only during
-  `npm run dev` and is never shipped.)
+- **Untrusted document input.** Opening or compiling a file the user did not
+  author must not execute commands, read arbitrary files, or escape the
+  intended directory.
+- **Trusted user, trusted machine.** The person running Clavis chooses which
+  files to open and where to save. We defend against malicious *document
+  content*, not a malicious local user.
+- **No network server.** Clavis listens on no port in production. The Vite dev
+  server exists only during `npm run dev`.
 
-## Trust boundaries
+## 1. Webview → Rust (IPC)
 
-### 1. Webview → Rust (IPC)
+The React frontend has no direct filesystem or process capability. The Tauri
+allowlist (`tauri.conf.json`) enables only `dialog` and window dragging; the
+`fs` allowlist is removed. File access goes through explicit Rust commands
+(`read_text_file`, `save_binary_file`, `scan_folder_shallow`,
+the version-checked writes in `src/document_io.rs`), so the filesystem surface
+is auditable in one place.
 
-The React frontend runs in a webview and has **no direct filesystem or process
-capability**. The Tauri allowlist (`tauri.conf.json`) enables only:
+Paths come from user-driven dialogs, the folder tree or the recent lists; they
+are not yet checked against a shared path policy (see "Known gaps").
 
-- `dialog` (open / save / message / ask / confirm) — user-driven pickers.
-- `window.startDragging` — custom title bar.
+Markdown rendering drops raw HTML and active URL schemes: links may be relative,
+`http(s)` or `mailto`, and `data:` URLs are accepted only as base64 images
+(`sanitizeUrl` in `web/src/render/markdown.ts`). Relative images load through
+`asset_preview`, which canonicalizes the path, keeps it inside the document
+folder or open workspace, and caps the size at 12 MiB (Retina screenshots).
+Mermaid diagrams render with `securityLevel: 'strict'` (sanitized SVG, no
+scripts or click handlers); the library loads only for documents that contain
+one.
 
-The `fs` allowlist is **removed entirely** (no `scope: ["**"]`). All file
-reads and writes go through explicit Rust commands (`read_text_file`,
-`write_text_file`, `path_exists`, `save_binary_file`, `scan_folder*`), and the
-corresponding `fs-*` Cargo features are removed from `tauri.toml` so the
-capability isn't compiled in. This means the entire filesystem surface is
-auditable in one place (Rust) rather than exposed as a broad JS API.
+Images pasted or dropped into a Markdown document are written by
+`save_markdown_image` / `place_markdown_image` (`src/markdown_images.rs`): only
+png, jpg, gif, webp and svg, at most 20 MiB, into an `assets` folder beside the
+document. Files are created with `create_new`, so an existing file is never
+replaced (an identical one is reused); a dropped image already inside the
+document's folder is linked where it is, not copied.
 
-Paths handled by these commands originate from user-driven open/save dialogs or
-the recent-files list. A future hardening step is to add a shared path policy
-that validates every path against an allowed set (see "Known gaps").
+Markdown HTML export (`web/src/files/exportMarkdown.ts`) uses the same
+sanitizing renderer, so raw HTML is still dropped. It embeds only images that
+`asset_preview` would show and writes through `save_binary_file` to the path
+picked in the save dialog.
 
-### 2. Rust → external toolchains (LaTeX / Typst / package managers)
+## 2. Rust → external toolchains
 
-#### LaTeX compilation — shell escape disabled
+### LaTeX — shell escape disabled
 
-LaTeX engines can execute shell commands via `\write18`. Clavis passes
-**`-no-shell-escape`** explicitly on every compile (`src/latex.rs`) so this is
-**off regardless of the user's TeX distribution configuration** (which might set
-`shell_escape = t` globally). This is the single most important defense against
-a malicious `.tex` file achieving code execution.
+Every compile passes **`-no-shell-escape`** (`src/latex/compile.rs`), regardless
+of the TeX distribution's own `shell_escape` setting. This is the main defense
+against a `.tex` file achieving code execution. If shell escape is ever exposed
+as an option it must default to off, carry an explicit danger prompt, and be
+scoped to the session rather than saved.
 
-If shell-escape is ever exposed as a user option, it MUST:
-- default to off,
-- carry an explicit danger prompt,
-- ideally be scoped to the current workspace/session rather than saved as a
-  persistent default.
+Also: `-interaction=nonstopmode`, `-halt-on-error`, per-run and total timeouts,
+and a temporary workdir that the frontend only knows by an opaque token.
 
-Other compile hardening:
-- `-interaction=nonstopmode` and `-halt-on-error` — no interactive prompts.
-- Per-run and total compile **timeouts** to bound runaway compiles.
-- Compilation happens in a temporary **workdir**; the frontend only ever holds
-  an opaque **workdir token**, never the real temp path.
+### latexmk full builds — workspace trust
 
-#### Project file collection — path traversal rejected
+A project `.latexmkrc` is Perl and can run commands, so a full build requires
+the user to confirm trust for that folder. Trust is stored outside the project
+(`src/project_config.rs`); a project cannot grant it to itself. latexmk runs
+with `-norc`, and only a `.latexmkrc` whose canonical path is inside the
+workspace is passed with `-r`. `-no-shell-escape` still applies.
 
-When collecting a LaTeX project's files, every relative path is checked by
-`is_safe_relpath` (`src/latex.rs`), which rejects:
-- empty paths,
-- absolute paths (incl. Windows drive-letter and UNC paths),
-- any `..`, `.`, root, or prefix component.
+### Project file collection — path traversal rejected
 
-Collection is additionally bounded by `MAX_PROJECT_FILES` (200),
-`MAX_FILE_BYTES` (5 MiB), and `MAX_DEPTH` (5).
+`is_safe_relpath` (`src/latex/project.rs`) rejects empty, absolute (including
+drive-letter and UNC), `.`, `..`, root and prefix components. Collection is
+bounded by `MAX_PROJECT_FILES` (200), `MAX_FILE_BYTES` (5 MiB), `MAX_FONT_BYTES`
+(64 MiB) and `MAX_DEPTH` (5).
 
-#### TeX package installation — validated + user-confirmed
+### TeX package installation — validated and confirmed
 
-`install_package` (`src/latex.rs`) runs `tlmgr` / `miktex` / `mpm`. Defenses:
-- **Package name whitelist**: must match `[A-Za-z0-9._+-]`, max 80 chars —
-  blocks argument/command injection via the package name.
-- **Explicit user confirmation** (`src/App.tsx`): a native confirm dialog names
-  the exact package and manager and warns that an external command will run.
-  Nothing is installed without the user clicking through.
-- The command is logged to the compile log before execution.
-- `stdin` is null; only known managers are dispatched.
+`install_package` (`src/latex/distro.rs`) runs `tlmgr` / `miktex` / `mpm` only
+after a native confirm dialog naming the package and manager. Package names must
+match `[A-Za-z0-9._+-]` (max 80 chars), stdin is null, and only known managers
+are dispatched.
 
-#### PDF export path policy
+### PDF export
 
-`export_latex_pdf` refuses to write into the temporary compilation directory,
-preventing an export from clobbering intermediate build state. Exports go to a
-user-chosen destination.
+`export_latex_pdf` refuses to write into the temporary compilation directory.
 
-### 3. Content Security Policy
+## 3. Typst
 
-The webview CSP (`tauri.conf.json`) restricts `default-src` to `'self'`,
-limits `connect-src` to `'self'` and the Tauri IPC origins, and scopes
-`img-src` / `font-src` to `'self'`, `data:`, and `blob:`. There is no
-`connect-src` to arbitrary remote origins.
+Typst reads files through `TypstWorld::resolve_in_root` (`src/typst_world.rs`):
+project files resolve under the document's project root (`VirtualPath` cannot
+express `..`, and the canonical result is re-checked against the canonical root
+so symlinks cannot escape); package files resolve only from the local package
+cache. Packages are downloaded only after the user confirms in the preview
+diagnostics.
 
-## Typst
+## 4. Content Security Policy
 
-Typst compilation uses an **in-memory `World`** (`src/typst_world.rs`) whose
-`file()` implementation returns `NotFound` for everything. As a *security*
-property this is conservative: a Typst document currently **cannot read any file
-from disk** — no `#image("...")`, no `#include`, no local data files. This is a
-functionality limitation (Typst is a lightweight preview today, not a full
-project workflow), but it is also fail-safe: there is no path-traversal surface
-in the Typst path because there is no filesystem access at all.
+`default-src 'self'`; `connect-src` limited to `'self'` and the Tauri IPC
+origins; `img-src` / `font-src` limited to `'self'`, `data:` and `blob:`.
+Remote images therefore do not load, in the editor or anywhere else.
 
-If Typst gains project-file support in the future, it MUST reuse the same
-`is_safe_relpath`-style containment used for LaTeX project collection — reads
-confined to the document's project root, no absolute paths, no `..` traversal.
+## Known gaps
 
-## Known gaps / future hardening
-
-- **Path policy.** File read/write commands currently trust the dialog-supplied
-  path. A shared `path_policy` module could confine reads/writes to a set of
-  user-authorized roots (the open document's directory, recent files, an app
-  data dir) and reject anything else — closing the gap left by Tauri v1's lack
-  of dynamic per-file scope grants.
-- **Typst filesystem support** is intentionally absent; see above for the
-  containment requirement if it is added.
-- **Migration to Tauri v2** would allow dynamic capability grants (authorize a
-  specific file only after the user picks it in a dialog) instead of a static
-  allowlist, further shrinking the ambient authority of the app.
+- **Path policy.** Read/write commands trust the supplied path. A shared policy
+  could confine them to user-authorized roots.
+- **CSP.** `script-src` still allows `'unsafe-inline'` because the frontend uses
+  `window.__TAURI__`; see the Tauri v2 item in `docs/ROADMAP.md`.

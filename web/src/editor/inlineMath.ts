@@ -8,6 +8,7 @@ import {
 } from '@codemirror/view';
 import { StateEffect } from '@codemirror/state';
 import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import type { Lang } from '../store/tabs';
 import { ipc } from '../api/tauri';
 import { mathAt } from './writingSyntax';
@@ -16,28 +17,42 @@ import { ProseIndex } from './proseIndex';
 const refresh = StateEffect.define<null>();
 const cache = new Map<string, string>();
 let pending: Promise<void> = Promise.resolve();
+// Least recently used first: a long paper re-renders only formulas it lost.
+function remember(key: string, html: string) {
+  cache.delete(key);
+  cache.set(key, html);
+  if (cache.size > 512) cache.delete(cache.keys().next().value!);
+}
+/** KaTeX HTML for a formula, or null when it does not render. Failures are
+ *  cached too, so a half-typed formula is not re-parsed on every redraw. */
+export function katexHtml(content: string, display: boolean): string | null {
+  const key = `katex:${display}:${content}`;
+  const found = cache.get(key);
+  if (found !== undefined) {
+    remember(key, found);
+    return found || null;
+  }
+  let html = '';
+  try {
+    html = katex.renderToString(content, {
+      displayMode: display,
+      throwOnError: true,
+      trust: false,
+      maxExpand: 500,
+    });
+  } catch {
+    // Leave the source visible.
+  }
+  remember(key, html);
+  return html || null;
+}
 export async function formulaHtml(content: string, display: boolean, lang: Lang): Promise<string | null> {
+  if (lang !== 'typst') return katexHtml(content, display);
   const key = `${lang}:${display}:${content}`;
   const found = cache.get(key);
   if (found) return found;
-  let html: string | null;
-  if (lang === 'typst') html = await ipc.renderFormula(content);
-  else {
-    try {
-      html = katex.renderToString(content, {
-        displayMode: display,
-        throwOnError: true,
-        trust: false,
-        maxExpand: 500,
-      });
-    } catch {
-      return null;
-    }
-  }
-  if (html) {
-    cache.set(key, html);
-    if (cache.size > 128) cache.delete(cache.keys().next().value!);
-  }
+  const html = await ipc.renderFormula(content);
+  if (html) remember(key, html);
   return html;
 }
 class FormulaWidget extends WidgetType {
@@ -111,7 +126,7 @@ export function inlineMath(language: Lang) {
                 pos = math ? math.to : at + 1;
                 if (!math || math.content.length > 4000) continue;
                 const key = `${language}:${math.display}:${math.content}`,
-                  html = cache.get(key);
+                  html = language === 'typst' ? cache.get(key) : katexHtml(math.content, math.display);
                 this.visibleKeys.add(key);
                 if (html)
                   ranges.push(
@@ -119,7 +134,7 @@ export function inlineMath(language: Lang) {
                       widget: new FormulaWidget(html, math.content, line.from + math.from),
                     }).range(line.from + math.from, line.from + math.to),
                   );
-                else if (!this.requested.has(key)) {
+                else if (language === 'typst' && !this.requested.has(key)) {
                   this.requested.add(key);
                   pending = pending.then(async () => {
                     if (!this.alive || !this.visibleKeys.has(key)) {

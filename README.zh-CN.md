@@ -11,40 +11,54 @@
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-一个用于 Markdown、LaTeX 和 Typst 的桌面写作工具。
+Clavis 是一款用于编辑 Markdown、LaTeX 与 Typst 文档的桌面应用。
 
 ## 功能
 
-- 实时预览、数学公式与 PDF 导出。
-- LaTeX 编译、SyncTeX 双向跳转、多文件大纲与 BibTeX 引用。
-- 多标签、工作区搜索替换与命令面板。
+- Markdown 在排版视图中编辑：标题、强调、列表、表格、公式、脚注、带语法高亮的代码、Mermaid 图表与图片就地渲染，仅在光标处显示 Markdown 源码。
+- 粘贴或拖入已保存 Markdown 文档的图片，会复制到文档旁的 `assets` 文件夹，并以相对路径引用。
+- Markdown 另支持 YAML 文件头、`==高亮==`、`^上标^`、`~下标~` 与 GitHub 风格的 `> [!NOTE]` 提示框。编辑表格时，表格上方的工具条可调整列对齐、增删行列。
+- Markdown 文档可导出为单个自包含的 HTML 文件。
+- 专注模式下，当前段落以外的内容淡化；打字机滚动使当前行保持在窗口中部。
+- LaTeX 与 Typst 以源码形式编辑，提供实时预览与 PDF 导出；编译问题标注在对应行旁。
+- LaTeX 编译支持 SyncTeX、多文件大纲以及 BibTeX/Biber 文献引用；大纲另列出图片、表格、标签与引用。
+- 待办注释（`% TODO`、`\todo{…}`、`// TODO`、`<!-- TODO -->`）列于侧栏。
+- 多标签页、工作区范围的搜索与替换，以及命令面板。
 - 自动保存与会话恢复。
 
 ## 安装
 
-从 [Releases](https://github.com/ziwangprincex/Clavis/releases/latest) 下载：
-Windows `.exe`、macOS `.dmg`、Linux `.AppImage`。
+安装包见 [Releases](https://github.com/ziwangprincex/Clavis/releases/latest)：Windows 为 `.exe`，macOS 为 `.dmg`，Linux 为 `.AppImage`。
 
-Apple 芯片 Mac 也可以用 Homebrew：
+搭载 Apple 芯片的 Mac 也可通过 Homebrew 安装：
 
 ```bash
 brew install --cask ziwangprincex/clavis/clavis
 ```
 
-Typst 已内置。LaTeX 需安装 TeX Live 或 MacTeX，中文和自定义字体建议用 XeLaTeX。
-Quarto、Pandoc 导出需另行安装对应工具。
+Typst 已内置。LaTeX 需要 TeX Live 或 MacTeX；中文与自定义字体建议使用 XeLaTeX。
 
 ## 使用
 
-打开文件或文件夹即可写作，大部分操作都能在命令面板里找到。
+通过工具栏打开文件或文件夹。大部分命令可在命令面板中找到。
 
 | 操作 | macOS | Windows / Linux |
 | --- | --- | --- |
 | 命令面板 | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-| 编译 | `Cmd+B` | `Ctrl+B` |
+| 快速打开（文件、标题、标签、`:行号`） | `Cmd+P` | `Ctrl+P` |
+| 编译（LaTeX） | `Cmd+B` | `Ctrl+B` |
 | 工作区搜索 | `Cmd+Shift+F` | `Ctrl+Shift+F` |
+| 导出 PDF（LaTeX、Typst）/ HTML（Markdown） | `Cmd+Shift+E` | `Ctrl+Shift+E` |
+| Markdown 源码视图 | `Cmd+/` | `Ctrl+/` |
+| 加粗 / 斜体 / 链接（Markdown） | `Cmd+B` / `Cmd+I` / `Cmd+K` | `Ctrl+B` / `Ctrl+I` / `Ctrl+K` |
+| 一至六级标题 / 正文（Markdown） | `Cmd+1`–`Cmd+6` / `Cmd+0` | `Ctrl+1`–`Ctrl+6` / `Ctrl+0` |
+| 写作 / 分栏 / 阅读（LaTeX、Typst） | `Cmd+2` / `Cmd+3` / `Cmd+4` | `Ctrl+2` / `Ctrl+3` / `Ctrl+4` |
+| 专注模式 | `Cmd+Shift+Enter` | `Ctrl+Shift+Enter` |
+| 侧栏 | `Cmd+Shift+L` | `Ctrl+Shift+L` |
 
-检查更新：Settings → Updates。
+在 Markdown 表格中，`Tab` 与 `Shift+Tab` 在单元格间移动。
+
+更新检查位于“设置 → 更新”。
 
 ## 开发
 

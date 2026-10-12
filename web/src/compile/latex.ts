@@ -73,15 +73,13 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       run: payload.run, stream: 'info', text: `\n--- run ${payload.run}: ${payload.command} ---\n`,
     })));
 
-    let workspace = workspaceFor(tab, useProjectStore.getState().workspace);
+    const workspace = workspaceFor(tab, useProjectStore.getState().workspace);
     if (mode === 'full') {
       if (!workspace) throw new Error('Open the project folder before using latexmk.');
-      if (!await dialogConfirm('Run a full latexmk build? A project .latexmkrc can execute local commands. Only continue for a project you trust.', { title: 'Trust full build?' })) {
+      if (!await dialogConfirm('Run a full latexmk build? A project .latexmkrc can execute local commands; continue only for a trusted project.', { title: 'Trust full build?' })) {
         usePdfStore.setState(previousPdf); setStatus('Build cancelled'); return null;
       }
-      const trust = await ipc.setWorkspaceTrust(workspace.root, true);
-      workspace = { ...workspace, trust: trust.trust };
-      useProjectStore.getState().setProject({ workspace });
+      await ipc.setWorkspaceTrust(workspace.root, true);
     }
     if (cancelled) throw new Error('Compilation cancelled');
     const collected = root ? await ipc.collectLatexSnapshot(root, state.tabs
@@ -159,7 +157,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       stale: !result.ok || buffersChanged,
       workdirToken: result.ok && ownerStillOpen && !buffersChanged ? result.workdirToken : null,
     });
-    setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · see problems', result.ok ? 'ok' : 'error');
+    setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · details under Problems', result.ok ? 'ok' : 'error');
     return result;
   } catch (error) {
     // A late failure belongs to the document that started it, not the new tab.
@@ -171,7 +169,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     usePdfStore.setState({ bytes: previousBytes, workdirToken: null, stale: true });
     useCompileStore.getState().setStatus('error');
     useCompileStore.getState().setErrors([{ line: null, message: String(error), kind: 'error' }]);
-    setStatus('Compile failed · see problems', 'error');
+    setStatus('Compile failed · details under Problems', 'error');
     return null;
   } finally {
     for (const dispose of off) { try { dispose(); } catch { /* Always release the compile guard. */ } }

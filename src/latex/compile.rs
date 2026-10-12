@@ -310,7 +310,7 @@ pub async fn compile_latex(
 
 fn full_build_args(opts: &CompileOptions, root: Option<&Path>) -> Result<Vec<String>, String> {
     if opts.custom_path.as_ref().is_some_and(|path| !path.trim().is_empty()) {
-        return Err("latexmk full build uses distribution engines; remove the custom engine path or define a trusted project task".into());
+        return Err("latexmk full build uses distribution engines; remove the custom engine path to use it".into());
     }
     let mode = match opts.engine.as_str() {
         "pdflatex" => "-pdf", "xelatex" => "-xelatex", "lualatex" => "-lualatex",

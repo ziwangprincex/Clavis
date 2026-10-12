@@ -6,7 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { PdfViewer } from './components/PdfViewer';
 import { WriterDialog } from './components/WriterDialog';
-import { useTabsStore, useSettingsStore, useProjectStore, useGitStore, useTaskStore, defaultSettings } from './store';
+import { useTabsStore, useSettingsStore, useProjectStore, defaultSettings } from './store';
 import { useCommandsStore } from './store/commands';
 import { restoreSession } from './files/session';
 import { ipc, dialogConfirm } from './api/tauri';
@@ -18,12 +18,10 @@ vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
 vi.mock('./components/TitleBar', () => ({ TitleBar: () => null }));
 vi.mock('./components/StatusBar', () => ({ StatusBar: () => null }));
 vi.mock('./components/SettingsDialog', () => ({ SettingsDialog: () => null }));
-vi.mock('./components/ProjectDoctorDialog', () => ({ ProjectDoctorDialog: () => null }));
 vi.mock('./components/SaveConflictNotice', () => ({ SaveConflictNotice: () => null }));
 vi.mock('./components/WorkspaceSearchDialog', () => ({ WorkspaceSearchDialog: () => null }));
 vi.mock('./components/RenameReferenceDialog', () => ({ RenameReferenceDialog: () => null }));
 vi.mock('./components/TableConvertDialog', () => ({ TableConvertDialog: () => null }));
-vi.mock('./components/SubmissionCheckDialog', () => ({ SubmissionCheckDialog: () => null }));
 vi.mock('./components/SymbolsPanel', () => ({ SymbolsPanel: () => null }));
 vi.mock('./components/RecentMenu', () => ({ RecentMenu: () => null }));
 vi.mock('./components/WriterDialog', () => ({ WriterDialog: () => null }));
@@ -38,7 +36,7 @@ vi.mock('./files/session', () => ({ restoreSession: vi.fn() }));
 vi.mock('./files/files', () => ({ openFileDialog: vi.fn(), pushRecentFolder: vi.fn() }));
 vi.mock('./api/tauri', () => ({
   hasTauri: () => true, dialogOpen: vi.fn(), dialogSave: vi.fn(), dialogConfirm: vi.fn(),
-  ipc: { inspectWorkspace: vi.fn(), inspectGitWorkspace: vi.fn(), scanWorkspaceReferences: vi.fn() },
+  ipc: { inspectWorkspace: vi.fn(), scanWorkspaceReferences: vi.fn() },
 }));
 const settingsState = useSettingsStore.getState();
 let tree: ReactTestRenderer;
@@ -49,11 +47,9 @@ beforeEach(() => {
   useSettingsStore.setState({ settings: { ...defaultSettings, ui_language: 'en' }, load: vi.fn(async () => {}), patchAndSave: save });
   useTabsStore.setState({ tabs: [], activeTabId: null });
   useProjectStore.getState().reset();
-  useGitStore.getState().clear();
-  useTaskStore.setState({ status: 'idle' });
   useCommandsStore.setState({ commands: new Map() });
   vi.mocked(restoreSession).mockResolvedValue(false);
-  vi.mocked(ipc.inspectWorkspace).mockResolvedValue({ root: '/papers/new', config: null, issues: [], trust: 'not-required', hasExecutableTasks: false });
+  vi.mocked(ipc.inspectWorkspace).mockResolvedValue({ root: '/papers/new', config: null, issues: [] });
 });
 afterEach(() => {
   act(() => tree?.unmount());
@@ -87,17 +83,17 @@ it('dismisses first-run actions on typing and does not resurrect them on undo', 
   act(() => useTabsStore.getState().patchTab(id, { content: '', isDirty: false }));
   expect(starter()).toHaveLength(0);
 });
-it('restores the folder beside the recovered document without prompting for execution trust', async () => {
+it('restores the folder beside the recovered document without prompting', async () => {
   vi.mocked(restoreSession).mockImplementationOnce(async () => {
     useProjectStore.getState().setProject({ folderPath: '/paper' });
     useTabsStore.getState().addTab({ id: 'restored', title: 'main.tex', filePath: '/paper/main.tex', lang: 'latex', content: 'Keep me', isDirty: true });
     return true;
   });
-  vi.mocked(ipc.inspectWorkspace).mockResolvedValueOnce({ root: '/paper', config: null, issues: [], trust: 'untrusted', hasExecutableTasks: true });
+  vi.mocked(ipc.inspectWorkspace).mockResolvedValueOnce({ root: '/paper', config: null, issues: [] });
   await mount();
   expect(ipc.inspectWorkspace).toHaveBeenCalledWith('/paper');
   expect(dialogConfirm).not.toHaveBeenCalled();
-  expect(useProjectStore.getState().workspace?.trust).toBe('untrusted');
+  expect(useProjectStore.getState().workspace?.root).toBe('/paper');
   expect(tree.root.findByType(Sidebar).props.folderTree.props.rootPath).toBe('/paper');
   expect(starter()).toHaveLength(0);
   expect(useTabsStore.getState().tabs[0].content).toBe('Keep me');
@@ -162,24 +158,25 @@ it('opens a generated project folder and selects split layout without clearing o
   act(() => starter()[0].props.onNew());
   await act(async () => tree.root.findByType(WriterDialog).props.onCreated('/papers/new/main.typ'));
   expect(ipc.inspectWorkspace).toHaveBeenCalledWith('/papers/new');
+  expect(dialogConfirm).not.toHaveBeenCalled();
   expect(save).toHaveBeenCalledWith({ editor_layout: 'split' });
   expect(useTabsStore.getState().tabs).toHaveLength(1);
 });
-it('keeps bibliography away from notes and hides empty build-output sections', async () => {
+it('keeps bibliography and references away from notes', async () => {
   await mount();
   act(() => starter()[0].props.onNew());
   await act(async () => tree.root.findByType(WriterDialog).props.onCreated('/papers/new/main.md'));
   const sidebar = tree.root.findByType(Sidebar);
   expect(sidebar.props.bibliography).toBeNull();
   expect(sidebar.props.references).toBeNull();
-  expect(sidebar.props.artifacts).toBeNull();
-  expect(save).toHaveBeenCalledWith({ editor_layout: 'editor' });
+  // Markdown has a single formatted pane; the typesetting layout is left alone.
+  expect(save).not.toHaveBeenCalledWith(expect.objectContaining({ editor_layout: expect.anything() }));
 });
 it('keeps advanced writer tools discoverable in the command palette', async () => {
   await mount();
   const commands = useCommandsStore.getState().commands;
   expect(commands.get('file.new')?.shortcut).toBeTruthy();
-  for (const id of ['writer.templates', 'writer.history', 'writer.environment', 'file.blank']) expect(commands.has(id)).toBe(true);
+  for (const id of ['writer.templates', 'writer.history', 'writer.environment', 'markdown.source']) expect(commands.has(id)).toBe(true);
   await act(async () => { await commands.get('writer.environment')!.run(); });
   expect(tree.root.findByType(WriterDialog).props.tool).toBe('environment');
 });

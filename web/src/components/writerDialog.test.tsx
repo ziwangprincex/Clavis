@@ -113,6 +113,6 @@ describe('writer tools', () => {
     vi.mocked(ipc.detectBibEngines).mockResolvedValue([]);
     await mount('environment');
     expect(JSON.stringify(tree.toJSON())).toContain('Not found');
-    expect(JSON.stringify(tree.toJSON())).toContain('bundled');
+    expect(JSON.stringify(tree.toJSON())).toContain('built in');
   });
 });

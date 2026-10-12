@@ -6,6 +6,7 @@ import { ipc } from '../api/tauri';
 vi.mock('../api/tauri', () => ({ ipc: { getSettings: vi.fn() } }));
 const sources = import.meta.glob<string>([
   '../components/*.module.css', '../App.module.css', '../editor/controller.ts',
+  '../editor/livePreview.ts', '../components/EditorPane.tsx',
 ], { query: '?raw', import: 'default', eager: true });
 const read = (path: string) => sources[path];
 const sheet = (name: string) => postcss.parse(read(`../components/${name}.module.css`));
@@ -42,12 +43,17 @@ describe('editorial writing surfaces', () => {
       }
     });
     expect(read('../components/EditorPane.module.css')).toContain('var(--editor-inline-padding, 12px)');
-    expect(read('../components/EditorPane.module.css')).not.toContain('100% -');
+    // Only formatted Markdown gets a centered page; source stays compact.
+    const centered: string[] = [];
+    editor.walkRules(rule => {
+      if (Object.values(declarations(rule)).some(value => value.includes('100% -'))) centered.push(rule.selector);
+    });
+    expect(centered).toEqual(['.host[data-live] :global(.cm-scroller)']);
     expect(read('../App.module.css')).toContain('100% - 68ch');
     expect(read('../App.module.css')).toContain('100% - 78ch');
   });
 
-  it('centers only opt-in Focus, keeping ordinary Write and Split compact', () => {
+  it('centers source only in opt-in Focus, keeping ordinary Write and Split compact', () => {
     const overrides: Rule[] = [];
     postcss.parse(read('../App.module.css')).walkRules(rule => {
       if (declarations(rule)['--editor-inline-padding']) overrides.push(rule);
@@ -81,30 +87,19 @@ describe('editorial writing surfaces', () => {
     expect(rules('Tabs').get('.tab')?.['min-height']).toBe('36px');
   });
 
-  it('keeps reading widths ordered and proportional to the selected font size', () => {
-    const rules = new Map<string, Record<string, string>>();
-    sheet('PreviewPane').walkRules(rule => {
-      if (rule.parent?.type === 'root') rules.set(rule.selector, declarations(rule));
-    });
-    expect(rules.get('.widthNarrow')?.['--reading-measure']).toBe('34em');
-    expect(rules.get('.widthMedium')?.['--reading-measure']).toBe('42em');
-    expect(rules.get('.preview')?.['--reading-measure']).toBe('50em');
-    expect(rules.get('.preview')?.['max-width']).toBe('calc(var(--reading-measure) + 2 * var(--reading-inset))');
-    expect(rules.get('.preview')?.flex).toBe('none');
-    expect(read('../components/PreviewPane.module.css')).toContain('@container reading-pane');
+  it('keeps Markdown page widths ordered and proportional to the body font size', () => {
+    const measures = /narrow: '(\d+)em', medium: '(\d+)em', wide: '(\d+)em'/.exec(read('../components/EditorPane.tsx'));
+    expect(measures).not.toBeNull();
+    const [narrow, medium, wide] = measures!.slice(1).map(Number);
+    expect(narrow).toBeLessThan(medium);
+    expect(medium).toBeLessThan(wide);
+    expect(read('../components/EditorPane.module.css')).toContain('calc((100% - var(--writing-measure, 36em)) / 2)');
   });
 
-  it('keeps code and displayed math horizontally scrollable', () => {
-    const rules = new Map<string, Record<string, string>>();
-    sheet('PreviewPane').walkRules(rule => { rules.set(rule.selector, declarations(rule)); });
-    expect(rules.get('.markdown :global(pre)')?.['overflow-x']).toBe('auto');
-    expect(rules.get('.markdown :global(.katex-display)')?.['overflow-x']).toBe('auto');
-    expect(rules.get('.markdown :global(pre code)')?.['font-size']).toBe('inherit');
-    sheet('PreviewPane').walkRules(rule => {
-      if (rule.selector.includes(':global(td)') || rule.selector.includes(':global(th)')) {
-        expect(declarations(rule)['text-align']).toBeUndefined();
-      }
-    });
+  it('keeps displayed math and tables horizontally scrollable in formatted Markdown', () => {
+    const source = read('../editor/livePreview.ts');
+    expect(source).toMatch(/'\.cm-md-math-block': \{[^}]*overflowX: 'auto'/);
+    expect(source).toMatch(/'\.cm-md-table': \{[^}]*overflowX: 'auto'/);
   });
 
   it('never turns every completion row into a selected row', () => {

@@ -2,18 +2,10 @@ import { statusMessage } from '../i18n/status';
 import { t } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTabsStore, useCompileStore, useCursorStore, useStatusStore, useSettingsStore } from '../store';
-import { computeResearchDetailStats, computeResearchStats, computeStats } from '../editor/stats';
+import { computeResearchDetailStats, computeResearchStats, computeStats, countWords } from '../editor/stats';
 import { documentLanguageLabel } from '../files/documentIdentity';
+import { useDebounced } from '../hooks/useDebounced';
 import styles from './StatusBar.module.css';
-
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setV(value), ms);
-    return () => window.clearTimeout(timer);
-  }, [value, ms]);
-  return v;
-}
 
 export interface StatusBarProps {
   problemCount?: number;
@@ -34,8 +26,11 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const disclosure = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const content = useDebounced(activeTab?.content ?? '', 250);
+  const content = useDebounced(activeTab?.content ?? '', 250, activeTab?.id);
   const stats = useMemo(() => computeStats(content), [content]);
+  // A selection shows its own count first, as Typora's word count does.
+  const selected = useMemo(() => cursor.selectionTo > cursor.selectionFrom
+    ? countWords(content.slice(cursor.selectionFrom, cursor.selectionTo)) : null, [content, cursor.selectionFrom, cursor.selectionTo]);
   const research = useMemo(() => expanded && activeTab ? computeResearchStats(content, activeTab.lang) : null, [expanded, content, activeTab?.lang]);
   const detail = useMemo(() => expanded && activeTab ? computeResearchDetailStats(content, activeTab.lang, Math.min(cursor.selectionFrom, content.length), { from: cursor.selectionFrom, to: cursor.selectionTo }) : null, [expanded, content, activeTab?.lang, cursor.selectionFrom, cursor.selectionTo]);
   useEffect(() => {
@@ -78,7 +73,9 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
       <details className={styles.statsDisclosure} ref={disclosure} onToggle={event => setExpanded(event.currentTarget.open)} onBlur={event => {
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) event.currentTarget.open = false;
       }}>
-        <summary ref={summary} className={styles.cell} title={t("Document statistics")}>{t('{count} words', { count: stats.words.toLocaleString() })}</summary>
+        <summary ref={summary} className={styles.cell} title={t("Document statistics")}>{selected === null
+          ? t('{count} words', { count: stats.words.toLocaleString() })
+          : t('{selected} of {count} words', { selected: selected.toLocaleString(), count: stats.words.toLocaleString() })}</summary>
         <div className={styles.statsPanel}>
           <strong>{t("Document statistics")}</strong>
           <dl>

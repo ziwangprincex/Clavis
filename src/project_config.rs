@@ -2,10 +2,11 @@
 //!
 //! The repository-owned `clavis.toml` describes a project, but trust is stored
 //! separately under Clavis' user config directory. A project therefore cannot
-//! grant itself permission to execute commands by editing a checked-in file.
+//! grant itself permission to run a latexmk full build (whose `.latexmkrc` can
+//! execute commands) by editing a checked-in file.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::{Component, Path, PathBuf};
 
 const CONFIG_NAME: &str = "clavis.toml";
@@ -29,14 +30,6 @@ pub struct LatexSection {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BibliographySection {
-    #[serde(default)]
-    pub files: Vec<String>,
-    #[serde(default)]
-    pub provider: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WritingSection {
     #[serde(default)]
@@ -56,36 +49,6 @@ pub struct PathsSection {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct TaskConfig {
-    pub command: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub cwd: Option<String>,
-    #[serde(default)]
-    pub env: BTreeMap<String, String>,
-    #[serde(default, alias = "timeout_seconds")]
-    pub timeout_seconds: Option<u64>,
-    #[serde(default, alias = "depends_on")]
-    pub depends_on: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ArtifactConfig {
-    pub path: String,
-    #[serde(default)]
-    pub task: Option<String>,
-    #[serde(default)]
-    pub sources: Vec<String>,
-    #[serde(default)]
-    pub kind: Option<String>,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectConfig {
     #[serde(default)]
     pub project: ProjectSection,
@@ -94,13 +57,7 @@ pub struct ProjectConfig {
     #[serde(default)]
     pub paths: PathsSection,
     #[serde(default)]
-    pub bibliography: BibliographySection,
-    #[serde(default)]
     pub writing: WritingSection,
-    #[serde(default)]
-    pub tasks: BTreeMap<String, TaskConfig>,
-    #[serde(default)]
-    pub artifacts: BTreeMap<String, ArtifactConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -110,8 +67,6 @@ pub struct WorkspaceInspection {
     pub config_path: Option<String>,
     pub config: Option<ProjectConfig>,
     pub issues: Vec<String>,
-    pub trust: String,
-    pub has_executable_tasks: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -119,22 +74,6 @@ pub struct WorkspaceInspection {
 pub struct WorkspaceTrust {
     pub root: String,
     pub trust: String,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectDoctorCheck {
-    pub id: String,
-    pub status: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectDoctorReport {
-    pub root: String,
-    pub ok: bool,
-    pub checks: Vec<ProjectDoctorCheck>,
 }
 
 fn canonical_workspace(root: &str) -> Result<PathBuf, String> {
@@ -156,7 +95,7 @@ fn contains_parent_or_absolute(path: &str) -> bool {
             .any(|part| matches!(part, Component::ParentDir | Component::Prefix(_)))
 }
 
-pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
+fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
     let mut issues = Vec::new();
     if config.latex.engine.as_deref().is_some_and(|engine| !matches!(engine, "pdflatex" | "xelatex" | "lualatex")) { issues.push("latex.engine must be pdflatex, xelatex, or lualatex".into()); }
     if config.latex.bibliography.as_deref().is_some_and(|engine| !matches!(engine, "auto" | "bibtex" | "biber" | "none")) { issues.push("latex.bibliography must be auto, bibtex, biber, or none".into()); }
@@ -165,32 +104,6 @@ pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
             issues.push("project.main must not be empty".to_string());
         } else if contains_parent_or_absolute(main) {
             issues.push("project.main must be a relative path inside the workspace".to_string());
-        }
-    }
-
-    for (name, task) in &config.tasks {
-        if name.trim().is_empty() {
-            issues.push("task names must not be empty".to_string());
-        }
-        if task.command.trim().is_empty() {
-            issues.push(format!("tasks.{name}.command must not be empty"));
-        }
-        if matches!(task.timeout_seconds, Some(0 | 3601..)) {
-            issues.push(format!(
-                "tasks.{name}.timeoutSeconds must be between 1 and 3600"
-            ));
-        }
-        if let Some(cwd) = task.cwd.as_deref() {
-            if cwd.trim().is_empty() || contains_parent_or_absolute(cwd) {
-                issues.push(format!(
-                    "tasks.{name}.cwd must be a relative path inside the workspace"
-                ));
-            }
-        }
-        for dependency in &task.depends_on {
-            if !config.tasks.contains_key(dependency) {
-                issues.push(format!("tasks.{name} depends on unknown task {dependency}"));
-            }
         }
     }
 
@@ -226,88 +139,6 @@ pub(crate) fn validate_project_config(config: &ProjectConfig) -> Vec<String> {
         }
     }
 
-    if let Some(provider) = config.bibliography.provider.as_deref() {
-        if !matches!(provider, "better-bibtex" | "local") {
-            issues.push("bibliography.provider must be better-bibtex or local".to_string());
-        }
-    }
-    if config.bibliography.files.len() > 50 {
-        issues.push("bibliography.files exceeds the 50-file limit".to_string());
-    }
-    for file in &config.bibliography.files {
-        if file.trim().is_empty()
-            || contains_parent_or_absolute(file)
-            || !file.to_ascii_lowercase().ends_with(".bib")
-        {
-            issues.push(
-                "bibliography.files must contain relative .bib paths inside the workspace"
-                    .to_string(),
-            );
-            break;
-        }
-    }
-
-    for (name, artifact) in &config.artifacts {
-        if name.trim().is_empty() {
-            issues.push("artifact names must not be empty".to_string());
-        }
-        if artifact.path.trim().is_empty() || contains_parent_or_absolute(&artifact.path) {
-            issues.push(format!(
-                "artifacts.{name}.path must be a relative path inside the workspace"
-            ));
-        }
-        if let Some(task) = artifact.task.as_deref() {
-            if !config.tasks.contains_key(task) {
-                issues.push(format!("artifacts.{name} references unknown task {task}"));
-            }
-        }
-        for source in &artifact.sources {
-            if source.trim().is_empty() || contains_parent_or_absolute(source) {
-                issues.push(format!(
-                    "artifacts.{name}.sources must contain relative paths inside the workspace"
-                ));
-                break;
-            }
-        }
-        if artifact.sources.len() > 200 {
-            issues.push(format!("artifacts.{name} exceeds the 200-source limit"));
-        }
-    }
-
-    // A dependency cycle would otherwise deadlock the future task runner. Catch
-    // it at the configuration seam rather than teaching every caller about it.
-    fn visit(
-        name: &str,
-        tasks: &BTreeMap<String, TaskConfig>,
-        visiting: &mut BTreeSet<String>,
-        visited: &mut BTreeSet<String>,
-    ) -> bool {
-        if visited.contains(name) {
-            return false;
-        }
-        if !visiting.insert(name.to_string()) {
-            return true;
-        }
-        if let Some(task) = tasks.get(name) {
-            for dep in &task.depends_on {
-                if tasks.contains_key(dep) && visit(dep, tasks, visiting, visited) {
-                    return true;
-                }
-            }
-        }
-        visiting.remove(name);
-        visited.insert(name.to_string());
-        false
-    }
-
-    let mut visiting = BTreeSet::new();
-    let mut visited = BTreeSet::new();
-    for name in config.tasks.keys() {
-        if visit(name, &config.tasks, &mut visiting, &mut visited) {
-            issues.push("task dependency graph contains a cycle".to_string());
-            break;
-        }
-    }
     issues
 }
 
@@ -335,7 +166,7 @@ fn write_trusted_roots(roots: &BTreeSet<String>) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-fn inspect_with_trust(root: PathBuf, trusted: &BTreeSet<String>) -> WorkspaceInspection {
+fn inspect(root: PathBuf) -> WorkspaceInspection {
     let root_key = portable_path(&root);
     let config_path = root.join(CONFIG_NAME);
     if !config_path.is_file() {
@@ -344,8 +175,6 @@ fn inspect_with_trust(root: PathBuf, trusted: &BTreeSet<String>) -> WorkspaceIns
             config_path: None,
             config: None,
             issues: Vec::new(),
-            trust: "not-required".to_string(),
-            has_executable_tasks: false,
         };
     }
 
@@ -377,33 +206,16 @@ fn inspect_with_trust(root: PathBuf, trusted: &BTreeSet<String>) -> WorkspaceIns
         }
     };
 
-    let has_executable_tasks = config.as_ref().is_some_and(|c| !c.tasks.is_empty());
-    let trust = if !has_executable_tasks {
-        "not-required"
-    } else if trusted.contains(&root_key) {
-        "trusted"
-    } else {
-        "untrusted"
-    };
-
     WorkspaceInspection {
         root: root_key,
         config_path: Some(portable_path(&config_path)),
         config,
         issues,
-        trust: trust.to_string(),
-        has_executable_tasks,
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct ExecutableWorkspace {
-    pub root: PathBuf,
-    pub config: ProjectConfig,
-}
-
-/// Re-read configuration and trust immediately before execution. This closes the
-/// time-of-check/time-of-use gap between opening a folder and starting a task.
+/// Re-read trust immediately before execution. This closes the
+/// time-of-check/time-of-use gap between granting trust and starting a build.
 pub(crate) fn trusted_workspace_root(root: &str) -> Result<PathBuf, String> {
     let root = canonical_workspace(root)?;
     let key = portable_path(&root);
@@ -413,130 +225,10 @@ pub(crate) fn trusted_workspace_root(root: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-pub(crate) fn executable_workspace(root: &str) -> Result<ExecutableWorkspace, String> {
-    let root = canonical_workspace(root)?;
-    let inspection = inspect_with_trust(root.clone(), &read_trusted_roots());
-    if !inspection.issues.is_empty() {
-        return Err(format!(
-            "invalid project configuration: {}",
-            inspection.issues.join("; ")
-        ));
-    }
-    if inspection.trust != "trusted" {
-        return Err("workspace is not trusted for task execution".to_string());
-    }
-    let config = inspection
-        .config
-        .ok_or_else(|| "workspace has no clavis.toml".to_string())?;
-    Ok(ExecutableWorkspace { root, config })
-}
-
-fn command_available(root: &Path, command: &str) -> bool {
-    crate::tasks::resolve_program(root, command).is_ok()
-}
-
-#[tauri::command]
-pub fn doctor_workspace(root: String) -> Result<ProjectDoctorReport, String> {
-    let root = canonical_workspace(&root)?;
-    let inspection = inspect_with_trust(root.clone(), &read_trusted_roots());
-    let mut checks = Vec::new();
-    if inspection.config_path.is_none() {
-        checks.push(ProjectDoctorCheck {
-            id: "config".to_string(),
-            status: "warning".to_string(),
-            message: "No clavis.toml; project tasks and shared metadata are unavailable"
-                .to_string(),
-        });
-    } else if inspection.issues.is_empty() {
-        checks.push(ProjectDoctorCheck {
-            id: "config".to_string(),
-            status: "ok".to_string(),
-            message: "clavis.toml is valid".to_string(),
-        });
-    } else {
-        for issue in &inspection.issues {
-            checks.push(ProjectDoctorCheck {
-                id: "config".to_string(),
-                status: "error".to_string(),
-                message: issue.clone(),
-            });
-        }
-    }
-
-    if let Some(config) = inspection.config.as_ref() {
-        if let Some(main) = config.project.main.as_deref() {
-            let exists = root.join(main).is_file();
-            checks.push(ProjectDoctorCheck {
-                id: "main".to_string(),
-                status: if exists { "ok" } else { "error" }.to_string(),
-                message: if exists {
-                    format!("Main document found: {main}")
-                } else {
-                    format!("Main document is missing: {main}")
-                },
-            });
-        }
-        if !config.tasks.is_empty() {
-            checks.push(ProjectDoctorCheck {
-                id: "trust".to_string(),
-                status: if inspection.trust == "trusted" {
-                    "ok"
-                } else {
-                    "warning"
-                }
-                .to_string(),
-                message: if inspection.trust == "trusted" {
-                    "Workspace is trusted for task execution".to_string()
-                } else {
-                    "Workspace tasks are disabled until the workspace is trusted".to_string()
-                },
-            });
-        }
-        for (name, task) in &config.tasks {
-            let available = command_available(&root, &task.command);
-            checks.push(ProjectDoctorCheck {
-                id: format!("task-command:{name}"),
-                status: if available { "ok" } else { "error" }.to_string(),
-                message: if available {
-                    format!("Task {name}: command found ({})", task.command)
-                } else {
-                    format!("Task {name}: command not found ({})", task.command)
-                },
-            });
-            if let Some(cwd) = task.cwd.as_deref() {
-                let valid = confined_relative_dir_for_doctor(&root, cwd);
-                checks.push(ProjectDoctorCheck {
-                    id: format!("task-cwd:{name}"),
-                    status: if valid { "ok" } else { "error" }.to_string(),
-                    message: if valid {
-                        format!("Task {name}: working directory found ({cwd})")
-                    } else {
-                        format!("Task {name}: working directory is missing or outside the workspace ({cwd})")
-                    },
-                });
-            }
-        }
-    }
-    let ok = !checks.iter().any(|check| check.status == "error");
-    Ok(ProjectDoctorReport {
-        root: portable_path(&root),
-        ok,
-        checks,
-    })
-}
-
-fn confined_relative_dir_for_doctor(root: &Path, relative: &str) -> bool {
-    if contains_parent_or_absolute(relative) {
-        return false;
-    }
-    std::fs::canonicalize(root.join(relative))
-        .is_ok_and(|path| path.is_dir() && path.starts_with(root))
-}
-
 #[tauri::command]
 pub fn inspect_workspace(root: String) -> Result<WorkspaceInspection, String> {
     let root = canonical_workspace(&root)?;
-    Ok(inspect_with_trust(root, &read_trusted_roots()))
+    Ok(inspect(root))
 }
 
 #[tauri::command]
@@ -561,31 +253,26 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn inspect_at(text: Option<&str>, trusted: bool) -> WorkspaceInspection {
+    fn inspect_at(text: Option<&str>) -> WorkspaceInspection {
         let dir = tempdir().unwrap();
         if let Some(text) = text {
             std::fs::write(dir.path().join(CONFIG_NAME), text).unwrap();
         }
-        let root = std::fs::canonicalize(dir.path()).unwrap();
-        let mut roots = BTreeSet::new();
-        if trusted {
-            roots.insert(portable_path(&root));
-        }
-        inspect_with_trust(root, &roots)
+        inspect(std::fs::canonicalize(dir.path()).unwrap())
     }
 
     #[test]
-    fn no_config_requires_no_trust() {
-        let result = inspect_at(None, false);
-        assert_eq!(result.trust, "not-required");
+    fn no_config_is_not_an_issue() {
+        let result = inspect_at(None);
+        assert!(result.config_path.is_none());
         assert!(result.config.is_none());
+        assert!(result.issues.is_empty());
     }
 
     #[test]
-    fn parses_project_and_tasks_but_does_not_auto_trust() {
-        let result = inspect_at(
-            Some(
-                r#"
+    fn parses_project_and_ignores_retired_sections() {
+        let result = inspect_at(Some(
+            r#"
 [project]
 name = "Paper"
 main = "paper/main.tex"
@@ -593,155 +280,42 @@ main = "paper/main.tex"
 [tasks.tables]
 command = "Rscript"
 args = ["scripts/tables.R"]
-"#,
-            ),
-            false,
-        );
-        assert_eq!(
-            result.config.unwrap().project.name.as_deref(),
-            Some("Paper")
-        );
-        assert!(result.has_executable_tasks);
-        assert_eq!(result.trust, "untrusted");
-        assert!(result.issues.is_empty());
-    }
 
-    #[test]
-    fn trust_is_external_to_the_repository_config() {
-        let text = r#"[tasks.paper]
-command = "latexmk"
-"#;
-        assert_eq!(inspect_at(Some(text), false).trust, "untrusted");
-        assert_eq!(inspect_at(Some(text), true).trust, "trusted");
+[artifacts.table]
+path = "out/table.tex"
+
+[bibliography]
+provider = "better-bibtex"
+files = ["library.bib"]
+"#,
+        ));
+        assert!(result.issues.is_empty());
+        let config = result.config.unwrap();
+        assert_eq!(config.project.name.as_deref(), Some("Paper"));
+        assert_eq!(config.project.main.as_deref(), Some("paper/main.tex"));
     }
 
     #[test]
     fn rejects_paths_that_escape_the_workspace() {
-        let result = inspect_at(
-            Some(
-                r#"
+        let result = inspect_at(Some(
+            r#"
 [project]
 main = "../secret.tex"
-[tasks.paper]
-command = "latexmk"
-cwd = "../outside"
 "#,
-            ),
-            false,
-        );
+        ));
         assert!(result.issues.iter().any(|x| x.contains("project.main")));
-        assert!(result.issues.iter().any(|x| x.contains("tasks.paper.cwd")));
-    }
-
-    #[test]
-    fn reports_unknown_dependencies_and_cycles() {
-        let unknown = inspect_at(
-            Some(
-                r#"
-[tasks.a]
-command = "a"
-depends_on = ["missing"]
-"#,
-            ),
-            false,
-        );
-        assert!(unknown.issues.iter().any(|x| x.contains("unknown task")));
-
-        let cycle = inspect_at(
-            Some(
-                r#"
-[tasks.a]
-command = "a"
-depends_on = ["b"]
-[tasks.b]
-command = "b"
-depends_on = ["a"]
-"#,
-            ),
-            false,
-        );
-        assert!(cycle.issues.iter().any(|x| x.contains("cycle")));
-    }
-
-    #[test]
-    fn doctor_reports_missing_main_and_command() {
-        let dir = tempdir().unwrap();
-        std::fs::write(
-            dir.path().join(CONFIG_NAME),
-            r#"[project]
-main = "paper/main.tex"
-[tasks.paper]
-command = "definitely-not-a-real-clavis-command"
-"#,
-        )
-        .unwrap();
-        let root = std::fs::canonicalize(dir.path()).unwrap();
-        let inspection = inspect_with_trust(root.clone(), &BTreeSet::new());
-        let config = inspection.config.unwrap();
-        assert!(!root.join(config.project.main.unwrap()).is_file());
-        assert!(!command_available(&root, &config.tasks["paper"].command));
-    }
-
-    #[test]
-    fn doctor_confines_task_working_directories() {
-        let dir = tempdir().unwrap();
-        std::fs::create_dir(dir.path().join("scripts")).unwrap();
-        let root = std::fs::canonicalize(dir.path()).unwrap();
-        assert!(confined_relative_dir_for_doctor(&root, "scripts"));
-        assert!(!confined_relative_dir_for_doctor(&root, "../outside"));
-        assert!(!confined_relative_dir_for_doctor(&root, "missing"));
-    }
-
-    #[test]
-    fn validates_artifact_paths_tasks_and_source_limits() {
-        let invalid = inspect_at(
-            Some(
-                r#"
-[tasks.tables]
-command = "Rscript"
-[artifacts.good]
-path = "paper/tables/good.tex"
-task = "tables"
-sources = ["scripts/tables.R"]
-[artifacts.bad]
-path = "../escape.tex"
-task = "missing"
-sources = ["../secret.csv"]
-"#,
-            ),
-            false,
-        );
-        assert!(!invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("artifacts.good")));
-        assert!(invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("artifacts.bad.path")));
-        assert!(invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("unknown task")));
-        assert!(invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("artifacts.bad.sources")));
     }
 
     #[test]
     fn validates_writing_config() {
-        let valid = inspect_at(
-            Some(
-                r#"
+        let valid = inspect_at(Some(
+            r#"
 [writing]
 spelling = "uk"
 ignored_acronyms = ["GDP", "IV"]
 terms = ["difference-in-differences"]
 "#,
-            ),
-            false,
-        );
+        ));
         assert!(valid.issues.is_empty());
         assert_eq!(
             valid.config.as_ref().map(|config| config.writing.ignored_acronyms.clone()),
@@ -751,17 +325,14 @@ terms = ["difference-in-differences"]
             valid.config.as_ref().map(|config| config.writing.terms.clone()),
             Some(vec!["difference-in-differences".to_string()])
         );
-        let invalid = inspect_at(
-            Some(
-                r#"
+        let invalid = inspect_at(Some(
+            r#"
 [writing]
 spelling = "canadian"
 ignored_acronyms = ["bad"]
 terms = [""]
 "#,
-            ),
-            false,
-        );
+        ));
         assert!(invalid
             .issues
             .iter()
@@ -777,41 +348,8 @@ terms = [""]
     }
 
     #[test]
-    fn validates_better_bibtex_export_config() {
-        let valid = inspect_at(
-            Some(
-                r#"
-[bibliography]
-provider = "better-bibtex"
-files = ["references/library.bib"]
-"#,
-            ),
-            false,
-        );
-        assert!(valid.issues.is_empty());
-        let invalid = inspect_at(
-            Some(
-                r#"
-[bibliography]
-provider = "zotero-sqlite"
-files = ["../outside.bib", "notes.txt"]
-"#,
-            ),
-            false,
-        );
-        assert!(invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("bibliography.provider")));
-        assert!(invalid
-            .issues
-            .iter()
-            .any(|issue| issue.contains("bibliography.files")));
-    }
-
-    #[test]
     fn invalid_toml_is_an_issue_not_a_crash() {
-        let result = inspect_at(Some("[project\nname = nope"), false);
+        let result = inspect_at(Some("[project\nname = nope"));
         assert!(result.config.is_none());
         assert!(result.issues[0].contains("invalid clavis.toml"));
     }

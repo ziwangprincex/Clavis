@@ -115,12 +115,21 @@ pub fn collect_latex_snapshot(root: String, documents: Vec<SourceOverlay>) -> Re
 }
 
 fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
-    let root_path = std::fs::canonicalize(&root).map_err(|e| format!("canonicalize root: {e}"))?;
+    let root_path = std::fs::canonicalize(&root).map_err(|e| match e.kind() {
+        // Typically a document whose folder was moved or deleted after it was opened.
+        std::io::ErrorKind::NotFound => format!("main document not found on disk: {root}"),
+        _ => format!("cannot read main document {root}: {e}"),
+    })?;
     if !root_path.is_file() {
         return Err(format!("not a file: {}", root_path.display()));
     }
     let root_dir = root_path.parent().ok_or_else(|| "no parent dir".to_string())?.to_path_buf();
     let root_dir_canon = std::fs::canonicalize(&root_dir).map_err(|e| format!("canon dir: {e}"))?;
+    // Report paths under the folder as the caller spelled it (/tmp, not
+    // /private/tmp) so they compare equal to the open documents' paths.
+    let shown_dir = Path::new(&root).parent()
+        .filter(|dir| std::fs::canonicalize(dir).is_ok_and(|dir| dir == root_dir_canon))
+        .map_or_else(|| root_dir_canon.clone(), Path::to_path_buf);
 
     let overlays: HashMap<PathBuf, String> = documents.into_iter().filter_map(|doc| {
         let path = std::fs::canonicalize(&doc.path).ok()?;
@@ -362,6 +371,11 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
 
     scan_resource_tree(&root_dir_canon, &root_dir_canon, &overlays, 0, &mut visited, &mut out, &mut warnings);
 
+    for file in &mut out {
+        if let Ok(rel) = Path::new(&file.abs_path).strip_prefix(&root_dir_canon) {
+            file.abs_path = shown_dir.join(rel).to_string_lossy().to_string();
+        }
+    }
     Ok(CollectResult {
         root_rel: root_basename,
         files: out,
@@ -391,6 +405,22 @@ mod tests {
         assert!(collected.files.iter().any(|f| f.rel_path == "extra.tex"));
         assert_eq!(std::fs::read_to_string(&main).unwrap(), "disk main");
         assert_eq!(std::fs::read_to_string(&chapter).unwrap(), "disk chapter");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_paths_keep_the_symlinked_folder_the_document_was_opened_from() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::write(real.join("main.tex"), "\\input{chapter}").unwrap();
+        std::fs::write(real.join("chapter.tex"), "chapter").unwrap();
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let main = link.join("main.tex").to_string_lossy().to_string();
+        let collected = collect_project_files(main.clone()).unwrap();
+        let paths: Vec<_> = collected.files.iter().map(|f| f.abs_path.clone()).collect();
+        assert_eq!(paths, [main, link.join("chapter.tex").to_string_lossy().to_string()]);
     }
 
     #[test]

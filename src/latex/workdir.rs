@@ -1,5 +1,5 @@
 //! Compile-workdir registry (keyed by opaque token) and the commands that
-//! operate on a previously-produced workdir: cleanup, PDF export, log read.
+//! operate on a previously-produced workdir: cleanup and PDF export.
 
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -79,20 +79,4 @@ pub fn export_latex_pdf(
     }
     std::fs::copy(&src, &target).map_err(|e| format!("copy failed: {e}"))?;
     Ok(())
-}
-
-/// Read the full TeX `.log` file from the most recent compile's workdir.
-#[tauri::command]
-pub fn read_latex_log(
-    workdir_token: String,
-    state: tauri::State<'_, LatexState>,
-) -> Result<String, String> {
-    let dir = state.get(&workdir_token).ok_or_else(|| "no workdir (compile first)".to_string())?;
-    let log_path = dir.path().join("main.log");
-    if !log_path.exists() {
-        return Err("main.log not found — compile may have failed before writing log".to_string());
-    }
-    // The log can contain non-UTF-8 bytes (font names with weird encodings); read lossy.
-    let bytes = std::fs::read(&log_path).map_err(|e| format!("read failed: {e}"))?;
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }

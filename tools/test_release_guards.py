@@ -1,12 +1,8 @@
-import contextlib
-import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
-import check_handoff
 import check_release
 
 
@@ -44,18 +40,6 @@ class ReleaseGuardTests(unittest.TestCase):
             (root / "tauri.conf.json").write_text(json.dumps(config))
             (root / "web/package.json").write_text('{"scripts": {}}')
             self.assertEqual(len(check_release.validate_build_entrypoints(root)), 2)
-
-    def test_working_tree_includes_untracked_files(self):
-        with patch.object(check_handoff, "git", side_effect=["web/src/App.tsx", "tools/new.py"]):
-            self.assertEqual(check_handoff.working_tree_files(), {"web/src/App.tsx", "tools/new.py"})
-
-    def test_local_change_without_handoff_fails(self):
-        with patch("sys.argv", ["check_handoff.py", "--working-tree"]), patch.object(check_handoff, "working_tree_files", return_value={"src/main.rs"}), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(check_handoff.main(), 1)
-
-    def test_local_change_with_handoff_passes(self):
-        with patch("sys.argv", ["check_handoff.py", "--working-tree"]), patch.object(check_handoff, "working_tree_files", return_value={"src/main.rs", "docs/HANDOFF.md"}), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(check_handoff.main(), 0)
 
 
 class VersionWriterTests(unittest.TestCase):

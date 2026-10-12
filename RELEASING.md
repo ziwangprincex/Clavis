@@ -64,18 +64,19 @@ Start from a clean `main` working tree:
 The script refuses a dirty tree or non-`main` branch, updates the version in
 `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`, validates that all three match,
 and runs the frontend checks/build plus Rust tests. It deliberately does **not**
-commit, tag, or push; review the diff and update `docs/HANDOFF.md` first, then run the
+commit, tag, or push; review the diff and write `docs/releases/<tag>.md` first, then run the
 commands it prints.
 
 ### Manual equivalent
 
 1. Set the same SemVer in `Cargo.toml`, the Clavis entry in `Cargo.lock`, and
-   `tauri.conf.json` -> `package.version`.
+   `tauri.conf.json` -> `package.version` (`python3 tools/set_version.py 1.0.2`).
 2. Validate it:
    ```bash
-   python tools/check_release.py --tag v1.0.2
+   python3 tools/check_release.py --tag v1.0.2
    ```
-3. Update `docs/HANDOFF.md`, commit the release preparation, then tag and push:
+3. Write `docs/releases/v1.0.2.md` (the release workflow fails without it),
+   commit the release preparation, then tag and push:
    ```bash
    git tag v1.0.2
    git push origin main
@@ -104,8 +105,8 @@ A normal push to `main` only runs CI; it does not create or update a Release.
   on confirm, downloads → verifies signature → installs → relaunches.
 - Keep `docs/releases/<tag>.md`, the GitHub release body and `latest.json` notes
   to a version heading and at most three short user-facing bullets (240 characters
-  total). Put test counts and CI details in the commit message or `docs/history/`,
-  not the update prompt. Mention any critical migration warning within this budget.
+  total). Put test counts and CI details in the commit message, not the update
+  prompt. Mention any critical migration warning within this budget.
 - Older installed apps show the entire manifest notes in a non-scrolling native
   alert. Always check the actual `latest.json` notes before publication; shortening
   only the GitHub release page or local notes does not fix their update prompt.

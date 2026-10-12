@@ -2,20 +2,8 @@ import { CompletionContext } from '@codemirror/autocomplete';
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { buildCompletionSource } from './source';
-import submissionStyles from '../components/SubmissionCheckDialog.module.css?raw';
 
-// CSS Modules localize classes, not bare tag selectors. This dialog used to
-// publish `li span { text-transform: uppercase }` into every completion popup.
 describe('completion presentation', () => {
-  it('keeps submission dialog rules scoped to local classes', () => {
-    const selectors = [...submissionStyles.matchAll(/([^{}]+)\{[^{}]*\}/g)]
-      .flatMap(match => match[1].split(',').map(selector => selector.trim()));
-    expect(selectors.length).toBeGreaterThan(20);
-    for (const selector of selectors) {
-      expect(selector, `Unscoped dialog rule: ${selector}`).toMatch(/^\.[\w-]+/);
-    }
-  });
-
   it.each([
     {
       name: 'mixed-case macro',

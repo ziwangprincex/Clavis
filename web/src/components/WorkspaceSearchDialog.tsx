@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { useModal } from '../hooks/useModal';
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { dialogConfirm, ipc, type WorkspaceSearchMatch } from '../api/tauri';
 import { pathsEqual } from '../files/projectPaths';
 import styles from './WorkspaceSearchDialog.module.css';

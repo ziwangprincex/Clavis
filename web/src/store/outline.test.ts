@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseOutline, parseProjectOutline } from './outline';
+import { parseLatexLists, parseOutline, parseProjectOutline } from './outline';
 import type { ProjectFile } from './project';
 
 describe('parseOutline — markdown', () => {
@@ -128,5 +128,37 @@ describe('parseProjectOutline', () => {
     ];
     const out = parseProjectOutline(files, 'C:\\p\\main.tex', '\\section{Live}');
     expect(out.map(o => o.title)).toEqual(['Live']);
+  });
+});
+
+describe('LaTeX outline lists', () => {
+  const main = [
+    '\\section{Intro}\\label{sec:intro}',
+    'See \\cite{knuth, lamport} and \\citep[p.~2]{knuth}. % \\cite{commented}',
+    '\\begin{figure}[h]',
+    '  \\includegraphics{plot}',
+    '  \\caption[Short]{Results for \\emph{all} {runs}}\\label{fig:plot}',
+    '\\end{figure}',
+    '\\begin{table*}\\caption{Totals}\\end{table*}',
+    '\\begin{figure}\\end{figure}',
+  ].join('\n');
+
+  it('lists figures and tables by caption, labels, and each cited key once', () => {
+    const lists = parseLatexLists(main);
+    expect(lists.figures.map(item => [item.title, item.line])).toEqual([['Results for all runs', 3], ['', 8]]);
+    expect(lists.tables.map(item => [item.title, item.line])).toEqual([['Totals', 7]]);
+    expect(lists.labels.map(item => item.title)).toEqual(['sec:intro', 'fig:plot']);
+    expect(lists.citations.map(item => [item.title, item.line])).toEqual([['knuth', 2], ['lamport', 2]]);
+  });
+
+  it('merges a project, reading the active file from its live buffer', () => {
+    const files = [
+      { absPath: '/p/main.tex', relPath: 'main.tex', content: '\\label{old}' },
+      { absPath: '/p/ch.tex', relPath: 'ch.tex', content: '\\cite{lamport}\\label{ch}' },
+      { absPath: '/p/refs.bib', relPath: 'refs.bib', content: '@book{x}', isBib: true },
+    ];
+    const lists = parseLatexLists('\\label{live}\\cite{knuth}', files, '/p/main.tex');
+    expect(lists.labels.map(item => [item.title, item.sourceFileAbsPath])).toEqual([['live', '/p/main.tex'], ['ch', '/p/ch.tex']]);
+    expect(lists.citations.map(item => item.title)).toEqual(['knuth', 'lamport']);
   });
 });

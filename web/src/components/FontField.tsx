@@ -24,7 +24,7 @@ export function FontField({ label, value, onChange, fonts, fallback, inheritedFa
       {t('中文排版 · A quiet thought · 0123456789')}
     </div>
     {fonts === undefined && <p className={styles.hint}>{t('Loading installed fonts…')}</p>}
-    {fonts === null && <p className={styles.hint}>{t('Font list unavailable. You can still enter a font family.')}</p>}
-    {!!missing.length && <p className={styles.hint}>{t('Not installed: {names}. Later fonts in the list will be used.', { names: missing.join(', ') })}</p>}
+    {fonts === null && <p className={styles.hint}>{t('Font list unavailable. A font family can be entered manually.')}</p>}
+    {!!missing.length && <p className={styles.hint}>{t('Not installed: {names}. The next available font in the list is used.', { names: missing.join(', ') })}</p>}
   </div>;
 }

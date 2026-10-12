@@ -31,6 +31,10 @@ export interface Settings {
   editor_theme_overrides: Record<string, string>;
   editor_spellcheck: boolean;
   editor_inline_math: boolean;
+  /** Show Markdown as plain source instead of formatted (Mod-/). */
+  markdown_source_mode: boolean;
+  /** Keep the line being written in the middle of the window (Typora's typewriter mode). */
+  editor_typewriter: boolean;
   /** Tab width in spaces. */
   editor_tab_size: number;
   /** Whether Tab inserts spaces (true) or a literal tab (false). */
@@ -44,8 +48,7 @@ export interface Settings {
   /** Editor's share of the editor/preview row, 0..1. 0 = use the 50/50 default.
    *  Stored as a ratio (not px) so window resizes keep rebalancing the split. */
   pane_editor_ratio: number;
-  pane_log_height: number;
-  /** Periodically write dirty, file-backed tabs to disk. Opt-in. */
+  /** Periodically write dirty, file-backed tabs to disk (on by default). */
   autosave_enabled: boolean;
 
   // ----- UI-level customisation (consumed by App, not by Rust) -----
@@ -61,8 +64,6 @@ export interface Settings {
   preview_font_size: number;
   /** Custom CSS variable overrides applied to :root. Hex or named colors. */
   ui_color_overrides: Record<string, string>;
-  /** Preview surface: keep it as a light paper page, or derive from the theme. */
-  preview_paper: 'light' | 'match';
   /**
    * Reading line length for the preview surface. `narrow` (~65 characters) is
    * the typographic optimum for prose; `medium` (~80) suits documents with wide
@@ -115,6 +116,8 @@ export const defaultSettings: Settings = {
   editor_theme_overrides: {},
   editor_spellcheck: false,
   editor_inline_math: false,
+  markdown_source_mode: false,
+  editor_typewriter: false,
   editor_tab_size: 2,
   editor_indent_with_spaces: true,
   recent_files: [],
@@ -122,8 +125,7 @@ export const defaultSettings: Settings = {
   recent_citations: [],
   pane_sidebar_width: 0,
   pane_editor_ratio: 0,
-  pane_log_height: 0,
-  autosave_enabled: false,
+  autosave_enabled: true,
 
   ui_font_family:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
@@ -133,7 +135,6 @@ export const defaultSettings: Settings = {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   preview_font_size: 17,
   ui_color_overrides: {},
-  preview_paper: 'match',
   preview_reading_width: 'narrow',
   cwl_enabled: true,
   cwl_show_unusual: false,
@@ -168,6 +169,10 @@ export function migrateSettings(s: Settings): Settings {
   delete (migrated as Settings & { pdf_bg_color?: unknown }).pdf_bg_color;
   // The compile log moved into the sidebar Problems view; it is no longer a persisted panel.
   delete (migrated as Settings & { problems_panel_open?: unknown }).problems_panel_open;
+  // The bottom project-task panel was removed along with its resizable height.
+  delete (migrated as Settings & { pane_log_height?: unknown }).pane_log_height;
+  // Markdown has no separate reading pane any more, so no paper surface either.
+  delete (migrated as Settings & { preview_paper?: unknown }).preview_paper;
   const legacyPx = (s as unknown as { pane_editor_width?: number }).pane_editor_width;
   if (!s.pane_editor_ratio && typeof legacyPx === 'number' && legacyPx > 120) {
     const ratio = legacyPx / 1200;

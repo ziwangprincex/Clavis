@@ -1,39 +1,25 @@
 /* Side-by-side panes meet at a 1px hairline. The transparent ::after
- * hit area overlaps their edges instead of reserving a blank layout strip.
- * The stacked log-panel divider retains its existing 7px height. */
+ * hit area overlaps their edges instead of reserving a blank layout strip. */
 
-.splitter,
-.splitterVertical {
+.splitter {
   position: relative;
-  flex: 0 0 7px;
+  flex: 0 0 1px;
   background: transparent;
   z-index: 1;
   touch-action: none;
-}
-
-.splitter {
-  flex-basis: 1px;
   cursor: col-resize;
 }
 
-.splitterVertical {
-  cursor: row-resize;
-}
-
-.splitter::before,
-.splitterVertical::before {
+.splitter::before {
   content: '';
   position: absolute;
-  background: var(--border);
-  transition: background-color var(--dur) var(--ease);
-  pointer-events: none;
-}
-
-.splitter::before {
   top: 0;
   bottom: 0;
   left: 0;
   width: 1px;
+  background: var(--border);
+  transition: background-color var(--dur) var(--ease);
+  pointer-events: none;
 }
 
 .splitter::after {
@@ -43,16 +29,7 @@
   cursor: inherit;
 }
 
-.splitterVertical::before {
-  left: 0;
-  right: 0;
-  top: 3px;
-  height: 1px;
-}
-
 .splitter:hover::before,
-.splitter:active::before,
-.splitterVertical:hover::before,
-.splitterVertical:active::before {
+.splitter:active::before {
   background: var(--accent);
 }

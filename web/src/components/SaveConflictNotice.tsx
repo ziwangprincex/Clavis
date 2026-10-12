@@ -41,7 +41,7 @@ function ConflictReview({ review, onClose }: { review: Review; onClose: () => vo
       buffer: review.buffer, ...(merge ? { merged } : {}),
     } });
     if (path) closeReview();
-    else setError('The disk changed again. Close this comparison and review the newest version. Your draft above is still available to copy.');
+    else setError('The file on disk changed again. Close this comparison and review the newest version. The draft above remains available to copy.');
   }
   async function useDisk() {
     await documentOperation(async () => {
@@ -73,25 +73,25 @@ function ConflictReview({ review, onClose }: { review: Review; onClose: () => vo
           else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modal.current)) { event.preventDefault(); first.focus(); }
         }
       }}>
-      <header><div><h2 id="save-conflict-title">{t("Keep your writing safe")}</h2><p>{review.targetPath}</p></div><button disabled={busy} onClick={closeReview}>{t("Later")}</button></header>
-      <p className={styles.explanation}>{t("Another version exists on disk. Nothing is overwritten until you choose. Autosave is paused for this document.")}</p>
-      {changed && <p role="alert" className={styles.error}>{t("A version changed while this comparison was open. Close and review again before replacing anything.")}</p>}
+      <header><div><h2 id="save-conflict-title">{t("Save conflict")}</h2><p>{review.targetPath}</p></div><button disabled={busy} onClick={closeReview}>{t("Later")}</button></header>
+      <p className={styles.explanation}>{t("A different version exists on disk. Nothing is overwritten until a version is chosen. Autosave is paused for this document.")}</p>
+      {changed && <p role="alert" className={styles.error}>{t("A version changed while this comparison was open. Close it and compare again before replacing anything.")}</p>}
       {error && <p role="alert" className={styles.error}>{error}</p>}
       <div className={styles.comparison}>
         <label>{t("On disk")}{review.disk.content === null ? t(" · file deleted or moved") : ''}
           <textarea aria-label={t("Version on disk")} readOnly value={review.disk.content ?? ''} spellCheck={false} />
         </label>
-        <label>{t("Your writing · edit here to merge")} <textarea aria-label={t("Merged document")} value={merged} disabled={busy} onChange={e => setMerged(e.target.value)} spellCheck={false} />
+        <label>{t("Draft · editable for merging")} <textarea aria-label={t("Merged document")} value={merged} disabled={busy} onChange={e => setMerged(e.target.value)} spellCheck={false} />
         </label>
       </div>
       <details className={styles.diff} onToggle={e => setShowDiff(e.currentTarget.open)}>
-        <summary>{t("Highlight differences between disk and your original draft")}</summary>
+        <summary>{t("Highlight differences between the disk version and the original draft")}</summary>
         {showDiff && <>
           {fullSize > diffLimit && <p>{t("Difference highlight shows only the first 12,000 characters. Both editors above contain the complete versions.")}</p>}
           <pre>{proseDiff((review.disk.content ?? '').slice(0, diffLimit), review.buffer.slice(0, diffLimit)).map((part, i) => <span key={i} className={styles[part.kind]}>{part.text}</span>)}</pre>
         </>}
       </details>
-      <p className={styles.explanation}>{t("Replacing your buffer keeps a local scratch copy. Replacing disk contents keeps the reviewed disk text as a scratch copy. These copies are covered by session recovery, not a version timeline.")}</p>
+      <p className={styles.explanation}>{t("Replacing the draft keeps it as a scratch copy; replacing the disk contents keeps the reviewed disk text as a scratch copy. These copies are kept by session recovery, not by the version timeline.")}</p>
       <footer>
         <button disabled={busy} onClick={() => void run(async () => { if (await saveTabToDisk(review.id, { saveAs: true })) closeReview(); })}>{t("Save local as…")}</button>
         <button disabled={busy || changed || review.disk.content === null || tab?.filePath !== review.targetPath} onClick={() => void run(useDisk)}>{t("Use disk version")}</button>
@@ -112,7 +112,7 @@ export function SaveConflictNotice() {
   if (!tab && !review) return null;
   return <>
     {tab && <aside className={styles.notice} aria-label={t("Document save protection")}>
-      <span role="status"><strong>{tab.title}</strong><span>{tab.conflict ? t("Disk changes need review. Your writing is safe.") : `Disk could not be checked: ${tab.diskError}`}{affected.length > 1 ? ` · ${affected.length} documents need attention` : ''}</span></span>
+      <span role="status"><strong>{tab.title}</strong><span>{tab.conflict ? t("Disk changes need review. The draft is preserved.") : `Disk could not be checked: ${tab.diskError}`}{affected.length > 1 ? ` · ${affected.length} documents need attention` : ''}</span></span>
       {tab.conflict && <button onClick={() => { useTabsStore.getState().setActive(tab.id); setReview({ id: tab.id, ...tab.conflict!, buffer: tab.content }); }}>{t("Review")}</button>}
       {!tab.conflict && <button onClick={() => void checkExternalDocuments(true).catch(() => {})}>{t("Retry")}</button>}
       <button onClick={() => void saveTabToDisk(tab.id, { saveAs: true }).catch(() => {})}>{t("Save as…")}</button>

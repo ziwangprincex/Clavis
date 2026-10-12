@@ -30,7 +30,8 @@ import {
   closeBrackets,
 } from '@codemirror/autocomplete';
 import { highlightSelectionMatches } from '@codemirror/search';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown';
+import { GFM } from '@lezer/markdown';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import type { Lang } from '../store';
 import { resolveLocale, t as translate } from '../i18n';
@@ -38,7 +39,16 @@ import { buildCompletionSource, type CompletionWorkspace } from '../completions/
 import { inputLinkExtension } from './inputLinks';
 import { writingAssist } from './writingAssist';
 import { inlineMath } from './inlineMath';
+import { markdownMath } from './markdownMath';
+import { markdownFrontmatter } from './markdownFrontmatter';
+import { markdownFootnotes } from './markdownFootnotes';
+import { markdownInlineExtras } from './markdownInlineExtras';
+import { markdownEditing } from './markdownEditing';
+import { codeLanguages } from './codeLanguages';
+import { markdownLivePreview, syncMarkdownFocus, type LivePreviewHost } from './livePreview';
 import { buildEditorKeymap } from './keymaps';
+import { currentBlock, typewriterScrolling } from './focusBlock';
+import { problemGutter, setProblems, type LineProblem } from './diagnostics';
 import { signatureTheme, signatureTooltipExt } from './signatureTooltip';
 import { syntaxPalette, type ThemeSpec } from '../theme/themes';
 import { withAlpha } from '../theme/colors';
@@ -72,8 +82,16 @@ const typstStream = StreamLanguage.define({
   languageData: { commentTokens: { line: '//', block: { open: '/*', close: '*/' } } },
 });
 
-function languageExtension(lang: Lang) {
-  if (lang === 'markdown') return markdown();
+/** The editor's Markdown parser: GFM like the renderer, its `$` formulas, front matter, footnotes,
+ *  ==highlight== and sub/superscripts, highlighted fences. */
+export const markdownLanguage = () => markdown({
+  base: commonmarkLanguage,
+  extensions: [GFM, markdownMath, markdownFrontmatter, markdownFootnotes, markdownInlineExtras],
+  codeLanguages,
+});
+
+function languageExtension(lang: Lang, host?: LivePreviewHost) {
+  if (lang === 'markdown') return [markdownLanguage(), markdownEditing(host)];
   if (lang === 'latex') return StreamLanguage.define(stex);
   if (lang === 'typst') return typstStream;
   return [];
@@ -200,6 +218,7 @@ function buildHighlightExt(spec: ThemeSpec) {
     { tag: [t.name, t.propertyName, t.macroName, t.typeName, t.tagName], color: syntax.name },
     { tag: [t.number, t.bool, t.atom, t.string], color: syntax.literal },
     { tag: [t.comment, t.meta], color: syntax.comment, fontStyle: 'italic' },
+    { tag: t.processingInstruction, color: syntax.comment },
     { tag: t.heading, color: spec.fg, fontWeight: '600' },
     { tag: t.strong, fontWeight: '600' },
     { tag: t.emphasis, fontStyle: 'italic' },
@@ -248,6 +267,14 @@ export interface EditorOptions {
    *  Receives the resolved raw path and whether the macro is import-family;
    *  caller resolves + opens it. */
   onOpenInclude?: (raw: string, kind: 'latex' | 'typst' | 'latex-macro' | 'latex-environment', isImport: boolean) => void;
+  /** Images and links for the formatted Markdown view. */
+  markdownHost?: LivePreviewHost;
+  /** Show Markdown formatted (default) rather than as plain source. */
+  markdownLive?: boolean;
+  /** Mod-/ in a Markdown document: switch between formatted and source. */
+  onToggleMarkdownSource?: () => void;
+  /** A compile problem's margin marker was clicked. */
+  onShowProblems?: () => void;
 }
 
 /** Wrapper around CodeMirror EditorView with a textarea-shaped API. */
@@ -268,6 +295,16 @@ export class EditorController {
   private writingCompartment = new Compartment();
   private inlineMathCompartment = new Compartment();
   private inlineMathEnabled = false;
+  private liveCompartment = new Compartment();
+  private typewriterCompartment = new Compartment();
+  private activeLineCompartment = new Compartment();
+  private typewriter = false;
+  private markdownLive: boolean;
+  private markdownHost?: LivePreviewHost;
+  private onToggleMarkdownSourceCb?: () => void;
+  private onShowProblemsCb?: () => void;
+  /** Last text sent to onChange; lets the store echo be recognized cheaply. */
+  private lastValue = '';
   private signatureThemeCompartment = new Compartment();
   private suppressEvents = false;
   private activeDocumentId: string | null = null;
@@ -292,6 +329,11 @@ export class EditorController {
     this.onCursorCb = opts.onCursor;
     this.getCompletionWorkspaceCb = opts.getCompletionWorkspace;
     this.onOpenIncludeCb = opts.onOpenInclude;
+    this.markdownHost = opts.markdownHost;
+    this.markdownLive = opts.markdownLive !== false;
+    this.onToggleMarkdownSourceCb = opts.onToggleMarkdownSource;
+    this.onShowProblemsCb = opts.onShowProblems;
+    this.lastValue = opts.initialDoc;
 
     this.tabSize = opts.tabSize ?? 2;
     this.indentWithSpaces = opts.indentWithSpaces !== false;
@@ -305,12 +347,18 @@ export class EditorController {
     const tabSize = this.tabSize;
     const indentUnitStr = this.indentWithSpaces ? ' '.repeat(tabSize) : '\t';
     const exts = [
+      problemGutter(() => this.onShowProblemsCb?.()),
       lineNumbers(),
       this.writingCompartment.of(writingAssist(this.currentLang, this.getCompletionWorkspaceCb)),
       this.inlineMathCompartment.of([]),
+      this.liveCompartment.of(this.liveExt(this.currentLang)),
       this.localeCompartment.of(this.localeExtensions()),
-      highlightActiveLine(),
+      // A formatted page has no current-line band (Typora has none); it would
+      // also cut through code, table and front matter boxes.
+      this.activeLineCompartment.of(this.isLive(this.currentLang) ? [] : highlightActiveLine()),
       highlightActiveLineGutter(),
+      currentBlock,
+      this.typewriterCompartment.of(this.typewriter ? typewriterScrolling : []),
       drawSelection(),
       history(),
       indentOnInput(),
@@ -341,12 +389,15 @@ export class EditorController {
       this.tabSizeCompartment.of(EditorState.tabSize.of(tabSize)),
       this.indentCompartment.of(indentUnit.of(indentUnitStr)),
       EditorView.lineWrapping,
-      keymap.of(buildEditorKeymap()),
-      this.langCompartment.of(languageExtension(this.currentLang)),
+      keymap.of([{ key: 'Mod-/', run: () => this.toggleMarkdownSource() }, ...buildEditorKeymap()]),
+      this.langCompartment.of(languageExtension(this.currentLang, this.markdownHost)),
       this.includeLinkCompartment.of(this.includeLinkExt(this.currentLang)),
       EditorView.updateListener.of(update => {
         if (this.suppressEvents) return;
-        if (update.docChanged) this.onChangeCb?.(this.value);
+        if (update.docChanged) {
+          this.lastValue = update.state.doc.toString();
+          this.onChangeCb?.(this.lastValue);
+        }
         if (update.selectionSet) { const selection = update.state.selection.main; this.onCursorCb?.(selection.head, selection.from, selection.to); }
       }),
     ];
@@ -357,7 +408,7 @@ export class EditorController {
   /** One view, independent undo/selection/scroll for each open document. */
   switchDocument(id: string, content: string, lang: Lang) {
     if (id === this.activeDocumentId) {
-      if (content !== this.value) this.value = content;
+      if (content !== this.lastValue && content !== this.value) this.value = content;
       this.setLanguage(lang);
       return;
     }
@@ -372,6 +423,7 @@ export class EditorController {
     this.currentLang = lang;
     const reusable = cached?.state.doc.toString() === content ? cached : undefined;
     this.view.setState(reusable?.state ?? this.createState(content));
+    this.lastValue = content;
     // Cached states may predate a font/theme/indent preference change.
     this.setLanguage(lang, true);
     this.setFont(this.font);
@@ -379,6 +431,7 @@ export class EditorController {
     this.setTheme(this.themeSpec);
     this.setSpellcheck(this.spellcheck);
     this.setIndent(this.tabSize, this.indentWithSpaces);
+    this.view.dispatch({ effects: this.typewriterCompartment.reconfigure(this.typewriter ? typewriterScrolling : []) });
     if (reusable) this.view.dispatch({ effects: reusable.scroll });
     else this.view.scrollDOM.scrollTop = 0;
     const selection = this.view.state.selection.main;
@@ -402,6 +455,7 @@ export class EditorController {
   }
 
   set value(v: string) {
+    this.lastValue = v;
     this.suppressEvents = true;
     const selection = this.view.state.selection.main;
     try {
@@ -442,9 +496,11 @@ export class EditorController {
     this.currentLang = lang;
     this.view.dispatch({
       effects: [
-        this.langCompartment.reconfigure(languageExtension(lang)),
+        this.langCompartment.reconfigure(languageExtension(lang, this.markdownHost)),
         this.writingCompartment.reconfigure(writingAssist(lang, this.getCompletionWorkspaceCb)),
-        this.inlineMathCompartment.reconfigure(this.inlineMathEnabled ? inlineMath(lang) : []),
+        this.inlineMathCompartment.reconfigure(this.inlineMathExt(lang)),
+        this.liveCompartment.reconfigure(this.liveExt(lang)),
+        this.activeLineCompartment.reconfigure(this.isLive(lang) ? [] : highlightActiveLine()),
         this.completionCompartment.reconfigure(
           autocompletion({
             override: [buildCompletionSource(lang, this.getCompletionWorkspaceCb)],
@@ -455,11 +511,12 @@ export class EditorController {
         this.signatureCompartment.reconfigure(signatureTooltipExt(lang)),
       ],
     });
+    syncMarkdownFocus(this.view);
   }
 
   private localeExtensions() {
     const chinese = resolveLocale(this.locale) === 'zh-CN';
-    return [placeholder(translate('Begin with a thought…')), EditorState.phrases.of(chinese ? {
+    return [placeholder(translate('Start writing…')), EditorState.phrases.of(chinese ? {
       'Find': '查找', 'Replace': '替换', 'next': '下一个', 'previous': '上一个',
       'all': '全部', 'match case': '区分大小写', 'by word': '整词匹配',
       'regexp': '正则表达式', 'replace': '替换', 'replace all': '全部替换',
@@ -493,9 +550,52 @@ export class EditorController {
     });
   }
 
+  /** Compile problems for the shown document, marked in the margin. */
+  setProblems(problems: LineProblem[]) {
+    this.view.dispatch({ effects: setProblems.of(problems) });
+  }
+
+  setTypewriter(on: boolean) {
+    if (on === this.typewriter) return;
+    this.typewriter = on;
+    this.view.dispatch({ effects: this.typewriterCompartment.reconfigure(on ? typewriterScrolling : []) });
+  }
+
   setInlineMath(on: boolean) {
     this.inlineMathEnabled = on;
-    this.view.dispatch({ effects: this.inlineMathCompartment.reconfigure(on ? inlineMath(this.currentLang) : []) });
+    this.view.dispatch({ effects: this.inlineMathCompartment.reconfigure(this.inlineMathExt(this.currentLang)) });
+  }
+
+  /** Formatted Markdown renders its own formulas. */
+  private inlineMathExt(lang: Lang) {
+    return this.inlineMathEnabled && !this.isLive(lang) ? inlineMath(lang) : [];
+  }
+
+  private isLive(lang: Lang) {
+    return lang === 'markdown' && this.markdownLive && !!this.markdownHost;
+  }
+
+  private liveExt(lang: Lang) {
+    return this.isLive(lang) ? markdownLivePreview(this.markdownHost!) : [];
+  }
+
+  setMarkdownLive(on: boolean) {
+    if (on === this.markdownLive) return;
+    this.markdownLive = on;
+    this.view.dispatch({
+      effects: [
+        this.liveCompartment.reconfigure(this.liveExt(this.currentLang)),
+        this.activeLineCompartment.reconfigure(this.isLive(this.currentLang) ? [] : highlightActiveLine()),
+        this.inlineMathCompartment.reconfigure(this.inlineMathExt(this.currentLang)),
+      ],
+    });
+    syncMarkdownFocus(this.view);
+  }
+
+  private toggleMarkdownSource(): boolean {
+    if (this.currentLang !== 'markdown' || !this.onToggleMarkdownSourceCb) return false;
+    this.onToggleMarkdownSourceCb();
+    return true;
   }
 
   setSpellcheck(on: boolean) {

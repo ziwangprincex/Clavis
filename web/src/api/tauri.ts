@@ -1,13 +1,10 @@
 // Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
 //
-// Why not @tauri-apps/api? The legacy ui/ ships with `withGlobalTauri: true`
-// (see tauri.conf.json) and uses `window.__TAURI__` directly. Sticking with
-// the same surface keeps the IPC contract identical between the legacy panels
-// (still in ui-legacy/) and the React panels during the migration window.
-//
-// As panels migrate, prefer importing the named functions from this module
-// over reaching into `window.__TAURI__` directly 鈥?that way the entire IPC
-// surface is type-checked in one place.
+// The app is built with `withGlobalTauri: true` (see tauri.conf.json), so the
+// runtime is reached through `window.__TAURI__` rather than @tauri-apps/api.
+// Import the named functions from this module instead of touching
+// `window.__TAURI__` directly — that way the entire IPC surface is
+// type-checked in one place.
 
 type InvokeArgs = Record<string, unknown> | undefined;
 
@@ -114,10 +111,10 @@ export function relaunch(): Promise<void> {
 
 // ---------- Window controls ----------
 //
-// Only reachable when `hasTauri()` 鈥?in browser preview these throw. Callers
+// Only reachable when `hasTauri()` — in browser preview these throw. Callers
 // (TitleBar) MUST guard with hasTauri(); an unguarded throw inside a React
 // effect black-screens the whole app (previously bit us via getAppVersion in
-// SettingsDialog, see HANDOFF gotchas).
+// SettingsDialog).
 
 export const appWindow = {
   minimize: () => tauri().window.appWindow.minimize(),
@@ -165,11 +162,11 @@ export function dialogMessage(message: string, opts?: { title?: string }): Promi
 
 // ---------- FS helpers ----------
 //
-// These route through Rust commands (read_text_file / write_text_file /
-// path_exists) rather than Tauri's JS `fs` API. The `fs` allowlist has been
-// removed from tauri.conf.json, so the webview has no direct filesystem
-// capability 鈥?all reads/writes are auditable Rust commands. Paths still
-// originate from user-driven open/save dialogs.
+// These route through Rust commands (read_document / save_document /
+// read_text_file) rather than Tauri's JS `fs` API. The `fs`
+// allowlist has been removed from tauri.conf.json, so the webview has no direct
+// filesystem capability — all reads/writes are auditable Rust commands. Paths
+// still originate from user-driven open/save dialogs.
 
 export interface DiskSnapshot {
   content: string | null;
@@ -193,14 +190,11 @@ export const fs = {
   saveDocument: (path: string, contents: string, expectedRevision: string) =>
     invoke<DocumentSaveResult>('save_document', { path, contents, expectedRevision }),
   readTextFile: (path: string) => invoke<string>('read_text_file', { path }),
-  writeTextFile: (path: string, contents: string) =>
-    invoke<void>('write_text_file', { path, contents }),
-  exists: (path: string) => invoke<boolean>('path_exists', { path }),
 };
 
 // ---------- Domain types ----------
 //
-// Kept loose on purpose 鈥?fields are added as panels are migrated and need
+// Kept loose on purpose — fields are added as panels are migrated and need
 // the precision. The Rust side serialises with serde rename_all = "camelCase".
 
 export interface ProjectFile {
@@ -288,7 +282,7 @@ export interface EngineInfo {
 
 // --- Multi-file project + SyncTeX + distro shapes (mirror the Rust structs;
 //     serde serializes them camelCase). Kept precise so the IPC boundary is
-//     type-checked 鈥?a loose `unknown` here is exactly what let the SyncTeX
+//     type-checked — a loose `unknown` here is exactly what let the SyncTeX
 //     `file` vs `inputFile` field-name bug slip through. ---
 
 export interface CollectedFile {
@@ -335,26 +329,11 @@ export interface TypstParamSig {
   settable: boolean;
 }
 
-/** A builtin Typst function. Mirrors `FuncSig` in `src/typst_sig.rs`. */
-export type WorkspaceTrustState = 'not-required' | 'untrusted' | 'trusted';
-
-export interface ProjectTaskConfig {
-  command: string;
-  args: string[];
-  cwd?: string | null;
-  env: Record<string, string>;
-  timeoutSeconds?: number | null;
-  dependsOn: string[];
-}
-
 export interface ClavisProjectConfig {
   project: { name?: string | null; main?: string | null };
   latex: { engine?: string | null; bibliography?: string | null };
-  bibliography?: { files: string[]; provider?: string | null };
   writing?: { spelling?: 'us' | 'uk' | 'mixed' | null; ignoredAcronyms: string[]; terms: string[] };
   paths: { generated: string[]; ignored: string[] };
-  tasks: Record<string, ProjectTaskConfig>;
-  artifacts?: Record<string, { path: string; task?: string | null; sources: string[]; kind?: string | null; description?: string | null }>;
 }
 
 export interface WorkspaceInspection {
@@ -362,8 +341,6 @@ export interface WorkspaceInspection {
   configPath?: string | null;
   config?: ClavisProjectConfig | null;
   issues: string[];
-  trust: WorkspaceTrustState;
-  hasExecutableTasks: boolean;
 }
 
 export interface WorkspaceTrust {
@@ -436,18 +413,6 @@ export interface WorkspaceReplaceResult {
   replacements: number;
 }
 
-export interface ProjectDoctorCheck {
-  id: string;
-  status: 'ok' | 'warning' | 'error';
-  message: string;
-}
-
-export interface ProjectDoctorReport {
-  root: string;
-  ok: boolean;
-  checks: ProjectDoctorCheck[];
-}
-
 export interface AssetUsage {
   assetPath: string;
   relativeAssetPath: string;
@@ -483,178 +448,7 @@ export interface AssetIndexResult {
   truncated: boolean;
 }
 
-export interface ArtifactSourceStatus {
-  relativePath: string;
-  path: string;
-  exists: boolean;
-  modifiedMillis?: number | null;
-}
-
-export interface ArtifactStatus {
-  name: string;
-  relativePath: string;
-  path: string;
-  kind: string;
-  description?: string | null;
-  task?: string | null;
-  status: 'missing' | 'stale' | 'ready';
-  reason: string;
-  modifiedMillis?: number | null;
-  sources: ArtifactSourceStatus[];
-}
-
-export interface GitFileStatus {
-  path: string;
-  indexStatus: string;
-  worktreeStatus: string;
-  untracked: boolean;
-}
-
-export interface GitWorkspaceStatus {
-  root: string;
-  isRepository: boolean;
-  branch?: string | null;
-  detached: boolean;
-  ahead: number;
-  behind: number;
-  files: GitFileStatus[];
-}
-
-export interface GitCommit {
-  id: string;
-  shortId: string;
-  author: string;
-  subject: string;
-  timestamp: string;
-}
-
-export interface SubmissionIssue {
-  code: string;
-  severity: 'warning' | 'info' | 'error';
-  message: string;
-  path?: string | null;
-  line?: number | null;
-}
-
-export interface SubmissionReport {
-  ready: boolean;
-  issues: SubmissionIssue[];
-  scannedFiles: number;
-  truncated: boolean;
-}
-
-export interface BundleManifestFile {
-  relativePath: string;
-  kind: string;
-  sizeBytes: number;
-}
-
-export interface BundleManifest {
-  root: string;
-  mainDocument: string;
-  files: BundleManifestFile[];
-  warnings: string[];
-  ready: boolean;
-}
-
-export interface CreatedSubmissionBundle {
-  path: string;
-  files: number;
-  bytes: number;
-}
-
-export interface CreatedSubmissionArchive {
-  path: string;
-  files: number;
-  bytes: number;
-}
-
-export interface SubmissionBuildVerification {
-  ok: boolean;
-  engine: string;
-  logTail: string;
-  outputPresent: boolean;
-}
-
-export interface ZoteroEntry {
-  itemKey: string;
-  citationKey?: string | null;
-  itemType: string;
-  title?: string | null;
-  creators?: string | null;
-  year?: string | null;
-  publication?: string | null;
-  doi?: string | null;
-  url?: string | null;
-  tags: string[];
-}
-
-export interface BibliographyExportStatus {
-  provider: string;
-  relativePath: string;
-  path: string;
-  exists: boolean;
-  sizeBytes?: number | null;
-  modifiedMillis?: number | null;
-}
-
-export interface ToolInfo {
-  name: string;
-  path?: string | null;
-  version?: string | null;
-}
-
-export interface DocumentToolsInspection {
-  root: string;
-  quarto: ToolInfo;
-  pandoc: ToolInfo;
-  quartoProjectFile?: string | null;
-  qmdFiles: string[];
-}
-
-export interface DocumentArtifact {
-  path: string;
-  relativePath: string;
-  format: 'html' | 'pdf' | 'docx';
-  modifiedMillis?: number | null;
-}
-
-export interface TaskRunStarted {
-  runId: string;
-  requestedTask: string;
-  plan: string[];
-}
-
-export interface TaskStepStarted {
-  runId: string;
-  task: string;
-  command: string;
-}
-
-export interface TaskOutput {
-  runId: string;
-  task: string;
-  stream: 'stdout' | 'stderr';
-  text: string;
-}
-
-export interface TaskStepFinished {
-  runId: string;
-  task: string;
-  ok: boolean;
-  exitCode?: number | null;
-  reason?: string | null;
-}
-
-export interface TaskRunFinished {
-  runId: string;
-  requestedTask: string;
-  ok: boolean;
-  cancelled: boolean;
-  failedTask?: string | null;
-  reason?: string | null;
-}
-
+/** A builtin Typst function. Mirrors `FuncSig` in `src/typst_sig.rs`. */
 export interface TypstFuncSig {
   /** Call name as written in a document, e.g. `figure` or `calc.pow`. */
   name: string;
@@ -709,51 +503,22 @@ export const ipc = {
     invoke<WorkspaceInspection>('inspect_workspace', { root }),
   setWorkspaceTrust: (root: string, trusted: boolean) =>
     invoke<WorkspaceTrust>('set_workspace_trust', { root, trusted }),
-  doctorWorkspace: (root: string) =>
-    invoke<ProjectDoctorReport>('doctor_workspace', { root }),
-  inspectArtifacts: (root: string) =>
-    invoke<ArtifactStatus[]>('inspect_artifacts', { root }),
-  openArtifactPath: (root: string, path: string) =>
-    invoke<void>('open_artifact_path', { root, path }),
+  openWorkspaceFile: (root: string, path: string) =>
+    invoke<void>('open_workspace_file', { root, path }),
   openExternalUrl: (url: string) => invoke<void>('open_external_url', { url }),
   indexAssets: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
     invoke<AssetIndexResult>('index_assets', { options }),
   listSystemFonts: () => invoke<string[]>('list_system_fonts'),
   assetPreview: (root: string, path: string) =>
     invoke<string | null>('asset_preview', { root, path }),
-  checkSubmission: (options: { root: string; documents: Array<{ path: string; language: string; text: string }> }) =>
-    invoke<SubmissionReport>('check_submission', { options }),
-  inspectBibliographyExports: (root: string) =>
-    invoke<BibliographyExportStatus[]>('inspect_bibliography_exports', { root }),
-  inspectSubmissionBundle: (root: string) =>
-    invoke<BundleManifest>('inspect_submission_bundle', { root }),
-  createSubmissionBundle: (root: string, destinationParent: string) =>
-    invoke<CreatedSubmissionBundle>('create_submission_bundle', { root, destinationParent }),
-  createSubmissionArchive: (root: string, destinationParent: string) =>
-    invoke<CreatedSubmissionArchive>('create_submission_archive', { root, destinationParent }),
-  verifySubmissionBundle: (root: string) =>
-    invoke<SubmissionBuildVerification>('verify_submission_bundle', { root }),
-  searchZoteroDatabase: (database: string, query: string) =>
-    invoke<ZoteroEntry[]>('search_zotero_database', { database, query }),
-  inspectGitWorkspace: (root: string) => invoke<GitWorkspaceStatus>('inspect_git_workspace', { root }),
-  gitHistory: (root: string, path?: string) => invoke<GitCommit[]>('git_history', { root, path }),
-  gitFileDiff: (root: string, path: string) => invoke<string>('git_file_diff', { root, path }),
-  gitStageFile: (root: string, path: string) => invoke<GitWorkspaceStatus>('git_stage_file', { root, path }),
-  gitUnstageFile: (root: string, path: string) => invoke<GitWorkspaceStatus>('git_unstage_file', { root, path }),
-  gitCreateCommit: (root: string, message: string) => invoke<GitCommit>('git_create_commit', { root, message }),
-
-  startProjectTask: (root: string, task: string) =>
-    invoke<TaskRunStarted>('start_project_task', { root, task }),
-  inspectDocumentTools: (root: string) =>
-    invoke<DocumentToolsInspection>('inspect_document_tools', { root }),
-  startDocumentRender: (options: { root: string; document: string; tool: 'quarto' | 'pandoc'; format: 'html' | 'pdf' | 'docx' }) =>
-    invoke<TaskRunStarted>('start_document_render', { options }),
-  listDocumentArtifacts: (options: { root: string; document: string; format: 'html' | 'pdf' | 'docx' }) =>
-    invoke<DocumentArtifact[]>('list_document_artifacts', { options }),
-  openDocumentArtifact: (root: string, path: string) =>
-    invoke<void>('open_document_artifact', { root, path }),
-  cancelProjectTask: (runId: string) =>
-    invoke<boolean>('cancel_project_task', { runId }),
+  /** Base64 clipboard image saved beside the document; returns its relative path. */
+  saveMarkdownImage: (document: string, extension: string, data: string) =>
+    invoke<string>('save_markdown_image', { document, extension, data }),
+  /** A dropped image file referenced in place, or copied beside the document. */
+  placeMarkdownImage: (document: string, source: string) =>
+    invoke<string>('place_markdown_image', { document, source }),
+  /** Documents under an open folder, for Quick Open. */
+  listWorkspaceDocuments: (root: string) => invoke<string[]>('list_workspace_documents', { root }),
   searchWorkspace: (options: { root: string; query: string; regex: boolean; caseSensitive: boolean }) =>
     invoke<WorkspaceSearchResult>('search_workspace', { options }),
   replaceWorkspace: (options: { root: string; query: string; replacement: string; regex: boolean; caseSensitive: boolean; fingerprints: Record<string, string> }) =>
@@ -770,8 +535,6 @@ export const ipc = {
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),
   exportLatexPdf: (workdirToken: string, targetPath: string) =>
     invoke<void>('export_latex_pdf', { workdirToken, targetPath }),
-  readLatexLog: (workdirToken: string) =>
-    invoke<string>('read_latex_log', { workdirToken }),
   collectProjectFiles: (root: string) =>
     invoke<CollectResult>('collect_project_files', { root }),
   collectLatexSnapshot: (root: string, documents: Array<{ path: string; content: string }>) =>
@@ -805,7 +568,6 @@ export const ipc = {
   compileTypstPdf: (source: string, docPath?: string | null, snapshot?: TypstSnapshot) =>
     invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath, snapshot }),
   downloadTypstPackage: (spec: string, confirmed: boolean) => invoke<void>('download_typst_package', { spec, confirmed }),
-  listTypstFonts: () => invoke<string[]>('list_typst_fonts'),
   // Builtin function signatures for the parameter tooltip. Fetched once and
   // cached client-side: the tooltip refreshes on every cursor move, and the data
   // is a compile-time constant in the typst binary, so there is nothing to
@@ -839,14 +601,4 @@ export const events = {
     listen<LatexLogPayload>('latex-log', handler),
   onLatexRunStart: (handler: (p: LatexRunStartPayload) => void) =>
     listen<LatexRunStartPayload>('latex-run-start', handler),
-  onTaskRunStarted: (handler: (p: TaskRunStarted) => void) =>
-    listen<TaskRunStarted>('task-run-started', handler),
-  onTaskStepStarted: (handler: (p: TaskStepStarted) => void) =>
-    listen<TaskStepStarted>('task-step-started', handler),
-  onTaskOutput: (handler: (p: TaskOutput) => void) =>
-    listen<TaskOutput>('task-output', handler),
-  onTaskStepFinished: (handler: (p: TaskStepFinished) => void) =>
-    listen<TaskStepFinished>('task-step-finished', handler),
-  onTaskRunFinished: (handler: (p: TaskRunFinished) => void) =>
-    listen<TaskRunFinished>('task-run-finished', handler),
 };

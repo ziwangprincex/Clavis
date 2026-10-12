@@ -31,6 +31,15 @@ interface CompileStore {
 
 const MAX_LOG_LINES = 5000;
 
+/** LaTeX diagnostic kinds that stop a build; the log's other kinds are warnings. */
+const ERROR_KINDS = new Set(['error', 'bib-error', 'missing-file']);
+export const isLatexError = (kind: string) => ERROR_KINDS.has(kind);
+
+/** The message to headline a failed build: its first error, not a warning listed before it. */
+export function headlineProblem(errors: LatexDiag[]): string | undefined {
+  return (errors.find(diag => isLatexError(diag.kind)) ?? errors[0])?.message;
+}
+
 export const useCompileStore = create<CompileStore>((set, get) => ({
   status: 'idle',
   errors: [],

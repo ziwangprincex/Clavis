@@ -65,12 +65,12 @@ it('falls back to editor and displays only the year from a date', async () => {
 it('reports only a miss in loaded files, not that the entry cannot exist', async () => {
   vi.mocked(ipc.parseBib).mockResolvedValue([]);
   setup('\\cite{missing}');
-  expect(await hoverText()).toContain('No matching entry was found in the loaded .bib files');
+  expect(await hoverText()).toContain('No matching entry in the loaded .bib files');
 });
 it('does not report a parser failure as a missing key', async () => {
   vi.mocked(ipc.parseBib).mockRejectedValue(new Error('worker failed'));
   setup('\\cite{key}');
-  expect(await hoverText()).toContain('Could not read bibliography entries');
+  expect(await hoverText()).toContain('Bibliography entries could not be read');
 });
 it.each(['document', 'root', 'active', 'bibliography'])('discards a pending result after %s changes', async kind => {
   let finish!: (entries: BibEntry[]) => void;
@@ -101,4 +101,14 @@ it('normalizes Windows paths and excludes other projects', async () => {
   setup('\\cite{key}');
   await hoverText();
   expect(ipc.parseBib).toHaveBeenCalledWith([], [{ path: '\\\\?\\C:\\Paper\\refs.BIB', content: 'local' }]);
+});
+
+it('finds the graphic under the cursor in LaTeX and Typst', async () => {
+  const { imageAt } = await import('./writingAssist');
+  const latex = 'See \\includegraphics[width=.5\\linewidth]{figures/plot} here';
+  expect(imageAt(latex, latex.indexOf('plot'), 'latex')).toMatchObject({ path: 'figures/plot', from: 4 });
+  expect(imageAt(latex, 0, 'latex')).toBeNull();
+  const typst = '#figure(image("img/a.png", width: 50%))';
+  expect(imageAt(typst, typst.indexOf('a.png'), 'typst')?.path).toBe('img/a.png');
+  expect(imageAt('![x](a.png)', 3, 'markdown')).toBeNull();
 });

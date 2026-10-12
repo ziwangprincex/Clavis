@@ -5,7 +5,7 @@
 //  1. Session restore (crash recovery) — always on. The Workspace is persisted
 //     as a validated Session Snapshot. This never writes to the user's files.
 //
-//  2. Autosave to disk — opt-in (settings.autosave_enabled). Periodically
+//  2. Autosave to disk — on by default (settings.autosave_enabled). Periodically
 //     writes dirty, file-backed Documents. Scratch Documents are covered by the
 //     Session Snapshot instead.
 

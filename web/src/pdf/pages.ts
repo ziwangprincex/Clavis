@@ -45,6 +45,11 @@ export class PdfPages {
     return this.slots.map((slot) => slot.wrap);
   }
 
+  /** Width of the widest page at 100%, in CSS pixels. */
+  get widest() {
+    return Math.max(0, ...this.slots.map((slot) => slot.width));
+  }
+
   async prepare() {
     for (let n = 1; n <= this.doc.numPages; n++) {
       const page = await this.doc.getPage(n);

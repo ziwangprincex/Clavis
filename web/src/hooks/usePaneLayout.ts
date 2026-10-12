@@ -23,62 +23,51 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSettingsStore, type Settings, type EditorLayout } from '../store';
-import { constrainSidebarWidth, constrainEditorRatio, constrainLogHeight, MIN_PANE_PX } from './paneConstraints';
+import { constrainSidebarWidth, constrainEditorRatio, MIN_PANE_PX } from './paneConstraints';
 
 export interface PaneLayout {
   mainRef: React.RefObject<HTMLDivElement>;
-  workAreaRef: React.RefObject<HTMLDivElement>;
   editorRowRef: React.RefObject<HTMLDivElement>;
   sidebarWidth: number;
   /** Editor share of the editor/preview row, 0..1. 0 = use the 50/50 default. */
   editorRatio: number;
-  logHeight: number;
   startSidebarDrag: () => void;
   dragSidebar: (clientX: number) => void;
   endSidebarDrag: () => void;
   startEditorDrag: () => void;
   dragEditor: (clientX: number) => void;
   endEditorDrag: () => void;
-  startLogDrag: () => void;
-  dragLog: (clientY: number) => void;
-  endLogDrag: () => void;
 }
 
 export function usePaneLayout(settings: Settings, layout: EditorLayout = settings.editor_layout): PaneLayout {
   const loaded = useSettingsStore(s => s.loaded);
   const [mainWidth, setMainWidth] = useState(0);
   const [rowWidth, setRowWidth] = useState(0);
-  const [workHeight, setWorkHeight] = useState(0);
   const mainRef = useRef<HTMLDivElement>(null);
-  const workAreaRef = useRef<HTMLDivElement>(null);
   // The row that actually contains editor | splitter | preview. Measuring the
   // outer .workArea instead made the clamp wrong, because that column also
-  // holds the tab bar and the problems panel.
+  // holds the tab bar.
   const editorRowRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const measure = () => {
       setMainWidth(mainRef.current?.getBoundingClientRect().width ?? 0);
       setRowWidth(editorRowRef.current?.getBoundingClientRect().width ?? 0);
-      setWorkHeight(workAreaRef.current?.getBoundingClientRect().height ?? 0);
     };
     measure();
     const observer = new ResizeObserver(measure);
     if (mainRef.current) observer.observe(mainRef.current);
     if (editorRowRef.current) observer.observe(editorRowRef.current);
-    if (workAreaRef.current) observer.observe(workAreaRef.current);
     return () => observer.disconnect();
   }, []);
 
   // Pane sizes (live state, drives render). 0 = "use the CSS default".
   const [sidebarWidth, setSidebarWidth] = useState<number>(0);
   const [editorRatio, setEditorRatio] = useState<number>(0);
-  const [logHeight, setLogHeight] = useState<number>(0);
 
   // Ref mirrors, readable from the stale drag closures (see note 1 above).
   const sidebarWidthRef = useRef(0);
   const editorRatioRef = useRef(0);
-  const logHeightRef = useRef(0);
 
   function applySidebarWidth(v: number) {
     sidebarWidthRef.current = v;
@@ -87,10 +76,6 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
   function applyEditorRatio(v: number) {
     editorRatioRef.current = v;
     setEditorRatio(v);
-  }
-  function applyLogHeight(v: number) {
-    logHeightRef.current = v;
-    setLogHeight(v);
   }
 
   // Seed from persisted settings exactly once, after they load (see note 2).
@@ -101,9 +86,8 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
     seededRef.current = true;
     if (settings.pane_sidebar_width >= 200) applySidebarWidth(settings.pane_sidebar_width);
     if (settings.pane_editor_ratio > 0) applyEditorRatio(settings.pane_editor_ratio);
-    if (settings.pane_log_height > 60) applyLogHeight(settings.pane_log_height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, settings.pane_sidebar_width, settings.pane_editor_ratio, settings.pane_log_height]);
+  }, [loaded, settings.pane_sidebar_width, settings.pane_editor_ratio]);
 
   function startSidebarDrag() {
     /* nothing — width state already current */
@@ -139,36 +123,16 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
       .patchAndSave({ pane_editor_ratio: editorRatioRef.current });
   }
 
-  function startLogDrag() {
-    /* nothing */
-  }
-  function dragLog(clientY: number) {
-    const work = workAreaRef.current;
-    if (!work) return;
-    // The splitter sits above the log panel; dragging up (smaller clientY)
-    // grows the panel. Height = distance from pointer to the workArea bottom.
-    const bottom = work.getBoundingClientRect().bottom;
-    applyLogHeight(constrainLogHeight(Math.max(80, bottom - clientY), work.clientHeight));
-  }
-  function endLogDrag() {
-    void useSettingsStore.getState().patchAndSave({ pane_log_height: logHeightRef.current });
-  }
-
   return {
     mainRef,
-    workAreaRef,
     editorRowRef,
     sidebarWidth: constrainSidebarWidth(sidebarWidth, mainWidth, layout),
     editorRatio: constrainEditorRatio(editorRatio, rowWidth),
-    logHeight: constrainLogHeight(logHeight, workHeight),
     startSidebarDrag,
     dragSidebar,
     endSidebarDrag,
     startEditorDrag,
     dragEditor,
     endEditorDrag,
-    startLogDrag,
-    dragLog,
-    endLogDrag,
   };
 }

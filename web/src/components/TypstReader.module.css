@@ -1,6 +1,6 @@
 .toolbar {
   position: sticky;
-  top: 34px;
+  top: 0;
   z-index: 3;
   flex: none;
   display: flex;
@@ -36,6 +36,13 @@
 .toolbar .pageInput {
   width: 38px;
   text-align: center;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
 }
 .pages {
   flex: none;

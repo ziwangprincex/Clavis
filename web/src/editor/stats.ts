@@ -22,11 +22,19 @@ export function countLines(s: string): number {
 // conventions rather than word-boundary regex, which double-counts contractions
 // and hyphenated words on some Unicode edges.
 const WORD_SPLIT = /\s+/;
+// Chinese and Japanese put no spaces between words, so each Han or kana
+// character counts as one word, as in Word and Typora.
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
+
+function cjkCount(s: string): number {
+  return s.match(CJK)?.length ?? 0;
+}
 
 export function countWords(s: string): number {
-  const trimmed = s.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(WORD_SPLIT).length;
+  const rest = s.replace(CJK, ' ').trim();
+  // Punctuation left between CJK characters is not a word.
+  const words = rest ? rest.split(WORD_SPLIT).filter(word => /[\p{L}\p{N}]/u.test(word)).length : 0;
+  return cjkCount(s) + words;
 }
 
 export interface DocStats {
@@ -50,7 +58,7 @@ export interface ResearchStats {
 const PROSE_WORD = /[\p{L}\p{N}]+(?:[?'\-][\p{L}\p{N}]+)*/gu;
 
 function proseWords(text: string): number {
-  return text.match(PROSE_WORD)?.length ?? 0;
+  return cjkCount(text) + (text.replace(CJK, ' ').match(PROSE_WORD)?.length ?? 0);
 }
 
 function stripMarkdown(text: string): string {
@@ -90,28 +98,20 @@ function stripTypst(text: string): string {
   return out.replace(/[<>{}\[\]]/g, ' ');
 }
 
-function abstractFromMarkdown(text: string): string | null {
-  const match = /^#{1,6}\s+abstract\s*$\n([\s\S]*?)(?=^#{1,6}\s+|(?![\s\S]))/im.exec(text);
-  return match?.[1] ?? null;
-}
-
-function abstractFromLatex(text: string): string | null {
-  return /\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/i.exec(text)?.[1] ?? null;
-}
-
-function abstractFromTypst(text: string): string | null {
-  return /^=\s+abstract\s*$\n([\s\S]*?)(?=^=\s+|(?![\s\S]))/im.exec(text)?.[1] ?? null;
-}
+// A heading-delimited abstract runs to the next heading or the end of the text.
+const ABSTRACT = {
+  markdown: /^#{1,6}\s+(?:abstract|摘要)\s*$\n([\s\S]*?)(?=^#{1,6}\s+|(?![\s\S]))/im,
+  latex: /\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/i,
+  typst: /^=\s+(?:abstract|摘要)\s*$\n([\s\S]*?)(?=^=\s+|(?![\s\S]))/im,
+};
 
 function withoutAbstract(text: string, language: 'markdown' | 'latex' | 'typst'): string {
-  if (language === 'latex') return text.replace(/\begin\{abstract\}[\s\S]*?\end\{abstract\}/i, ' ');
-  if (language === 'typst') return text.replace(/^=\s+abstract\s*$\n[\s\S]*?(?=^=\s+|$)/im, ' ');
-  return text.replace(/^#{1,6}\s+abstract\s*$\n[\s\S]*?(?=^#{1,6}\s+|$)/im, ' ');
+  return text.replace(ABSTRACT[language], ' ');
 }
 
 export function computeResearchStats(text: string, language: 'markdown' | 'latex' | 'typst'): ResearchStats {
   const strip = language === 'latex' ? stripLatex : language === 'typst' ? stripTypst : stripMarkdown;
-  const abstract = language === 'latex' ? abstractFromLatex(text) : language === 'typst' ? abstractFromTypst(text) : abstractFromMarkdown(text);
+  const abstract = ABSTRACT[language].exec(text)?.[1] ?? null;
   return {
     mainWords: proseWords(strip(withoutAbstract(text, language))),
     abstractWords: abstract == null ? null : proseWords(strip(abstract)),

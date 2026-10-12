@@ -1,5 +1,12 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
-.sidebar[hidden] { display: none; }
+/* Hiding slides the panel out to the left instead of removing it at once; the
+ * work area grows into the space. It stays mounted, so state survives. */
+.sidebar { margin-left: 0; transition: margin-left var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease); }
+.sidebar[hidden] {
+  display: flex; margin-left: calc(-1 * var(--sidebar-width, 232px)); opacity: 0; visibility: hidden;
+  transition: margin-left var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease), visibility 0s var(--dur-slow);
+}
+@media (prefers-reduced-motion: reduce) { .sidebar, .sidebar[hidden] { transition: none; } }
 .views { display: flex; align-items: center; flex: none; gap: 4px; padding: 8px 12px; }
 .view { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
 .view:hover { background: var(--panel-soft); color: var(--text); }

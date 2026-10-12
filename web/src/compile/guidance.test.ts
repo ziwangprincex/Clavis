@@ -32,7 +32,7 @@ it.each([
 ])('sends a missing font to the source, not to engine settings: %s', message => {
   const result = guidance('latex', message);
   expect(result.action).toBe('source');
-  expect(result.explanation).toContain('Switching engines will not help');
+  expect(result.explanation).toContain('Changing the engine does not resolve this');
   expect(translate('zh-CN', result.explanation)).not.toBe(result.explanation);
   expect(translate('zh-CN', result.label)).not.toBe(result.label);
 });
@@ -43,4 +43,10 @@ it.each([
   const result = guidance('latex', message);
   expect(result.action).toBe('engine');
   expect(translate('zh-CN', result.explanation)).not.toBe(result.explanation);
+});
+it('explains a main document that is no longer on disk instead of pointing at a line', () => {
+  const result = guidance('latex', 'main document not found on disk: /Users/a/Desktop/My paper/main.tex');
+  expect(result.action).toBe('none');
+  expect(result.explanation).toContain('moved or deleted');
+  expect(translate('zh-CN', result.explanation)).toContain('另存为');
 });

@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useTabsStore, useCompileStore, usePdfStore, type Lang, type EditorLayout } from '../store';
+import { useTabsStore, useCompileStore, usePdfStore, useSettingsStore, type Lang, type EditorLayout } from '../store';
 import { fmtShortcut } from '../platform';
 import { belongsToPdf } from '../compile/target';
 import { LATEX_ENGINES, isUnknownEngine } from './engineStatus';
@@ -32,6 +32,7 @@ export interface ToolbarProps {
   onSetMain?: () => void;
   onExportLatexPdf?: () => void;
   onExportTypstPdf?: () => void;
+  onExportHtml?: () => void;
   onOpenFile?: () => void;
   onOpenFolder?: () => void;
   onSave?: () => void;
@@ -40,6 +41,7 @@ export interface ToolbarProps {
   onOpenCommandPalette?: () => void;
   onToggleRecent?: () => void;
   onWriterTool?: (tool: 'templates' | 'history' | 'environment') => void;
+  onNewDocument?: () => void;
   inlineMath?: boolean;
   onInlineMathChange?: (enabled: boolean) => void;
 }
@@ -53,28 +55,31 @@ export function Toolbar(props: ToolbarProps) {
   const canExport = !!tab && (lang === 'typst' || (!!pdf.bytes && !!pdf.workdirToken && !pdf.stale && belongsToPdf(tab, pdf) && !compiling));
   const [menu, setMenu] = useState<'document' | 'typesetting' | null>(null);
   const engine = props.latexEngine ?? 'pdflatex';
+  const markdownSource = useSettingsStore(s => s.settings.markdown_source_mode);
+  const typewriter = useSettingsStore(s => s.settings.editor_typewriter);
   useEffect(() => { setMenu(null); }, [lang, tab?.id]);
 
   return (
     <header className={styles.toolbar} data-tauri-drag-region>
-      <button className={`${styles.iconBtn} ${props.sidebarVisible ? styles.pressed : ''}`} onClick={props.onToggleSidebar} aria-label={t('Toggle sidebar')} aria-pressed={props.sidebarVisible} title={t('Toggle sidebar')}>
+      <button className={`${styles.iconBtn} ${props.sidebarVisible ? styles.pressed : ''}`} onClick={props.onToggleSidebar} aria-label={t('Toggle sidebar')} aria-pressed={props.sidebarVisible} title={`${t('Toggle sidebar')} (${fmtShortcut('Ctrl+Shift+L')})`}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M6 3v10" /></svg>
       </button>
-      <button className={styles.textBtn} onClick={() => props.onWriterTool?.('templates')} aria-label={t('New document')} title={`${t('New document')} (${fmtShortcut('Ctrl+N')})`}>
-        <IconDoc size={15} aria-hidden="true" /><span className={styles.actionLabel}>{t('New')}</span>
+      <button className={styles.iconBtn} onClick={props.onNewDocument} aria-label={t('New document')} title={`${t('New document')} (${fmtShortcut('Ctrl+N')})`}>
+        <IconDoc size={15} aria-hidden="true" />
       </button>
       <div className={styles.identity} data-tauri-drag-region>
         <span className={styles.documentName} title={tab?.filePath ?? name} data-tauri-drag-region>{name}</span>
         {tab?.isDirty && <span className={styles.dirty} aria-label={t('Unsaved changes')} title={t('Unsaved changes')} />}
       </div>
       <div className={styles.actions}>
-        <div className={styles.layoutSwitch} role="group" aria-label={t('Editor layout')}>
-          {(['editor', 'split', 'preview'] as const).map(mode => (
-            <button key={mode} className={props.layout === mode ? styles.selectedLayout : ''} onClick={() => props.onLayoutChange(mode)} aria-pressed={props.layout === mode} title={mode === 'editor' ? t('Editor only') : mode === 'preview' ? t('Preview only') : t('Split view')}>
+        {/* Markdown is edited formatted in place; only typeset output needs a second pane. */}
+        {lang !== 'markdown' && <div className={styles.layoutSwitch} role="group" aria-label={t('Editor layout')}>
+          {(['editor', 'split', 'preview'] as const).map((mode, i) => (
+            <button key={mode} className={props.layout === mode ? styles.selectedLayout : ''} onClick={() => props.onLayoutChange(mode)} aria-pressed={props.layout === mode} title={`${mode === 'editor' ? t('Editor only') : mode === 'preview' ? t('Preview only') : t('Split view')} (${fmtShortcut(`Ctrl+${i + 2}`)})`}>
               {mode === 'editor' ? t('Write') : mode === 'preview' ? t('Read') : t('Split')}
             </button>
           ))}
-        </div>
+        </div>}
         <button className={`${styles.iconBtn} ${props.focusMode ? styles.pressed : ''}`} onClick={props.onToggleFocus} aria-label={props.focusMode ? t('Leave focus mode') : t('Focus mode')} aria-pressed={props.focusMode} title={`${t('Focus mode')} (${fmtShortcut('Ctrl+Shift+Enter')})`}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" /></svg>
         </button>
@@ -116,11 +121,13 @@ export function Toolbar(props: ToolbarProps) {
         <ToolbarMenu label={t('Document tools')} open={menu === 'document'} onToggle={() => setMenu(menu === 'document' ? null : 'document')} onClose={() => setMenu(null)} icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><circle cx="3" cy="9" r="1.3"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/></svg>}>
           {run => <>
             <div className={styles.menuHeading}>{t('Document')}</div>
+            <button className={styles.menuItem} onClick={() => run(() => props.onWriterTool?.('templates'))}><IconDoc aria-hidden="true" />{t('New from template…')}</button>
             <button className={styles.menuItem} onClick={() => run(props.onOpenFile)}><IconDoc aria-hidden="true" />{t('Open file')}<kbd>{fmtShortcut('Ctrl+O')}</kbd></button>
             <button className={styles.menuItem} onClick={() => run(props.onOpenFolder)}><IconFolder aria-hidden="true" />{t('Open folder')}</button>
             <button className={styles.menuItem} onClick={() => run(props.onToggleRecent)}><IconClock aria-hidden="true" />{t('Recent files')}</button>
             <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onSave)}><IconSave aria-hidden="true" />{t('Save')}<kbd>{fmtShortcut('Ctrl+S')}</kbd></button>
             <button className={styles.menuItem} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}>{t('Local version timeline…')}</button>
+            {lang === 'markdown' && <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onExportHtml)}><IconExport aria-hidden="true" />{t('Export HTML…')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>}
             {tab && <>
               <div className={styles.menuHeading}>{t('Writing')}</div>
               <label className={styles.optionRow}><span>{t('Language')}</span>
@@ -128,7 +135,10 @@ export function Toolbar(props: ToolbarProps) {
                   <option value="markdown">Markdown</option><option value="latex">LaTeX</option><option value="typst">Typst</option>
                 </select>
               </label>
-              <label className={styles.optionRow}><span>{t('Formulas in text')}</span><input type="checkbox" checked={props.inlineMath ?? false} onChange={event => props.onInlineMathChange?.(event.target.checked)} /></label>
+              {lang === 'markdown'
+                ? <label className={styles.optionRow}><span>{t('Show Markdown source')}<kbd>{fmtShortcut('Ctrl+/')}</kbd></span><input type="checkbox" checked={markdownSource} onChange={event => void useSettingsStore.getState().patchAndSave({ markdown_source_mode: event.target.checked })} /></label>
+                : <label className={styles.optionRow}><span>{t('Formulas in text')}</span><input type="checkbox" checked={props.inlineMath ?? false} onChange={event => props.onInlineMathChange?.(event.target.checked)} /></label>}
+              <label className={styles.optionRow}><span>{t('Typewriter scrolling')}</span><input type="checkbox" checked={typewriter} onChange={event => void useSettingsStore.getState().patchAndSave({ editor_typewriter: event.target.checked })} /></label>
               <button className={styles.menuItem} onClick={() => run(props.onToggleSymbols)}><IconSigma aria-hidden="true" />{t('Math symbols')}</button>
             </>}
             <div className={styles.menuHeading}>Clavis</div>

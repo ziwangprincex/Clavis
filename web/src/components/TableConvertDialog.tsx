@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { useModal } from '../hooks/useModal';
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Lang } from '../store';
 import { parseDelimitedTable, renderTable, type TableFormat } from '../tables/delimited';
 import styles from './TableConvertDialog.module.css';
@@ -62,7 +62,7 @@ export function TableConvertDialog({ open, lang, onClose, onInsert }: TableConve
         </div>
         <div className={styles.body}>
           <label>{t("Input")}<textarea autoFocus value={input} onChange={event => { setInput(event.target.value); setError(null); }} placeholder={'Variable\tEstimate\nMinimum wage\t0.12'} /></label>
-          <label>{t("Preview")}<pre>{preview.text || (input.trim() ? t("Fix input to preview.") : t("Paste CSV or TSV to preview."))}</pre></label>
+          <label>{t("Preview")}<pre>{preview.text || (input.trim() ? t("Correct the input to show a preview.") : t("Paste CSV or TSV to show a preview."))}</pre></label>
         </div>
         {(error ?? preview.error) && <div className={styles.error}>{error ?? preview.error}</div>}
         <footer><button type="button" disabled={!input.trim()} onClick={insert}>{t("Insert Table")}</button></footer>

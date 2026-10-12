@@ -93,3 +93,72 @@ export function parseProjectOutline(
   }
   return items;
 }
+
+// ---- Texifier's outline lists: figures and tables by caption, labels, cited keys ----
+
+export type OutlineListKind = 'figures' | 'tables' | 'labels' | 'citations';
+export type OutlineLists = Record<OutlineListKind, OutlineItem[]>;
+
+const CITE = /\\(?:cite|citep|citet|citealp|citeauthor|citeyear|parencite|textcite|autocite|footcite|smartcite|supercite|nocite)\*?(?:\s*\[[^\]]*\]){0,2}\s*\{([^}]*)\}/g;
+
+/** The `{…}` argument starting at `open`, braces balanced. */
+function braced(text: string, open: number): string | null {
+  if (text[open] !== '{') return null;
+  for (let i = open + 1, depth = 1; i < text.length; i++) {
+    if (text[i] === '\\') i++;
+    else if (text[i] === '{') depth++;
+    else if (text[i] === '}' && --depth === 0) return text.slice(open + 1, i);
+  }
+  return null;
+}
+
+/** A caption as reading text: commands and braces dropped, spacing collapsed. */
+function plainCaption(caption: string): string {
+  return caption.replace(/\\[a-zA-Z@]+\*?/g, ' ').replace(/[{}~]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function latexLists(src: string, source: string | undefined, cited: Set<string>, lists: OutlineLists) {
+  let float: { kind: 'figures' | 'tables'; line: number; caption: string } | null = null;
+  src.split('\n').forEach((raw, index) => {
+    const text = raw.replace(/(?<!\\)%.*$/, '');
+    const line = index + 1;
+    const begin = /\\begin\{(figure|table)\*?\}/.exec(text);
+    if (begin) float = { kind: begin[1] === 'figure' ? 'figures' : 'tables', line, caption: '' };
+    if (float && !float.caption) {
+      const at = /\\caption\s*(?:\[[^\]]*\])?\s*(?=\{)/.exec(text);
+      const caption = at ? braced(text, at.index + at[0].length) : null;
+      if (caption !== null) float.caption = plainCaption(caption);
+    }
+    if (float && /\\end\{(figure|table)\*?\}/.test(text)) {
+      lists[float.kind].push({ level: 0, title: float.caption, line: float.line, sourceFileAbsPath: source });
+      float = null;
+    }
+    for (const match of text.matchAll(/\\label\{([^}]+)\}/g)) {
+      lists.labels.push({ level: 0, title: match[1].trim(), line, sourceFileAbsPath: source });
+    }
+    for (const match of text.matchAll(CITE)) {
+      for (const key of match[1].split(',').map(part => part.trim()).filter(Boolean)) {
+        if (cited.has(key)) continue;
+        cited.add(key);
+        lists.citations.push({ level: 0, title: key, line, sourceFileAbsPath: source });
+      }
+    }
+  });
+}
+
+/** Figures, tables, labels and citations of one LaTeX document, or of a whole
+ *  project when `files` is given (the active file read from its live buffer). */
+export function parseLatexLists(content: string, files?: ProjectFile[], activeAbs?: string | null): OutlineLists {
+  const lists: OutlineLists = { figures: [], tables: [], labels: [], citations: [] };
+  const cited = new Set<string>();
+  if (!files) {
+    latexLists(content, undefined, cited, lists);
+    return lists;
+  }
+  for (const f of files) {
+    if (f.isBib || f.binaryBase64) continue;
+    const text = activeAbs != null && pathsEqual(f.absPath, activeAbs) ? content : f.content;
+    if (text) latexLists(text, f.absPath, cited, lists);
+  }
+  return lists;
+}

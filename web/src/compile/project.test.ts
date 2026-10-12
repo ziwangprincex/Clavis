@@ -5,7 +5,7 @@ import { useProjectStore, useSettingsStore, useTabsStore, defaultSettings, type 
 vi.mock('../api/tauri', () => ({ fs: { readTextFile: vi.fn() } }));
 const main: Tab = { id: 'main', filePath: '/p/main.typ', title: 'Main', lang: 'typst', content: '#include "chapter.typ"', isDirty: true };
 const child: Tab = { ...main, id: 'child', filePath: '/p/chapter.typ', content: 'unsaved chapter' };
-const workspace: WorkspaceInspection = { root: '/p', trust: 'not-required', issues: [], hasExecutableTasks: false, config: { project: { main: 'main.typ' }, latex: { engine: 'xelatex', bibliography: 'biber' }, paths: { generated: [], ignored: [] }, tasks: {} } };
+const workspace: WorkspaceInspection = { root: '/p', issues: [], config: { project: { main: 'main.typ' }, latex: { engine: 'xelatex', bibliography: 'biber' }, paths: { generated: [], ignored: [] } } };
 beforeEach(() => {
   useProjectStore.getState().reset();
   useProjectStore.setState({ workspace });

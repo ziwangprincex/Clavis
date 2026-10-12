@@ -16,7 +16,7 @@ def safe_group_args(arguments):
 
 class ProcessSignalTests(unittest.TestCase):
     def test_negative_group_is_an_operand_not_an_option(self):
-        for source in ("src/latex/engine.rs", "src/tasks.rs"):
+        for source in ("src/latex/engine.rs",):
             with self.subTest(source=source):
                 calls = KILL_ARGS.findall((ROOT / source).read_text(encoding="utf-8"))
                 self.assertTrue(calls, "Expected process-group termination call")

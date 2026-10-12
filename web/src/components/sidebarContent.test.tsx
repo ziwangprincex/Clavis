@@ -23,7 +23,9 @@ beforeEach(() => {
   useTabsStore.setState({ activeTabId: 'draft', tabs: [{ id: 'draft', title: 'Untitled', filePath: null, lang: 'markdown', content: '', isDirty: false }] });
   vi.mocked(ipc.scanFolderShallow).mockResolvedValue({ name: 'paper', path: '/paper', isDir: true, children: [{ name: 'main.tex', path: '/paper/main.tex', isDir: false, children: [] }] });
 });
-afterEach(() => { act(() => tree?.unmount()); vi.unstubAllGlobals(); });
+afterEach(() => { act(() => tree?.unmount()); vi.unstubAllGlobals(); vi.useRealTimers(); });
+/** The outline waits for typing to settle before re-parsing. */
+const settle = () => act(() => { vi.advanceTimersByTime(300); });
 
 describe('compact sidebar contents', () => {
   it('shows only navigation icons and one open-folder row for a blank note', async () => {
@@ -39,20 +41,26 @@ describe('compact sidebar contents', () => {
   it.each([
     ['markdown', '# Introduction'], ['latex', '\\section{Introduction}'], ['typst', '= Introduction'],
   ] as const)('shows %s outline only when headings exist and preserves navigation', async (lang, content) => {
+    vi.useFakeTimers();
     const jump = vi.fn();
     useTabsStore.getState().patchTab('draft', { lang });
     await act(async () => { tree = create(<OutlineSection onJumpTo={jump} />); });
     expect(tree.toJSON()).toBeNull();
     act(() => useTabsStore.getState().patchTab('draft', { content }));
+    expect(tree.toJSON()).toBeNull();
+    settle();
     expect(button('Outline')?.props['aria-expanded']).toBe(true);
-    act(() => button('IntroductionL1')!.props.onClick());
+    // Markdown has no line-number gutter, so its rows carry no line label.
+    act(() => button(lang === 'markdown' ? 'Introduction' : 'IntroductionL1')!.props.onClick());
     expect(jump).toHaveBeenCalledWith(null, 1);
     act(() => button('Outline')!.props.onClick());
     expect(button('Outline')?.props['aria-expanded']).toBe(false);
     act(() => useTabsStore.getState().patchTab('draft', { content: 'No heading' }));
+    settle();
     expect(tree.toJSON()).toBeNull();
   });
   it('keeps project headings linked to their source and ignores unrelated documents', async () => {
+    vi.useFakeTimers();
     const jump = vi.fn();
     useTabsStore.getState().patchTab('draft', { lang: 'latex', filePath: '/paper/main.tex', content: '\\section{Live introduction}' });
     useProjectStore.getState().setProject({ rootAbs: '/paper/main.tex', files: [
@@ -65,6 +73,7 @@ describe('compact sidebar contents', () => {
     act(() => button('MethodsL1')!.props.onClick());
     expect(jump).toHaveBeenCalledWith('/paper/chapter.tex', 1);
     act(() => useTabsStore.getState().patchTab('draft', { filePath: '/other.tex', content: '' }));
+    settle();
     expect(tree.toJSON()).toBeNull();
   });
   it('keeps the real folder name and file actions without a second Folder heading', async () => {

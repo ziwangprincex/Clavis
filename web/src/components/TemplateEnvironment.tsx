@@ -22,9 +22,9 @@ export function TemplateEnvironment({ onSettings, enabled = true }: { onSettings
   const status = describeEngineStatus(result, 'pdflatex', probing);
   return <div className={styles.readiness}>
     <p role="status">{probing ? t('Checking local TeX tools…')
-      : status.kind === 'found' ? t('pdflatex is available. Packages are checked when you compile.')
-      : status.kind === 'failed' ? t('Could not check TeX tools. You can still create and edit the document.')
-      : t('pdflatex was not found. Install a TeX distribution or configure its path in Settings → LaTeX. You can create the document now and compile later.')}</p>
+      : status.kind === 'found' ? t('pdflatex is available. Packages are checked at compile time.')
+      : status.kind === 'failed' ? t('TeX tools could not be checked. The document can still be created and edited.')
+      : t('pdflatex was not found. Install a TeX distribution or configure its path in Settings → LaTeX. The document can be created now and compiled later.')}</p>
     {!probing && status.kind !== 'found' && <div className={styles.inlineActions}>
       {onSettings && <button type="button" onClick={onSettings}>{t('Open settings')}</button>}
       <button type="button" onClick={() => setAttempt(value => value + 1)}>{t('Check again')}</button>

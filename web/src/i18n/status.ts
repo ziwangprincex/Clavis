@@ -8,7 +8,7 @@ export function statusMessage(text: string): string {
     ['Could not stop compilation: ', 'Could not stop compilation: {detail}'],
     ['Compile failed: ', 'Compile failed: {detail}'],
     ['Project config: ', 'Project config: {detail}'],
-    ['Could not open rendered artifact: ', 'Could not open rendered artifact: {detail}'],
+    ['Image not added: ', 'Image not added: {detail}'],
   ];
   for (const [prefix, key] of prefixes) if (text.startsWith(prefix)) return t(key, { detail: text.slice(prefix.length) });
   const rendered = /^Rendered \((\d+) runs?\)$/.exec(text);

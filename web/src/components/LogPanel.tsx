@@ -17,7 +17,7 @@ export interface LogPanelProps {
 export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings, onFullBuild }: LogPanelProps) {
   const { status, errors, logLines, logTail } = useCompileStore();
   const emptyMessage = status === 'compiling' ? 'Compiling…'
-    : status === 'error' ? 'Compile failed. Open raw output for details.'
+    : status === 'error' ? 'Compilation failed. Details are in the raw output.'
     : status === 'ok' ? 'No errors.' : 'No compile result yet.';
 
   return (

@@ -13,6 +13,7 @@
   border-top: 1px solid transparent;
   font-size: 0.88em;
   color: var(--text-muted);
+  -webkit-user-select: none;
   user-select: none;
   gap: 12px;
 }

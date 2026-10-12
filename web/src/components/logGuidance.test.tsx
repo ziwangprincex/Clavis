@@ -41,7 +41,7 @@ it('separates streamed raw output lines without duplicating existing newlines', 
 it.each([
   ['idle', 'No compile result yet.'],
   ['compiling', 'Compiling…'],
-  ['error', 'Compile failed. Open raw output for details.'],
+  ['error', 'Compilation failed. Details are in the raw output.'],
   ['ok', 'No errors.'],
 ] as const)('shows an honest empty state for %s', (status, message) => {
   useCompileStore.getState().setStatus(status);

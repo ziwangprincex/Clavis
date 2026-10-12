@@ -75,6 +75,18 @@ describe('retired PDF surround preference', () => {
   });
 });
 
+describe('retired bottom task panel height', () => {
+  it('drops legacy pane_log_height without changing other pane sizes', () => {
+    const source = { ...defaultSettings, pane_log_height: 600, pane_sidebar_width: 240, pane_editor_ratio: 0.6 };
+    const migrated = migrateSettings(source);
+    expect(migrated).not.toHaveProperty('pane_log_height');
+    expect(migrated.pane_sidebar_width).toBe(240);
+    expect(migrated.pane_editor_ratio).toBe(0.6);
+    expect(source.pane_log_height).toBe(600);
+    expect(migrateSettings(migrated)).toEqual(migrated);
+  });
+});
+
 describe('retired bottom problems panel preference', () => {
   it.each([true, false])('drops legacy problems_panel_open=%s without changing sidebar preferences', problems_panel_open => {
     const source = { ...defaultSettings, problems_panel_open, sidebar_visible: false, pane_sidebar_width: 240 };

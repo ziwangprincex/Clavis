@@ -1,8 +1,7 @@
 // Splitter — drag handle that resizes an adjacent pane.
 //
-// Horizontal (default): a vertical bar between two side-by-side flex children;
-// reports absolute clientX. Vertical: a horizontal bar between stacked children;
-// reports absolute clientY. The parent converts the coordinate to a size delta.
+// A vertical bar between two side-by-side flex children; reports absolute
+// clientX. The parent converts the coordinate to a size.
 //
 // The mousemove/mouseup listeners are installed once per mousedown and live for
 // the duration of the drag. They must therefore never close over a stale
@@ -16,20 +15,16 @@ import { useCallback, useEffect, useRef } from 'react';
 import styles from './Splitter.module.css';
 
 export interface SplitterProps {
-  /** Called continuously during drag with the absolute pointer coordinate
-   *  (clientX for horizontal, clientY for vertical). */
-  onDrag: (coord: number) => void;
+  /** Called continuously during drag with the absolute pointer clientX. */
+  onDrag: (clientX: number) => void;
   /** Called once when drag starts (capture starting sizes). */
   onDragStart?: () => void;
   /** Called once on drag end. */
   onDragEnd?: () => void;
-  /** 'horizontal' (default) resizes left/right; 'vertical' resizes top/bottom. */
-  orientation?: 'horizontal' | 'vertical';
 }
 
-export function Splitter({ onDrag, onDragStart, onDragEnd, orientation = 'horizontal' }: SplitterProps) {
+export function Splitter({ onDrag, onDragStart, onDragEnd }: SplitterProps) {
   const draggingRef = useRef(false);
-  const vertical = orientation === 'vertical';
 
   // Always-current handler refs (see the note at the top of this file).
   const onDragRef = useRef(onDrag);
@@ -39,8 +34,8 @@ export function Splitter({ onDrag, onDragStart, onDragEnd, orientation = 'horizo
   onDragStartRef.current = onDragStart;
   onDragEndRef.current = onDragEnd;
 
-  // Cleanup guard: if the splitter unmounts mid-drag (e.g. the problems panel is
-  // toggled off), restore the document-level cursor/selection overrides.
+  // Cleanup guard: if the splitter unmounts mid-drag (e.g. the sidebar is
+  // hidden), restore the document-level cursor/selection overrides.
   useEffect(() => {
     return () => {
       if (draggingRef.current) {
@@ -58,12 +53,12 @@ export function Splitter({ onDrag, onDragStart, onDragEnd, orientation = 'horizo
       e.preventDefault();
       draggingRef.current = true;
       onDragStartRef.current?.();
-      document.body.style.cursor = vertical ? 'row-resize' : 'col-resize';
+      document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       function onMove(ev: MouseEvent) {
         if (!draggingRef.current) return;
-        onDragRef.current(vertical ? ev.clientY : ev.clientX);
+        onDragRef.current(ev.clientX);
       }
       function finish() {
         if (!draggingRef.current) return;
@@ -81,15 +76,15 @@ export function Splitter({ onDrag, onDragStart, onDragEnd, orientation = 'horizo
       // the drag would stay armed.
       window.addEventListener('blur', finish);
     },
-    [vertical],
+    [],
   );
 
   return (
     <div
-      className={vertical ? styles.splitterVertical : styles.splitter}
+      className={styles.splitter}
       onMouseDown={onMouseDown}
       role="separator"
-      aria-orientation={vertical ? 'horizontal' : 'vertical'}
+      aria-orientation="vertical"
     />
   );
 }

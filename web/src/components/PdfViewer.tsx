@@ -16,6 +16,7 @@ import { ensurePdfjs } from '../pdf/pdfjs';
 import { ipc } from '../api/tauri';
 import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '../store';
+import { headlineProblem } from '../store/compile';
 import { usePdfSearch } from '../hooks/usePdfSearch';
 import { fmtShortcut } from '../platform';
 import { belongsToPdf } from '../compile/target';
@@ -39,14 +40,21 @@ function release(target: { destroy(): Promise<void> } | null | undefined) {
   if (target) releasing = Promise.all([releasing, target.destroy().catch(() => {})]);
 }
 
+/** Zoom that fits the widest page inside the pane's 24px padding, never above
+ *  100%. Border-box width, so a scrollbar appearing cannot feed back into it. */
+function fitZoom(host: HTMLElement, pageWidth: number) {
+  return Math.round(Math.max(0.5, Math.min(1, (host.offsetWidth - 48 - 12) / pageWidth)) * 100) / 100;
+}
+
 export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvironment, onProblems }: PdfViewerProps) {
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const pdf = usePdfStore();
   const bytes = belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
   const compileStatus = useCompileStore(s => s.status);
-  const compileError = useCompileStore(s => s.errors[0]?.message);
+  const compileError = useCompileStore(s => headlineProblem(s.errors));
   const compiling = compileStatus === 'compiling';
   const zoom = usePdfStore(s => s.zoom);
+  const fit = usePdfStore(s => s.fit);
   const setZoom = usePdfStore(s => s.setZoom);
   const setNumPages = usePdfStore(s => s.setNumPages);
   const setCurrentPage = usePdfStore(s => s.setCurrentPage);
@@ -66,6 +74,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [searchDoc, setSearchDoc] = useState<PDFDocumentProxy | null>(null);
+  /** The page number being typed, while the page field has focus. */
+  const [pageDraft, setPageDraft] = useState<string | null>(null);
 
   // Search the attached document, not an in-flight candidate or hidden viewer.
   const {
@@ -103,6 +113,19 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     pagesRef.current?.setZoom(zoom, zoomPoint.current);
     zoomPoint.current = undefined;
   }, [zoom]);
+
+  // Until the reader zooms, the page follows the pane: Split, the splitter and
+  // window resizes all keep a whole page width in view.
+  useEffect(() => {
+    const host = containerRef.current;
+    if (!host || !visible || !fit) return;
+    const observer = new ResizeObserver(() => {
+      const width = pagesRef.current?.widest;
+      if (width) usePdfStore.setState({ zoom: fitZoom(host, width) });
+    });
+    observer.observe(host, { box: 'border-box' });
+    return () => observer.disconnect();
+  }, [visible, fit]);
 
   // Keep the last successful pages visible while new bytes load. A candidate
   // owns its render tasks until attach; hide/tab switch cancels it immediately.
@@ -149,6 +172,10 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         if (cancelled) return;
         pagesRef.current?.destroy();
         const previous = docRef.current;
+        if (usePdfStore.getState().fit) {
+          zoomRef.current = fitZoom(host, candidate.widest);
+          usePdfStore.setState({ zoom: zoomRef.current });
+        }
         candidate.attach(zoomRef.current);
         pagesRef.current = candidate;
         docRef.current = candidateDoc;
@@ -252,6 +279,9 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
+        <button className={styles.btn} onClick={() => scrollToPage(1)} disabled={!numPages || currentPage <= 1} aria-label={t("First page")} title={t("First page")}>
+          «
+        </button>
         <button
           className={styles.btn}
           onClick={() => scrollToPage(Math.max(1, currentPage - 1))}
@@ -260,8 +290,25 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         >
           ←
         </button>
+        {/* Type a page and press Enter, as in Texifier's toolbar; leaving the field discards it. */}
         <span className={styles.info}>
-          {numPages ? `${currentPage} / ${numPages}` : '— / —'}
+          <input
+            className={styles.pageInput}
+            aria-label={t("Page number")}
+            disabled={!numPages}
+            value={pageDraft ?? (numPages ? String(currentPage) : '—')}
+            onFocus={event => { setPageDraft(String(currentPage)); event.currentTarget.select(); }}
+            onChange={event => setPageDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') {
+                const page = Number.parseInt(pageDraft ?? '', 10);
+                if (page) scrollToPage(Math.min(numPages, Math.max(1, page)));
+                event.currentTarget.blur();
+              } else if (event.key === 'Escape') event.currentTarget.blur();
+            }}
+            onBlur={() => setPageDraft(null)}
+          />
+          {` / ${numPages || '—'}`}
         </span>
         <button
           className={styles.btn}
@@ -271,11 +318,17 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         >
           →
         </button>
+        <button className={styles.btn} onClick={() => scrollToPage(numPages)} disabled={!numPages || currentPage >= numPages} aria-label={t("Last page")} title={t("Last page")}>
+          »
+        </button>
         <span className={styles.divider} />
         <button className={styles.btn} aria-label={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
           −
         </button>
-        <span className={styles.info}>{Math.round(zoom * 100)}%</span>
+        <button className={`${styles.btn} ${styles.info}`} aria-pressed={fit} title={t("Fit width")}
+          onClick={() => usePdfStore.setState({ fit: true })}>
+          {Math.round(zoom * 100)}%
+        </button>
         <button className={styles.btn} aria-label={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
           +
         </button>
@@ -349,7 +402,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         * remount between a failed load and the next successful one would leave
         * the viewer permanently blank. Overlays sit on top instead. */}
       <div className={styles.body} aria-busy={compiling}>
-        {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? t("Updating preview") : t("Preview not updated")} {t("· showing last successful render")}</div>}
+        {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? t("Updating preview") : t("Preview not updated")} {t("· showing the last successful render")}</div>}
         <div
           ref={containerRef}
           className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
@@ -367,8 +420,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
           <div className={styles.overlay}>
             <div className={styles.empty} role="status">
               <span>{compiling ? t("Compiling LaTeX…") : compileStatus === 'error'
-                ? t('Compilation failed: {message}', { message: compileError ?? t('See problems for details.') })
-                : t("Compile your LaTeX document to show the preview.")}</span>
+                ? t('Compilation failed: {message}', { message: compileError ?? t('Details are listed under Problems.') })
+                : t("The preview appears after the LaTeX document is compiled.")}</span>
               {!compiling && <div className={styles.emptyActions}>
                 {onCompile && <button className={styles.btn} onClick={onCompile}>{compileStatus === 'error' ? t('Try compiling again') : t('Compile')}</button>}
                 {compileStatus === 'error' && onProblems && <button className={styles.btn} onClick={onProblems}>{t('Show problems')}</button>}

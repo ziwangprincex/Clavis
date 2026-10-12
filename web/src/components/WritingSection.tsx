@@ -1,5 +1,5 @@
 import { t } from '../i18n';
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useWritingStore } from '../store';
 import type { WritingPolicy } from '../writing/options';
 import { writingPolicySummary } from '../writing/options';

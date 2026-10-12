@@ -251,5 +251,18 @@
 .advanced summary { cursor: pointer; padding: 8px 0; }
 .headingField { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .readingSample { border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; overflow: auto; }
+/* Mirrors the formatted Markdown editor (editor/livePreview.ts). */
+.readingSample h1, .readingSample h2, .readingSample h3, .readingSample h4, .readingSample h5, .readingSample h6 { margin: 0.6em 0 0.2em; line-height: 1.35; }
+.readingSample h1 { font-family: var(--h1-font, inherit); font-size: var(--h1-size, 2em); font-weight: var(--h1-weight, 600); }
+.readingSample h2 { font-family: var(--h2-font, inherit); font-size: var(--h2-size, 1.5em); font-weight: var(--h2-weight, 600); }
+.readingSample h3 { font-family: var(--h3-font, inherit); font-size: var(--h3-size, 1.2em); font-weight: var(--h3-weight, 600); }
+.readingSample h4 { font-family: var(--h4-font, inherit); font-size: var(--h4-size, 1em); font-weight: var(--h4-weight, 600); }
+.readingSample h5 { font-family: var(--h5-font, inherit); font-size: var(--h5-size, 1em); font-weight: var(--h5-weight, 600); }
+.readingSample h6 { font-family: var(--h6-font, inherit); font-size: var(--h6-size, 1em); font-weight: var(--h6-weight, 600); }
+.readingSample p { margin: 0.4em 0; }
+.readingSample code { font-family: var(--inline-code-font, var(--font-mono)); font-size: 0.88em; background: var(--panel-soft); border-radius: 4px; padding: 0.1em 0.3em; }
+.readingSample blockquote { margin: 0.4em 0; padding-left: 0.9em; border-left: 3px solid var(--border-strong); color: var(--text-muted); font-family: var(--quote-font, inherit); }
+.readingSample pre { margin: 0.4em 0; padding: 0.5em 1em; border-radius: 6px; background: var(--panel-soft); font-size: 0.88em; line-height: 1.6; }
+.readingSample pre code { font-family: var(--code-font, var(--font-mono)); background: none; padding: 0; font-size: inherit; }
 .saveError { color: var(--error); margin: 0; padding: 8px 22px; max-height: 5em; overflow: auto; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .nav { flex-basis: 110px; } .pane { padding: 12px; } .footer { padding: 10px; } }

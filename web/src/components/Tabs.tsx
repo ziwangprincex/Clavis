@@ -35,7 +35,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
     const tab = useTabsStore.getState().tabs.find(t => t.id === id);
     if (tab?.isDirty) {
       const ok = window.confirm(
-        tr('"{name}" has unsaved changes. Close anyway?', { name: tabDisplayName(tab) }),
+        tr('"{name}" has unsaved changes. Close without saving?', { name: tabDisplayName(tab) }),
       );
       if (!ok) return;
     }

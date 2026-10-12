@@ -198,6 +198,30 @@ fn search_workspace_sync(options: SearchOptions) -> Result<SearchResult, String>
     })
 }
 
+/// Documents Clavis opens, for Quick Open: their paths under `root`, sorted.
+fn list_documents_sync(root: String) -> Result<Vec<String>, String> {
+    let root = canonical_root(&root)?;
+    let (files, _) = collect_files(&root)?;
+    let mut documents: Vec<String> = files
+        .into_iter()
+        .filter(|path| {
+            path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+                matches!(e.to_ascii_lowercase().as_str(), "md" | "markdown" | "qmd" | "txt" | "tex" | "ltx" | "typ" | "bib")
+            })
+        })
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .collect();
+    documents.sort();
+    Ok(documents)
+}
+
+#[tauri::command]
+pub async fn list_workspace_documents(root: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_documents_sync(root))
+        .await
+        .map_err(|error| format!("workspace listing worker failed: {error}"))?
+}
+
 #[tauri::command]
 pub async fn search_workspace(options: SearchOptions) -> Result<SearchResult, String> {
     tauri::async_runtime::spawn_blocking(move || search_workspace_sync(options))
@@ -456,5 +480,19 @@ mod tests {
         .unwrap();
         assert_eq!(result.replacements, 2);
         assert_eq!(std::fs::read_to_string(a).unwrap(), "y1 y2");
+    }
+
+    #[test]
+    fn lists_documents_but_not_assets_or_skipped_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        std::fs::create_dir_all(root.join("chapters")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
+        for file in ["main.tex", "chapters/intro.TEX", "notes.md", "refs.bib", "figure.png", "node_modules/pkg/readme.md"] {
+            std::fs::write(root.join(file), "x").unwrap();
+        }
+        let listed = list_documents_sync(root.to_string_lossy().into()).unwrap();
+        let names: Vec<_> = listed.iter().map(|path| path.rsplit('/').next().unwrap().to_string()).collect();
+        assert_eq!(names, ["intro.TEX", "main.tex", "notes.md", "refs.bib"]);
     }
 }

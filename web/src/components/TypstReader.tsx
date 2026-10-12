@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type RefObject,
 } from 'react';
 import type { TypstPage } from '../api/tauri';
@@ -122,11 +123,14 @@ export function TypstReader({
   scroll,
   stale,
   onNavigate,
+  children,
 }: {
   pages: TypstPage[];
   scroll: RefObject<HTMLDivElement>;
   stale: boolean;
   onNavigate?: Navigate;
+  /** Preview status and actions, at the end of the toolbar. */
+  children?: ReactNode;
 }) {
   const [zoom, setZoom] = useState(100),
     [page, setPage] = useState(1),
@@ -285,6 +289,7 @@ export function TypstReader({
         <button disabled={!hits.length} onClick={() => find(match + 1)} aria-label={t("Next match")}>
           ↓
         </button>
+        <span className={styles.status}>{children}</span>
       </div>
       <div className={styles.pages} style={{ width: `calc(min(100%, 960px) * ${zoom / 100})` }}>
         {pages.map((p, i) => (

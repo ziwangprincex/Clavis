@@ -62,7 +62,7 @@ export function saveTabToDisk(id: string, options: SaveOptions = {}): Promise<st
     const current = getTab();
     if (result.status === 'conflict') {
       if (current?.filePath === startingPath) markConflict(id, target, result.disk);
-      setStatus('Save paused: the file changed on disk. Your writing is intact.', 'error');
+      setStatus('Save paused: the file changed on disk. The draft is preserved.', 'error');
       return null;
     }
     if (current && current.filePath === startingPath) {

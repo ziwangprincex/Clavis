@@ -53,7 +53,7 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
       if (!silent) {
         const version = await getAppVersion().catch(() => '');
         await dialogMessage(
-          version ? t('You’re up to date (v{version}).', { version }) : t("You’re up to date."),
+          version ? t('Clavis is up to date (v{version}).', { version }) : t("Clavis is up to date."),
           { title: t("Check for Updates") },
         );
       }

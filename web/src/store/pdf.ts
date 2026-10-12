@@ -16,6 +16,8 @@ interface PdfStore {
   numPages: number;
   currentPage: number;
   zoom: number;
+  /** Zoom follows the pane width until the reader picks a zoom. */
+  fit: boolean;
   /** Latest workdir token for SyncTeX lookups. */
   workdirToken: string | null;
   /**
@@ -43,13 +45,14 @@ export const usePdfStore = create<PdfStore>(set => ({
   numPages: 0,
   currentPage: 1,
   zoom: 1,
+  fit: true,
   workdirToken: null,
   scrollRequest: null,
 
   setBytes: bytes => set({ bytes }),
   setNumPages: n => set({ numPages: n }),
   setCurrentPage: n => set({ currentPage: n }),
-  setZoom: z => set({ zoom: z }),
+  setZoom: z => set({ zoom: z, fit: false }),
   setWorkdirToken: t => set({ workdirToken: t }),
   requestScroll: (page, y = null) =>
     set(s => ({ scrollRequest: { page, y, seq: (s.scrollRequest?.seq ?? 0) + 1 } })),

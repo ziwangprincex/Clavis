@@ -176,7 +176,7 @@ function Environment({ onSettings, enabled }: { onSettings?: () => void; enabled
         {onSettings && <button onClick={onSettings}>{t("Open settings")}</button>}
         <button onClick={() => setAttempt(value => value + 1)} disabled={!engines && !error}>{t("Check again")}</button>
       </div>
-      <p> {t("Typst and Markdown rendering are bundled and available offline. No external installation is needed for the Typst starter.")} </p>
+      <p> {t("Typst and Markdown rendering are built in and work offline. The Typst template requires no additional installation.")} </p>
       {error ? (
         <p role="alert">{error}</p>
       ) : !engines ? (
@@ -193,7 +193,7 @@ function Environment({ onSettings, enabled }: { onSettings?: () => void; enabled
           </div>
         ))
       )}
-      <p> {t("Fonts and additional packages are project-specific. Their exact missing names appear in the compilation diagnostics. Nothing is installed automatically.")} </p>
+      <p> {t("Fonts and additional packages depend on the project. Missing names are reported in the compile diagnostics; nothing is installed automatically.")} </p>
     </>
   );
 }
@@ -245,12 +245,12 @@ function Timeline({
       alive = false;
     };
   }, [selected, tab?.filePath]);
-  if (!tab?.filePath) return <p>{t("Save the document once to start its local timeline.")}</p>;
+  if (!tab?.filePath) return <p>{t("The local timeline starts after the document is first saved.")}</p>;
   const path = tab.filePath;
   return (
     <>
       <p>{path}</p>
-      <p> {t("Previous disk contents are captured before each changed save. Keep up to 50 versions per document and 256 MiB in total, independently of Git. Restoring changes only the editor buffer.")} </p>
+      <p> {t("The previous disk contents are recorded before each save that changes the file: up to 50 versions per document and 256 MiB in total, independent of Git. Restoring changes only the editor buffer.")} </p>
       {error && <p role="alert">{error}</p>}
       <button
         disabled={busy}

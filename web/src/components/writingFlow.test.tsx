@@ -21,7 +21,7 @@ const rendered = () => JSON.stringify(tree.toJSON());
 const props: ToolbarProps = {
   lang: 'markdown', onLangChange: vi.fn(), layout: 'split', onLayoutChange: vi.fn(),
   focusMode: false, onToggleFocus: vi.fn(), sidebarVisible: true, onToggleSidebar: vi.fn(),
-  onSave: vi.fn(), onWriterTool: vi.fn(), onExportLatexPdf: vi.fn(), onExportTypstPdf: vi.fn(), onOpenFile: vi.fn(),
+  onSave: vi.fn(), onWriterTool: vi.fn(), onNewDocument: vi.fn(), onExportLatexPdf: vi.fn(), onExportTypstPdf: vi.fn(), onOpenFile: vi.fn(),
 };
 const listeners = new Map<string, (event: unknown) => void>();
 beforeEach(() => {
@@ -61,12 +61,16 @@ describe('task-oriented toolbar', () => {
     act(() => button('Save').props.onClick());
     expect(props.onSave).toHaveBeenCalledOnce();
   });
-  it('keeps New visible and TeX tools absent for Markdown', () => {
+  it('keeps New visible and TeX tools and layouts absent for Markdown', () => {
     toolbar('markdown');
     act(() => button('New document').props.onClick());
-    expect(props.onWriterTool).toHaveBeenCalledWith('templates');
+    expect(props.onNewDocument).toHaveBeenCalledOnce();
     expect(button('Typesetting')).toBeUndefined();
     expect(button('Export PDF')).toBeUndefined();
+    expect(button('Split')).toBeUndefined();
+    act(() => button('Document tools').props.onClick());
+    act(() => button('New from template…').props.onClick());
+    expect(props.onWriterTool).toHaveBeenCalledWith('templates');
     act(() => button('Document tools').props.onClick());
     expect(rendered()).not.toContain('Check environment');
     expect(rendered()).not.toContain('Quick preview');
@@ -140,14 +144,12 @@ describe('contextual sidebar and start actions', () => {
     }
     expect(tree.root.findAllByType('div').some(node => node.children.includes('Workspace'))).toBe(false);
   });
-  it('groups writing with the document and keeps project tools collapsed', () => {
-    act(() => { tree = create(<Sidebar folderTree={<p>Folder tree</p>} files={<p>Dependencies</p>} writing={<p>Checks</p>} git={<p>Git</p>} artifacts={<p>Outputs</p>} />); });
+  it('groups writing with the document and keeps its sections collapsed', () => {
+    act(() => { tree = create(<Sidebar folderTree={<p>Folder tree</p>} files={<p>Dependencies</p>} writing={<p>Checks</p>} />); });
     expect(button('Folder')).toBeUndefined();
     expect(button('Included files').props['aria-expanded']).toBe(false);
     expect(button('Writing checks').props['aria-expanded']).toBe(false);
-    expect(button('Build outputs').props['aria-expanded']).toBe(false);
-    expect(button('Version control').props['aria-expanded']).toBe(false);
-    expect(tree.root.findAllByProps({ role: 'tab' }).map(node => node.props['aria-label'])).toEqual(['Document', 'Research', 'Project']);
+    expect(tree.root.findAllByProps({ role: 'tab' }).map(node => node.props['aria-label'])).toEqual(['Document', 'Research']);
   });
   it('keeps Research selected when folder content disappears and offers Open folder', () => {
     const open = vi.fn();
@@ -166,11 +168,11 @@ describe('contextual sidebar and start actions', () => {
   });
   it('navigates icons with arrow keys, Home and End and links every panel', () => {
     const focus = vi.fn();
-    act(() => { tree = create(<Sidebar git={<p>Git</p>} />, { createNodeMock: () => ({ focus }) }); });
+    act(() => { tree = create(<Sidebar problems={<p>Log</p>} />, { createNodeMock: () => ({ focus }) }); });
     for (const [from, key, target] of [
-      ['Document', 'ArrowRight', 'Research'], ['Research', 'End', 'Project'],
-      ['Project', 'ArrowRight', 'Document'], ['Document', 'ArrowLeft', 'Project'],
-      ['Project', 'Home', 'Document'],
+      ['Document', 'ArrowRight', 'Research'], ['Research', 'End', 'Problems'],
+      ['Problems', 'ArrowRight', 'Document'], ['Document', 'ArrowLeft', 'Problems'],
+      ['Problems', 'Home', 'Document'],
     ]) {
       const event = { key, preventDefault: vi.fn() };
       act(() => button(from).props.onKeyDown(event));
@@ -184,13 +186,13 @@ describe('contextual sidebar and start actions', () => {
     }
     expect(focus).toHaveBeenCalledTimes(5);
   });
-  it('falls back to Document when contextual Project tools disappear', () => {
-    act(() => { tree = create(<Sidebar git={<p>Git</p>} />); });
-    act(() => button('Project').props.onClick());
+  it('falls back to Document when the contextual Problems view disappears', () => {
+    act(() => { tree = create(<Sidebar problems={<p>Log</p>} />); });
+    act(() => button('Problems').props.onClick());
     act(() => tree.update(<Sidebar />));
     expect(button('Document').props['aria-selected']).toBe(true);
     expect(button('Research')).toBeDefined();
-    expect(button('Project')).toBeUndefined();
+    expect(button('Problems')).toBeUndefined();
   });
   it('localizes icon labels and keeps a hidden sidebar out of the layout', () => {
     useSettingsStore.setState({ settings: { ...defaultSettings, ui_language: 'zh-CN' } });
@@ -242,7 +244,7 @@ describe('new document path', () => {
     expect(rendered()).toContain('Checking local TeX tools');
     expect(rendered()).not.toContain('pdflatex was not found');
     await act(async () => reject(new Error('IPC failed')));
-    expect(rendered()).toContain('Could not check TeX tools');
+    expect(rendered()).toContain('TeX tools could not be checked');
     expect(rendered()).not.toContain('pdflatex was not found');
     vi.mocked(ipc.detectLatexEngines).mockResolvedValue([{ name: 'pdflatex', path: '/custom/pdflatex', version: null }]);
     await act(async () => button('Check again').props.onClick());

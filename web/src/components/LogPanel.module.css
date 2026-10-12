@@ -164,6 +164,7 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: 0.8462rem;
+  -webkit-user-select: none;
   user-select: none;
 }
 

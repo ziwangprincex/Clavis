@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div style={{ padding: 24, fontFamily: 'var(--font-sans)', color: 'var(--error)' }}>
-          <h2>{t("Something went wrong.")}</h2>
+          <h2>{t("An unexpected error occurred.")}</h2>
           <pre style={{ whiteSpace: 'pre-wrap' }}>{this.state.error.message}</pre>
           <button onClick={this.reset}>{t("Try again")}</button>
         </div>

@@ -107,7 +107,7 @@ describe('update confirmation', () => {
     await checkForUpdates({ silent: true });
     expect(api.dialogMessage).not.toHaveBeenCalled();
     await checkForUpdates({ silent: false });
-    expect(api.dialogMessage).toHaveBeenCalledWith('You’re up to date (v1.3.1).', expect.anything());
+    expect(api.dialogMessage).toHaveBeenCalledWith('Clavis is up to date (v1.3.1).', expect.anything());
     expect(api.dialogConfirm).not.toHaveBeenCalled();
   });
 

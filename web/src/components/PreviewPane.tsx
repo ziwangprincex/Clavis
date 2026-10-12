@@ -1,33 +1,27 @@
 import { t } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useTabsStore, useSettingsStore, useProjectStore } from '../store';
-import { markdownWithMath } from '../render/markdown';
+import { useTabsStore, useProjectStore } from '../store';
 import { ipc, fs, hasTauri, dialogConfirm, type TypstResult } from '../api/tauri';
 import { createLatestPreview } from '../compile/latestPreview';
 import { documentRoot, typstInput, inside } from '../compile/project';
 import { pathsEqual } from '../files/projectPaths';
 import { useTypstPreviewStore } from '../store/typstPreview';
-import 'katex/dist/katex.min.css';
 import styles from './PreviewPane.module.css';
 import { TypstReader } from './TypstReader';
 import { previewDocuments, revisionCounter } from '../compile/previewRevision';
 import { guidance } from '../compile/guidance';
-import { previewTypography } from '../theme/typography';
 import { useResolvedThemeSpec } from '../theme/appTheme';
-import { accentTokens } from '../theme/chromeTokens';
 import { contrast, mix } from '../theme/colors';
-import { loadMarkdownImages, scrollToMarkdownHeading } from '../render/markdownView';
 import type { CSSProperties } from 'react';
 
 type Navigate = (path: string | null, line: number) => void;
 
+/** Typst reading view. Markdown is formatted in the editor itself. */
 export function PreviewPane({
   visible = true,
   onNavigate,
   onEnvironment,
-  markdownJump,
 }: {
-  markdownJump?: { tabId: string; line: number; seq: number } | null;
   visible?: boolean;
   onNavigate?: Navigate;
   onEnvironment?: () => void;
@@ -36,37 +30,28 @@ export function PreviewPane({
   const activeId = useTabsStore((s) => s.activeTabId);
   const tab = tabs.find((t) => t.id === activeId);
   const project = useProjectStore();
-  const settings = useSettingsStore((s) => s.settings);
-  const lang = tab?.lang ?? 'markdown';
+  const typst = tab?.lang === 'typst';
   const theme = useResolvedThemeSpec();
   let paperAccent = theme.accent;
   for (let amount = 0.05; contrast(paperAccent, '#ffffff') < 4.5 && amount <= 1; amount += 0.05) paperAccent = mix(theme.accent, '#000000', amount);
-  const lightStyle = { ...accentTokens(paperAccent, false), '--selection': mix('#ffffff', paperAccent, 0.2) } as CSSProperties;
-  // Typst pages are white paper too, but the desk around them keeps chrome tokens.
+  // Typst pages are white paper; the desk around them keeps chrome tokens.
   const paperStyle = { '--paper-accent': paperAccent } as CSSProperties;
   const root = tab ? documentRoot(tab, project) : null;
-  const documentKey = lang === 'typst' ? `typst:${root ?? tab?.id}` : `markdown:${tab?.id}`;
+  const documentKey = `typst:${root ?? tab?.id}`;
   const dependencies = useRef<{ key: string; paths: string[] }>();
   const counter = useRef(revisionCounter());
   const scope =
     tab && inside(tab.filePath, project.workspace?.root)
       ? project.workspace!.root
       : (root?.replace(/[\\/][^\\/]*$/, '') ?? null);
-  const selected = lang === 'typst' ? previewDocuments(tabs, root, scope) : [];
-  const relevant =
-    lang === 'typst'
-      ? previewDocuments(
-          tabs,
-          root,
-          scope,
-          dependencies.current?.key === documentKey ? dependencies.current.paths : undefined,
-        )
-      : [];
+  const selected = typst ? previewDocuments(tabs, root, scope) : [];
+  const relevant = typst
+    ? previewDocuments(tabs, root, scope, dependencies.current?.key === documentKey ? dependencies.current.paths : undefined)
+    : [];
   const revision = counter.current([
     documentKey,
     tab?.filePath,
     tab?.filePath ? null : tab?.content,
-    lang === 'markdown' ? tab?.content : null,
     ...relevant.flatMap((t) => [t.filePath, t.content]),
     scope,
   ]);
@@ -75,10 +60,9 @@ export function PreviewPane({
   const [result, setResult] = useState<{
     key: string;
     revision: string;
-    html: string;
     typst?: TypstResult;
     error: string;
-  }>({ key: '', revision: '', html: '', error: '' });
+  }>({ key: '', revision: '', error: '' });
   const [busy, setBusy] = useState(false);
   const resultRef = useRef(result);
   resultRef.current = result;
@@ -105,27 +89,19 @@ export function PreviewPane({
   );
 
   useEffect(() => {
-    if (!visible || lang === 'latex' || !tab) return;
+    if (!visible || !typst || !tab) return;
     setBusy(true);
     const failure = (error: unknown) => {
       setResult((previous) => ({
         key: documentKey,
         revision,
-        html: previous.key === documentKey ? previous.html : '',
         typst: previous.key === documentKey ? previous.typst : undefined,
         error: String(error),
       }));
       setBusy(false);
     };
     const timer = setTimeout(() => {
-      if (lang === 'markdown') {
-        try {
-          setResult({ key: documentKey, revision, html: markdownWithMath(tab.content), error: '' });
-          setBusy(false);
-        } catch (error) {
-          failure(error);
-        }
-      } else if (!hasTauri()) failure('Typst rendering requires the desktop app.');
+      if (!hasTauri()) failure('Typst rendering requires the desktop app.');
       else
         compiler.request(
           { tab, tabs: selected, project, key: documentKey },
@@ -141,8 +117,9 @@ export function PreviewPane({
                     return { ...page, svg: page.svg || (old?.svgHash === page.svgHash ? old.svg : '') };
                   })
                 : oldPages;
-              return { key: documentKey, revision, html: '', typst: { ...response, pages }, error: '' };
+              return { key: documentKey, revision, typst: { ...response, pages }, error: '' };
             });
+            useTypstPreviewStore.setState({ diagnostics: response.diagnostics });
             setBusy(false);
           },
           failure,
@@ -205,14 +182,6 @@ export function PreviewPane({
       });
   }, [jump, visible, stale, current]);
 
-  useEffect(() => {
-    if (!visible || lang !== 'markdown' || !scroll.current || !current?.html) return;
-    return loadMarkdownImages(scroll.current, tab?.filePath ?? null, scope, hasTauri());
-  }, [visible, lang, current?.html, tab?.filePath, scope]);
-  useEffect(() => {
-    if (!visible || lang !== 'markdown' || !markdownJump || markdownJump.tabId !== tab?.id || stale || !scroll.current) return;
-    scrollToMarkdownHeading(scroll.current, markdownJump.line);
-  }, [visible, lang, markdownJump, tab?.id, stale, current?.html]);
 
   async function download(spec: string) {
     if (
@@ -233,33 +202,7 @@ export function PreviewPane({
     }
   }
   return (
-    <div
-      ref={scroll}
-      style={lang === 'typst' ? paperStyle : settings.preview_paper === 'light' ? lightStyle : undefined}
-      onClick={event => {
-        if (lang !== 'markdown') return;
-        const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
-        if (!link || !scroll.current) return;
-        event.preventDefault();
-        let id: string;
-        try { id = decodeURIComponent(link.getAttribute('href')!.slice(1)); } catch { return; }
-        const heading = Array.from(scroll.current.querySelectorAll<HTMLElement>('[id]')).find(element => element.id === id);
-        heading?.scrollIntoView({ block: 'start', behavior: 'auto' });
-      }}
-      className={`${styles.root} ${lang === 'typst' ? styles.typeset : settings.preview_paper === 'light' ? styles.paperLight : ''}`}
-    >
-      {lang === 'typst' && (
-        <div className={styles.previewStatus} role="status">
-          <span>
-            {stale
-              ? busy
-                ? t("Updating preview")
-                : t("Preview not updated · showing last successful render")
-              : t('{count} pages', { count: current?.typst?.pages.length ?? 0 })}
-          </span>
-          <button onClick={() => setRetry((n) => n + 1)} disabled={busy}> {t("Refresh")} </button>
-        </div>
-      )}
+    <div ref={scroll} style={paperStyle} className={`${styles.root} ${styles.typeset}`}>
       {current?.error && (
         <div className={styles.error} role="alert">
           {current.error}
@@ -295,21 +238,17 @@ export function PreviewPane({
             ))}
         </details>
       )}
-      {lang === 'typst' ? (
-        <TypstReader
-          key={documentKey}
-          pages={current?.typst?.pages ?? []}
-          scroll={scroll}
-          stale={stale}
-          onNavigate={onNavigate}
-        />
-      ) : (
-        <div
-          className={`${styles.preview} ${styles.markdown} ${settings.preview_reading_width === 'narrow' ? styles.widthNarrow : settings.preview_reading_width === 'medium' ? styles.widthMedium : ''}`}
-          style={previewTypography(settings)}
-          dangerouslySetInnerHTML={{ __html: current?.html ?? '' }}
-        />
-      )}
+      <TypstReader
+        key={documentKey}
+        pages={current?.typst?.pages ?? []}
+        scroll={scroll}
+        stale={stale}
+        onNavigate={onNavigate}
+      >
+        {/* Recompiles while typing stay silent; only a preview left behind says so. */}
+        <span role="status">{stale && !busy ? t("Preview not updated") : ''}</span>
+        <button onClick={() => setRetry((n) => n + 1)} disabled={busy}>{t("Refresh")}</button>
+      </TypstReader>
     </div>
   );
 }

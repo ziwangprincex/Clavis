@@ -144,8 +144,8 @@ describe('Save As compilation identity', () => {
     if (kind === 'explicit') useTabsStore.getState().patchTab('a', { projectRoot: '/p/a.tex' });
     if (kind === 'collected') useProjectStore.setState({ rootAbs: '/p/a.tex', files: [] });
     if (kind === 'workspace') useProjectStore.setState({ workspace: {
-      root: '/p', trust: 'not-required', issues: [], hasExecutableTasks: false,
-      config: { project: { main: 'a.tex' }, latex: {}, paths: { generated: [], ignored: [] }, tasks: {} },
+      root: '/p', issues: [],
+      config: { project: { main: 'a.tex' }, latex: {}, paths: { generated: [], ignored: [] } },
     } });
     vi.mocked(dialogSave).mockResolvedValue('/p/copy.tex');
     await saveTabToDisk('a', { saveAs: true });
