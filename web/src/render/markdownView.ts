@@ -15,11 +15,22 @@ export function base64(bytes: Uint8Array): string {
   return btoa(text);
 }
 
-// Relative Markdown images resolve against the saved document's folder; the
-// backend (`asset_preview`) canonicalizes and confines the result.
+/** `a/./b/../c` as `a/c`; a leading `..` past the root is kept for the backend to refuse. */
+function resolveDots(path: string): string {
+  const out: string[] = [];
+  for (const part of path.split(/[\\/]/)) {
+    if (part === '.') continue;
+    if (part === '..' && out.length > 1 && out[out.length - 1] !== '..') out.pop();
+    else out.push(part);
+  }
+  return out.join('/');
+}
+
+// Relative Markdown images and links resolve against the saved document's
+// folder; the backend (`asset_preview`) canonicalizes and confines the result.
 export function localImagePath(href: string, documentPath: string): string | null {
   let decoded: string;
   try { decoded = decodeURIComponent(href.split(/[?#]/)[0]); } catch { return null; }
   if (!decoded || /[\u0000-\u001f]/.test(decoded) || /^(?:[a-z][a-z\d+.-]*:|\/|\\)/i.test(decoded)) return null;
-  return documentPath.replace(/[\\/][^\\/]*$/, '/') + decoded.replace(/\\/g, '/');
+  return resolveDots(documentPath.replace(/[\\/][^\\/]*$/, '/') + decoded);
 }

@@ -62,9 +62,15 @@ pub fn parse_bib_documents(documents: Vec<BibDocument>) -> Result<Vec<BibEntry>,
 
 pub fn parse_bib_files(bib_paths: Vec<String>) -> Vec<BibEntry> {
     let mut out = Vec::new();
+    // One file can arrive under two spellings (a symlinked or /tmp folder as
+    // opened, and its resolved path from the reference index); read it once.
+    let mut seen = std::collections::HashSet::new();
     for path in bib_paths.into_iter().take(MAX_BIB_FILES) {
         if out.len() >= MAX_BIB_ENTRIES {
             break;
+        }
+        if !seen.insert(std::fs::canonicalize(&path).unwrap_or_else(|_| std::path::PathBuf::from(&path))) {
+            continue;
         }
         let Ok(metadata) = std::fs::metadata(&path) else {
             continue;
@@ -490,4 +496,20 @@ mod tests {
         assert_eq!(entries[0].doi.as_deref(), Some("10.1000/foo_bar"));
     }
 
+
+    #[cfg(unix)]
+    #[test]
+    fn reads_a_bibliography_once_under_two_spellings() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::write(real.join("refs.bib"), "@book{knuth, title={The TeXbook}}").unwrap();
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let entries = parse_bib_files(vec![
+            link.join("refs.bib").to_string_lossy().into_owned(),
+            real.join("refs.bib").to_string_lossy().into_owned(),
+        ]);
+        assert_eq!(entries.len(), 1);
+    }
 }

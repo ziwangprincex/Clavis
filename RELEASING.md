@@ -75,8 +75,10 @@ commands it prints.
    ```bash
    python3 tools/check_release.py --tag v1.0.2
    ```
-3. Write `docs/releases/v1.0.2.md` (the release workflow fails without it),
-   commit the release preparation, then tag and push:
+3. Write `docs/releases/v1.0.2.md`: `# Clavis 1.0.2`, then one to three `- `
+   bullets, 240 characters in all. `check_release.py --tag` and the release
+   workflow refuse anything else. The same text becomes the GitHub release body
+   and the `latest.json` notes. Commit the release preparation, then tag and push:
    ```bash
    git tag v1.0.2
    git push origin main
@@ -103,10 +105,11 @@ A normal push to `main` only runs CI; it does not create or update a Release.
   in the command palette (Ctrl/Cmd+Shift+P).
 - When a newer version is found, the app shows the version + a short summary and,
   on confirm, downloads → verifies signature → installs → relaunches.
-- Keep `docs/releases/<tag>.md`, the GitHub release body and `latest.json` notes
-  to a version heading and at most three short user-facing bullets (240 characters
-  total). Put test counts and CI details in the commit message, not the update
-  prompt. Mention any critical migration warning within this budget.
+- `docs/releases/<tag>.md` is the single source for the GitHub release body and
+  the `latest.json` notes (passed to tauri-action as `releaseBody`): a version
+  heading and at most three short user-facing bullets, 240 characters total.
+  Put test counts and CI details in the commit message, not the update prompt.
+  Mention any critical migration warning within this budget.
 - Older installed apps show the entire manifest notes in a non-scrolling native
   alert. Always check the actual `latest.json` notes before publication; shortening
   only the GitHub release page or local notes does not fix their update prompt.

@@ -135,6 +135,9 @@ const markdownHost: LivePreviewHost = {
     if (DOCUMENT_LINK.test(path)) void openFileByPath(path);
     else void ipc.openWorkspaceFile(readRoot(documentPath), path).catch(error => setStatus(String(error), 'error'));
   },
+  notice(message) {
+    setStatus(message, 'info');
+  },
   async pasteImage(file) {
     const documentPath = activeDocumentPath();
     if (!hasTauri()) return null;
@@ -193,9 +196,11 @@ export interface EditorPaneProps {
   onOpenInclude?: (raw: string, kind: 'latex' | 'typst' | 'latex-macro' | 'latex-environment', isImport: boolean) => void;
   /** A compile problem's margin marker was clicked. */
   onShowProblems?: () => void;
+  /** Focus mode is on: the paragraph being written is marked so the rest can fade. */
+  focusMode?: boolean;
 }
 
-export function EditorPane({ onReady, onOpenInclude, onShowProblems }: EditorPaneProps) {
+export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode = false }: EditorPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<EditorController | null>(null);
   // Keep the latest onOpenInclude reachable from the once-created controller.
@@ -316,6 +321,7 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems }: EditorPan
   useEffect(() => { controllerRef.current?.setInlineMath(settings.editor_inline_math); }, [settings.editor_inline_math, activeTabId]);
   useEffect(() => { controllerRef.current?.setMarkdownLive(!settings.markdown_source_mode); }, [settings.markdown_source_mode]);
   useEffect(() => { controllerRef.current?.setTypewriter(settings.editor_typewriter); }, [settings.editor_typewriter]);
+  useEffect(() => { controllerRef.current?.setFocusBlock(focusMode); }, [focusMode]);
 
   // Formatted Markdown is set in the reading typography; source stays in the editor font.
   const live = (activeTab?.lang ?? 'markdown') === 'markdown' && !settings.markdown_source_mode;

@@ -21,4 +21,9 @@ describe('editor keymap composition', () => {
     expect(tabBindings[1].shift).toBe(prevSnippetField);
     expect(tabBindings[2].run).toBe(indentWithTab.run);
   });
+
+  it('leaves Shift+Mod+L to the app, which toggles the sidebar', () => {
+    expect(buildEditorKeymap().some(binding => binding.key === 'Mod-Shift-l')).toBe(false);
+    expect(buildEditorKeymap().some(binding => binding.key === 'Mod-f')).toBe(true);
+  });
 });

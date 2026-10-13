@@ -32,7 +32,7 @@ Markdown rendering drops raw HTML and active URL schemes: links may be relative,
 `http(s)` or `mailto`, and `data:` URLs are accepted only as base64 images
 (`sanitizeUrl` in `web/src/render/markdown.ts`). Relative images load through
 `asset_preview`, which canonicalizes the path, keeps it inside the document
-folder or open workspace, and caps the size at 12 MiB (Retina screenshots).
+folder or open workspace, and caps the size at 20 MiB, the paste/drop limit.
 Mermaid diagrams render with `securityLevel: 'strict'` (sanitized SVG, no
 scripts or click handlers); the library loads only for documents that contain
 one.
@@ -43,6 +43,13 @@ png, jpg, gif, webp and svg, at most 20 MiB, into an `assets` folder beside the
 document. Files are created with `create_new`, so an existing file is never
 replaced (an identical one is reused); a dropped image already inside the
 document's folder is linked where it is, not copied.
+
+Cmd/Ctrl+click on a relative link opens other documents in Clavis. Any other
+file goes through `open_workspace_file` (`src/system_open.rs`), which hands the
+operating system only files inside the workspace whose type it views (images,
+PDF, text, office documents, audio and video). Scripts, installers, shortcuts
+and files without an extension are refused, since their default handler runs
+them: a link in someone else's document must not start a program.
 
 Markdown HTML export (`web/src/files/exportMarkdown.ts`) uses the same
 sanitizing renderer, so raw HTML is still dropped. It embeds only images that

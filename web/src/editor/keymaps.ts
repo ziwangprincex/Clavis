@@ -29,6 +29,7 @@ export function buildEditorKeymap(): readonly KeyBinding[] {
     ...defaultKeymap,
     ...historyKeymap,
     ...foldKeymap,
-    ...searchKeymap,
+    // Shift+Mod+L toggles the sidebar (Typora); CodeMirror's select-all-matches would take it.
+    ...searchKeymap.filter(binding => binding.key !== 'Mod-Shift-l'),
   ];
 }

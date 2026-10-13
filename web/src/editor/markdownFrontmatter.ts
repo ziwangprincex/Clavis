@@ -9,22 +9,26 @@ const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
 /** The line after the fence must look like YAML, so a document that starts with a plain rule is unaffected. */
 const KEY = /^[\w"'-][^:\n]*:(?:\s|$)/;
+/** Lines YAML front matter is made of: keys, list items, indented values, comments, blanks. */
+const YAML_LINE = /^(?:$|[ \t]|-(?:[ \t]|$)|#|[\w"'-][^:\n]*:(?:[ \t]|$))/;
 
 function parse(cx: BlockContext, line: Line): boolean {
   // Only the document's very first line; inside a quote or list the text would carry their markers.
   if (cx.lineStart !== 0 || !FENCE.test(line.text) || !KEY.test(cx.peekLine())) return false;
   const marks = [cx.elt('FrontmatterMark', 0, line.text.length)];
-  let to = cx.prevLineEnd();
-  // An unclosed block runs to the end, as while it is being typed.
+  let to = line.text.length;
+  // While unclosed (being typed) it runs on through lines that look like YAML.
   while (cx.nextLine()) {
-    to = cx.lineStart + line.text.length;
     if (CLOSE.test(line.text)) {
+      to = cx.lineStart + line.text.length;
       marks.push(cx.elt('FrontmatterMark', cx.lineStart, to));
       cx.nextLine();
       break;
     }
+    if (!YAML_LINE.test(line.text)) break;
+    to = cx.lineStart + line.text.length;
   }
-  cx.addElement(cx.elt('Frontmatter', 0, Math.max(to, line.text.length), marks));
+  cx.addElement(cx.elt('Frontmatter', 0, to, marks));
   return true;
 }
 
@@ -40,8 +44,9 @@ export function frontmatterLength(source: string): number {
   if (!FENCE.test(lines[0] ?? '') || !KEY.test(lines[1] ?? '')) return 0;
   let length = lines[0].length + 1;
   for (let i = 1; i < lines.length; i++) {
+    if (!CLOSE.test(lines[i]) && !YAML_LINE.test(lines[i])) return length;
     length += lines[i].length + 1;
-    if (CLOSE.test(lines[i])) return Math.min(length, source.length);
+    if (CLOSE.test(lines[i])) break;
   }
-  return source.length;
+  return Math.min(length, source.length);
 }

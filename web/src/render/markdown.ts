@@ -44,7 +44,8 @@ function headingId(title: string, used: Set<string>): string {
 /** What a whole-document render collects on the way: anchors and footnotes. */
 interface DocumentState { used: Set<string>; notes: Map<string, string>; order: string[] }
 
-const CALLOUT = /^<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
+/** `> [!NOTE]` alone on the quote's first line, as GitHub and the editor read it. */
+const CALLOUT = /^<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\n|(?=<\/p>))/i;
 const CALLOUT_TITLES: Record<string, string> = { note: 'Note', tip: 'Tip', important: 'Important', warning: 'Warning', caution: 'Caution' };
 
 /** Extensions run inside Markdown tokenization, never on code, URLs or attributes.
@@ -204,9 +205,15 @@ export function markdownDocument(source: string): { title: string; html: string 
   const title = /^title:\s*["']?(.*?)["']?\s*$/m.exec(source.slice(0, meta))?.[1] ?? '';
   const doc: DocumentState = { used: new Set(), notes: new Map(), order: [] };
   let html = parser(doc).parse(source.slice(meta)) as string;
-  const ids = [...doc.order.filter(id => doc.notes.has(id)), ...[...doc.notes.keys()].filter(id => !doc.order.includes(id))];
-  if (ids.length) {
-    html += `<section class="footnotes"><ol>${ids.map(id => `<li id="fn-${escapeAttr(id)}">${doc.notes.get(id)}</li>`).join('')}</ol></section>\n`;
+  // A reference's number is its order of first use, defined or not, so list
+  // items carry explicit numbers; notes nobody refers to follow at the end.
+  const unreferenced = [...doc.notes.keys()].filter(id => !doc.order.includes(id));
+  const listed = [
+    ...doc.order.flatMap((id, i) => doc.notes.has(id) ? [{ id, n: i + 1 }] : []),
+    ...unreferenced.map((id, i) => ({ id, n: doc.order.length + i + 1 })),
+  ];
+  if (listed.length) {
+    html += `<section class="footnotes"><ol>${listed.map(({ id, n }) => `<li id="fn-${escapeAttr(id)}" value="${n}">${doc.notes.get(id)}</li>`).join('')}</ol></section>\n`;
   }
   return { title: title || markdownHeadings(source)[0]?.title || '', html };
 }

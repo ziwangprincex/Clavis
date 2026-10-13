@@ -114,10 +114,14 @@ export function App() {
   const [recentOpen, setRecentOpen] = useState(false);
   const [autoCompile, setAutoCompile] = useState(true);
   const setStatus = useStatusStore(s => s.set);
-  // Typora's Shift+Cmd+L; leaving Focus brings the sidebar back.
+  // Typora's Shift+Cmd+L; leaving Focus brings the sidebar back. Read through a
+  // ref: the global key handler keeps the closure of an earlier render.
+  const focusModeRef = useRef(focusMode);
+  focusModeRef.current = focusMode;
   const toggleSidebar = () => {
+    const wasFocused = focusModeRef.current;
     setFocusMode(false);
-    void patchAndSave({ sidebar_visible: focusMode || !useSettingsStore.getState().settings.sidebar_visible });
+    void patchAndSave({ sidebar_visible: wasFocused || !useSettingsStore.getState().settings.sidebar_visible });
   };
   const setLayout = (next: EditorLayout) => { setFocusMode(false); void patchAndSave({ editor_layout: next }); };
   /** Outline and to-do rows: the source line, or in Read the matching place in the preview. */
@@ -818,6 +822,7 @@ export function App() {
                     onReady={api => {
                       editorApiRef.current = api;
                     }}
+                    focusMode={focusMode}
                     onShowProblems={() => { if (useTabsStore.getState().tabs.find(tab => tab.id === useTabsStore.getState().activeTabId)?.lang === 'latex') showProblems(); }}
                     onOpenInclude={(raw, kind, isImport) => {
                       const project = useProjectStore.getState();

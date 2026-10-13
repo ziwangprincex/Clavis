@@ -4,14 +4,32 @@
 
 import { completionStatus, hasNextSnippetField } from '@codemirror/autocomplete';
 import { syntaxTree } from '@codemirror/language';
-import { EditorSelection, Prec, type ChangeSpec, type EditorState, type Extension } from '@codemirror/state';
+import { EditorSelection, Prec, StateField, type ChangeSpec, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, type Command } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 
 export interface MarkdownImageHost {
   /** Save pasted image data beside the document; the relative path, or null. */
   pasteImage(file: File): Promise<string | null>;
+  /** Tell the user about a paste that was not inserted. */
+  notice?(message: string): void;
 }
+
+/** Characters a link destination cannot carry raw: they end the link, start a
+ *  fragment or query, or break the percent-decoding images are resolved with. */
+const LINK_ESCAPES: Record<string, string> = { ' ': '%20', '\t': '%09', '%': '%25', '#': '%23', '?': '%3F', '(': '%28', ')': '%29', '<': '%3C', '>': '%3E' };
+
+/** `![](path)` for an image saved or found beside the document. */
+export function imageMarkdown(path: string): string {
+  return `![](${path.replace(/[ \t%#?()<>]/g, ch => LINK_ESCAPES[ch])})`;
+}
+
+/** One object per document the editor shows: edits keep it, switching documents does not. */
+const documentIdentity = StateField.define<object>({ create: () => ({}), update: value => value });
+
+/** A copied image comes with at most its URL or file name as text. Office apps
+ *  put a picture of the copied cells or text beside the text: that is text. */
+const IMAGE_CAPTION = /^(?:https?:\/\/\S+|[^\s/\\]+\.(?:png|jpe?g|gif|webp|svg|tiff?|heic|bmp))$/i;
 
 /** Wrap each selection in `mark`, or unwrap it if it is already wrapped. */
 export function toggleMark(mark: string): Command {
@@ -62,28 +80,40 @@ export const insertLink: Command = view => {
   return true;
 };
 
-/** Make the selected lines headings of `level` (0 = paragraph); the same level again turns them back into paragraphs. */
+/** Blockquote markers in front of a line, kept in front of its heading mark. */
+const QUOTE = /^(?:[ \t]{0,3}>[ \t]?)*/;
+
+/** A line's quote markers and its heading mark (`## `), if any. */
+function headingParts(text: string) {
+  const quote = QUOTE.exec(text)![0];
+  const mark = /^(#{1,6})(?:[ \t]+|$)/.exec(text.slice(quote.length));
+  return { quote, mark: mark?.[0] ?? '', level: mark?.[1].length ?? 0 };
+}
+
+/** Make the selected lines headings of `level` (0 = paragraph); the same level
+ *  again turns them back into paragraphs. A selection ending at the start of a
+ *  line leaves that line alone (a triple-click), and blank lines inside a
+ *  selection stay blank. */
 export function setHeading(level: number, toggle = true): Command {
   return view => {
     const { state } = view;
-    const changes: ChangeSpec[] = [];
-    const seen = new Set<number>();
+    const lines = new Map<number, { from: number; text: string }>();
     for (const range of state.selection.ranges) {
-      for (let pos = range.from; pos <= range.to;) {
-        const line = state.doc.lineAt(pos);
-        if (!seen.has(line.number)) {
-          seen.add(line.number);
-          // Keep blockquote markers in front of the heading.
-          const quote = /^(?:\s{0,3}>\s?)*/.exec(line.text)![0];
-          const current = /^(#{1,6})(?:[ \t]+|$)/.exec(line.text.slice(quote.length));
-          const target = toggle && current && current[1].length === level ? 0 : level;
-          const prefix = target ? `${'#'.repeat(target)} ` : '';
-          const from = line.from + quote.length;
-          changes.push({ from, to: from + (current?.[0].length ?? 0), insert: prefix });
-        }
-        pos = line.to + 1;
+      const first = state.doc.lineAt(range.from).number;
+      let last = state.doc.lineAt(range.to).number;
+      if (last > first && state.doc.line(last).from === range.to) last--;
+      for (let n = first; n <= last; n++) {
+        const line = state.doc.line(n);
+        if (last > first && !line.text.slice(headingParts(line.text).quote.length).trim()) continue;
+        lines.set(n, line);
       }
     }
+    const parts = [...lines.values()].map(line => ({ line, ...headingParts(line.text) }));
+    const target = toggle && parts.length > 0 && parts.every(part => part.level === level) ? 0 : level;
+    const changes: ChangeSpec[] = parts.map(({ line, quote, mark }) => {
+      const from = line.from + quote.length;
+      return { from, to: from + mark.length, insert: target ? `${'#'.repeat(target)} ` : '' };
+    });
     view.dispatch({ changes, userEvent: 'input.format' });
     return true;
   };
@@ -93,31 +123,34 @@ export function setHeading(level: number, toggle = true): Command {
  *  paragraph becomes `######`; a lowered `######` becomes a paragraph again. */
 export function shiftHeading(step: number): Command {
   return view => {
-    const line = view.state.doc.lineAt(view.state.selection.main.head);
-    const current = /^(#{1,6})(?:[ \t]|$)/.exec(line.text)?.[1].length ?? 0;
+    const current = headingParts(view.state.doc.lineAt(view.state.selection.main.head).text).level;
     const next = current ? current + step : step < 0 ? 6 : 0;
     return setHeading(next > 6 ? 0 : Math.max(next, current ? 1 : 0), false)(view);
   };
 }
 
 /** Backspace right after a heading's hidden `## ` turns it back into a paragraph. */
-const removeHeadingMark: Command = view => {
+export const removeHeadingMark: Command = view => {
   const { state } = view;
   const range = state.selection.main;
   if (!range.empty || state.selection.ranges.length > 1) return false;
   const line = state.doc.lineAt(range.head);
-  const mark = /^#{1,6}[ \t]+/.exec(line.text);
-  if (!mark || range.head !== line.from + mark[0].length) return false;
-  view.dispatch({ changes: { from: line.from, to: range.head }, userEvent: 'delete.backward' });
+  const { quote, mark } = headingParts(line.text);
+  const from = line.from + quote.length;
+  if (!mark.trim() || range.head !== from + mark.length) return false;
+  view.dispatch({ changes: { from, to: range.head }, userEvent: 'delete.backward' });
   return true;
 };
 
 // ---- Tables (Typora: Tab between cells, Cmd+Enter adds a row, Format Table Source) ----
 
 /** The GFM table around `pos`, as its first and last line numbers. */
-function tableAt(state: EditorState, pos: number): { first: number; last: number } | null {
-  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); node; node = node.parent) {
-    if (node.name === 'Table') return { first: state.doc.lineAt(node.from).number, last: state.doc.lineAt(node.to).number };
+export function tableAt(state: EditorState, pos: number): { first: number; last: number } | null {
+  // Both sides: a cursor before the first `|` or after the last one is still in the table.
+  for (const side of [-1, 1] as const) {
+    for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, side); node; node = node.parent) {
+      if (node.name === 'Table') return { first: state.doc.lineAt(node.from).number, last: state.doc.lineAt(node.to).number };
+    }
   }
   return null;
 }
@@ -141,18 +174,30 @@ function cells(text: string): string[] {
   return out;
 }
 
+/** Blockquote markers and list indentation before a table row; kept as they are. */
+const ROW_PREFIX = /^(?:[ \t]*>[ \t]?)*[ \t]*/;
+const rowPrefix = (text: string) => ROW_PREFIX.exec(text)![0];
+const rowCells = (text: string) => cells(text.slice(rowPrefix(text).length));
+
 /** Where each cell's text starts on a row, as document positions. */
 function cellStarts(state: EditorState, lineNumber: number): number[] {
   const line = state.doc.line(lineNumber);
-  const edges = pipes(line.text);
-  const starts = line.text.trimStart().startsWith('|') ? [] : [line.from + line.text.length - line.text.trimStart().length];
-  for (const at of edges.slice(0, line.text.trimEnd().endsWith('|') ? -1 : undefined)) {
-    starts.push(line.from + at + 1 + (line.text[at + 1] === ' ' ? 1 : 0));
+  const prefix = rowPrefix(line.text);
+  const body = line.text.slice(prefix.length), from = line.from + prefix.length;
+  const edges = pipes(body);
+  const starts = body.startsWith('|') ? [] : [from];
+  for (const at of edges.slice(0, body.trimEnd().endsWith('|') ? -1 : undefined)) {
+    starts.push(from + at + 1 + (body[at + 1] === ' ' ? 1 : 0));
   }
   return starts;
 }
 
-const emptyRow = (columns: number) => `| ${Array.from({ length: columns }, () => '').join(' | ')} |`;
+/** An empty row after `line`, with its prefix, and where its first cell starts. */
+function emptyRowAfter(state: EditorState, table: { first: number }, line: { text: string; to: number }) {
+  const prefix = rowPrefix(line.text);
+  const columns = rowCells(state.doc.line(table.first).text).length;
+  return { insert: `\n${prefix}| ${Array.from({ length: columns }, () => '').join(' | ')} |`, anchor: line.to + 1 + prefix.length + 2 };
+}
 
 /** Moves between cells; Tab past the last cell adds a row, like Typora. */
 export function moveCell(dir: 1 | -1): Command {
@@ -170,8 +215,8 @@ export function moveCell(dir: 1 | -1): Command {
       view.dispatch({ selection: { anchor: target }, scrollIntoView: true, userEvent: 'select' });
     } else if (dir > 0) {
       const last = state.doc.line(table.last);
-      const insert = `\n${emptyRow(cells(state.doc.line(table.first).text).length)}`;
-      view.dispatch({ changes: { from: last.to, insert }, selection: { anchor: last.to + 3 }, scrollIntoView: true, userEvent: 'input' });
+      const { insert, anchor } = emptyRowAfter(state, table, last);
+      view.dispatch({ changes: { from: last.to, insert }, selection: { anchor }, scrollIntoView: true, userEvent: 'input' });
     }
     return true;
   };
@@ -184,8 +229,8 @@ export const insertRow: Command = view => {
   if (!table) return false;
   const lineNumber = Math.max(state.doc.lineAt(state.selection.main.head).number, table.first + 1);
   const line = state.doc.line(lineNumber);
-  const insert = `\n${emptyRow(cells(state.doc.line(table.first).text).length)}`;
-  view.dispatch({ changes: { from: line.to, insert }, selection: { anchor: line.to + 3 }, scrollIntoView: true, userEvent: 'input' });
+  const { insert, anchor } = emptyRowAfter(state, table, line);
+  view.dispatch({ changes: { from: line.to, insert }, selection: { anchor }, scrollIntoView: true, userEvent: 'input' });
   return true;
 };
 
@@ -201,8 +246,12 @@ export const formatTable: Command = view => {
   const { state } = view;
   const table = tableAt(state, state.selection.main.head);
   if (!table) return false;
-  const rows: string[][] = [];
-  for (let n = table.first; n <= table.last; n++) rows.push(cells(state.doc.line(n).text));
+  const rows: string[][] = [], prefixes: string[] = [];
+  for (let n = table.first; n <= table.last; n++) {
+    const text = state.doc.line(n).text;
+    prefixes.push(rowPrefix(text));
+    rows.push(rowCells(text));
+  }
   const columns = Math.max(...rows.map(row => row.length));
   const align = Array.from({ length: columns }, (_, i) => {
     const spec = rows[1]?.[i] ?? '';
@@ -219,7 +268,7 @@ export const formatTable: Command = view => {
     const dashes = '-'.repeat(widths[i] - (align[i] === 'center' ? 2 : align[i] ? 1 : 0));
     return align[i] === 'center' ? `:${dashes}:` : align[i] === 'right' ? `${dashes}:` : align[i] === 'left' ? `:${dashes}` : dashes;
   };
-  const text = rows.map((row, r) => `| ${Array.from({ length: columns }, (_, i) => r === 1 ? rule(i) : pad(row[i] ?? '', i)).join(' | ')} |`).join('\n');
+  const text = rows.map((row, r) => `${prefixes[r]}| ${Array.from({ length: columns }, (_, i) => r === 1 ? rule(i) : pad(row[i] ?? '', i)).join(' | ')} |`).join('\n');
   const from = state.doc.line(table.first).from, to = state.doc.line(table.last).to;
   if (text !== state.sliceDoc(from, to)) view.dispatch({ changes: { from, to, insert: text }, userEvent: 'input.format' });
   return true;
@@ -229,7 +278,6 @@ export const formatTable: Command = view => {
 
 export type ColumnAlign = 'left' | 'center' | 'right' | '';
 
-const QUOTE_PREFIX = /^(?:[ \t]*>[ \t]?)*/;
 
 /** The table at the cursor as rows of cells (blockquote markers kept aside),
  *  with the cursor's row and column. */
@@ -240,7 +288,7 @@ function tableRows(state: EditorState) {
   const rows: { prefix: string; cells: string[] }[] = [];
   for (let n = table.first; n <= table.last; n++) {
     const text = state.doc.line(n).text;
-    const prefix = QUOTE_PREFIX.exec(text)![0];
+    const prefix = rowPrefix(text);
     rows.push({ prefix, cells: cells(text.slice(prefix.length)) });
   }
   const line = state.doc.lineAt(head);
@@ -324,14 +372,17 @@ export const deleteRow: Command = view => {
  *  `=` twice makes a ==highlight==, as in Typora. */
 const WRAPPING = new Set(['*', '_', '`', '$', '=', '^', '~']);
 
-async function pasteImages(view: EditorView, host: MarkdownImageHost, files: File[]) {
-  const links: string[] = [];
-  for (const file of files) {
-    const path = await host.pasteImage(file);
-    if (path) links.push(`![](${/\s/.test(path) ? `<${path}>` : path})`);
+/** Exported for tests, which give it a stand-in view. */
+export async function pasteImages(view: Pick<EditorView, 'state' | 'dispatch' | 'dom'>, host: MarkdownImageHost, files: File[]) {
+  const identity = view.state.field(documentIdentity, false);
+  const paths = (await Promise.all(files.map(file => host.pasteImage(file)))).filter((path): path is string => !!path);
+  if (!paths.length || !view.dom.isConnected) return;
+  // The paths are relative to the document the paste started in; the editor may show another by now.
+  if (view.state.field(documentIdentity, false) !== identity) {
+    host.notice?.('The image was saved beside its document but not inserted: another document is open now.');
+    return;
   }
-  if (!links.length || !view.dom.isConnected) return;
-  const insert = links.join('\n');
+  const insert = paths.map(imageMarkdown).join('\n');
   const { from, to } = view.state.selection.main;
   view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.paste' });
 }
@@ -364,10 +415,13 @@ export function markdownEditing(host?: MarkdownImageHost): Extension {
       });
       return true;
     }),
+    documentIdentity,
     host ? EditorView.domEventHandlers({
       paste(event, view) {
         const files = [...event.clipboardData?.files ?? []].filter(file => file.type.startsWith('image/'));
         if (!files.length) return false;
+        const text = event.clipboardData?.getData('text/plain').trim() ?? '';
+        if (text && !IMAGE_CAPTION.test(text)) return false;
         event.preventDefault();
         void pasteImages(view, host, files);
         return true;

@@ -40,6 +40,7 @@ jobs:
       contents: write
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
+      notes: ${{ steps.create-release.outputs.notes }}
     steps:
       - uses: actions/checkout@v5
       - name: Create draft release
@@ -50,6 +51,8 @@ jobs:
             const tag = context.ref.replace('refs/tags/', '');
             const fs = require('fs');
             const body = fs.readFileSync(`docs/releases/${tag}.md`, 'utf8');
+            // The same text becomes the update prompt's notes in latest.json.
+            core.setOutput('notes', body.replace(/\r\n/g, '\n').trim());
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -122,4 +125,7 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          # With releaseId set, tauri-action uses releaseBody only as the
+          # latest.json notes; without it they are empty.
+          releaseBody: ${{ needs.create-release.outputs.notes }}
           includeUpdaterJson: true

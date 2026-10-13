@@ -198,19 +198,41 @@ fn search_workspace_sync(options: SearchOptions) -> Result<SearchResult, String>
     })
 }
 
-/// Documents Clavis opens, for Quick Open: their paths under `root`, sorted.
+fn is_document(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+        matches!(e.to_ascii_lowercase().as_str(), "md" | "markdown" | "qmd" | "txt" | "tex" | "ltx" | "typ" | "bib")
+    })
+}
+
+/// Documents Clavis opens, for Quick Open, sorted. Paths keep the folder as the
+/// caller spelled it (not its resolved form), so they match open tabs. Size and
+/// other file kinds do not count against the limit.
 fn list_documents_sync(root: String) -> Result<Vec<String>, String> {
-    let root = canonical_root(&root)?;
-    let (files, _) = collect_files(&root)?;
-    let mut documents: Vec<String> = files
-        .into_iter()
-        .filter(|path| {
-            path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
-                matches!(e.to_ascii_lowercase().as_str(), "md" | "markdown" | "qmd" | "txt" | "tex" | "ltx" | "typ" | "bib")
-            })
-        })
-        .map(|path| path.to_string_lossy().replace('\\', "/"))
-        .collect();
+    let canonical = canonical_root(&root)?;
+    let shown = Path::new(&root);
+    let mut documents = Vec::new();
+    let mut stack = vec![canonical.clone()];
+    'walk: while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let Ok(ty) = entry.file_type() else { continue };
+            if ty.is_symlink() {
+                continue;
+            }
+            let path = entry.path();
+            if ty.is_dir() {
+                if !skipped(&entry.file_name().to_string_lossy()) {
+                    stack.push(path);
+                }
+            } else if ty.is_file() && is_document(&path) {
+                let relative = path.strip_prefix(&canonical).unwrap_or(&path);
+                documents.push(portable(&shown.join(relative)));
+                if documents.len() >= MAX_FILES {
+                    break 'walk;
+                }
+            }
+        }
+    }
     documents.sort();
     Ok(documents)
 }
@@ -491,8 +513,22 @@ mod tests {
         for file in ["main.tex", "chapters/intro.TEX", "notes.md", "refs.bib", "figure.png", "node_modules/pkg/readme.md"] {
             std::fs::write(root.join(file), "x").unwrap();
         }
+        std::fs::write(root.join("long.md"), vec![b'x'; 3 * 1024 * 1024]).unwrap();
         let listed = list_documents_sync(root.to_string_lossy().into()).unwrap();
         let names: Vec<_> = listed.iter().map(|path| path.rsplit('/').next().unwrap().to_string()).collect();
-        assert_eq!(names, ["intro.TEX", "main.tex", "notes.md", "refs.bib"]);
+        assert_eq!(names, ["intro.TEX", "long.md", "main.tex", "notes.md", "refs.bib"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lists_documents_under_the_folder_as_opened() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::write(real.join("a.md"), "x").unwrap();
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let listed = list_documents_sync(link.to_string_lossy().into()).unwrap();
+        assert_eq!(listed, [portable(&link.join("a.md"))]);
     }
 }

@@ -15,8 +15,9 @@ use typst_syntax::{LinkedNode, SyntaxKind};
 const MAX_FILES: usize = 10_000;
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_ASSETS: usize = 10_000;
-// Retina screenshots pasted into Markdown are commonly several megabytes.
-const MAX_PREVIEW_BYTES: u64 = 12 * 1024 * 1024;
+// Retina screenshots pasted into Markdown are commonly several megabytes; the
+// same limit as images accepted by paste and drop (markdown_images.rs).
+const MAX_PREVIEW_BYTES: u64 = 20 * 1024 * 1024;
 const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "svg", "pdf", "eps", "gif", "webp", "tif", "tiff",
 ];

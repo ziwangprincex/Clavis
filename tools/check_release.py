@@ -61,6 +61,29 @@ def validate_build_entrypoints(root: Path) -> list[str]:
     return errors
 
 
+NOTES_LIMIT = 240
+
+
+def validate_release_notes(root: Path, tag: str, version: str) -> list[str]:
+    """Older apps show the notes whole in a native alert: a heading and at most
+    three short bullets (RELEASING.md)."""
+    path = root / "docs" / "releases" / f"{tag}.md"
+    try:
+        text = path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    except OSError:
+        return [f"release notes missing: docs/releases/{tag}.md"]
+    errors: list[str] = []
+    lines = [line for line in text.split("\n") if line.strip()]
+    if not lines or lines[0] != f"# Clavis {version}":
+        errors.append(f"release notes must start with '# Clavis {version}'")
+    bullets = lines[1:]
+    if not 1 <= len(bullets) <= 3 or not all(line.startswith("- ") for line in bullets):
+        errors.append("release notes need one to three '- ' bullets after the heading")
+    if len(text) > NOTES_LIMIT:
+        errors.append(f"release notes have {len(text)} characters; the limit is {NOTES_LIMIT}")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", help="release tag, e.g. v1.0.2")
@@ -103,6 +126,7 @@ def main() -> int:
         expected = f"v{tauri}"
         if args.tag != expected:
             errors.append(f"tag mismatch: received {args.tag}, expected {expected}")
+        errors.extend(validate_release_notes(ROOT, args.tag, tauri))
 
     if errors:
         for error in errors:

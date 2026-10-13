@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state';
 import { LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { EditorView } from '@codemirror/view';
-import { alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, insertColumn, insertLink, insertRow, moveCell, setHeading, shiftHeading, toggleMark } from './markdownEditing';
+import { alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, imageMarkdown, insertColumn, insertLink, insertRow, markdownEditing, moveCell, pasteImages, removeHeadingMark, setHeading, shiftHeading, toggleMark } from './markdownEditing';
 import { codeLanguages } from './codeLanguages';
 import { frontmatterLength } from './markdownFrontmatter';
 import { currentBlockLines } from './focusBlock';
@@ -46,6 +46,58 @@ describe('Typora formatting commands', () => {
     expect(run(shiftHeading(-1), 'Title', 0).doc).toBe('###### Title');
     expect(run(shiftHeading(1), '###### Title', 8).doc).toBe('Title');
     expect(run(shiftHeading(1), 'Title', 0).doc).toBe('Title');
+  });
+});
+
+describe('fixes after 1.8.0', () => {
+  it('leaves the line after a triple-clicked one alone and blank lines blank', () => {
+    expect(run(setHeading(2), 'One\nTwo\n', 0, 4).doc).toBe('## One\nTwo\n');
+    expect(run(setHeading(2), 'A\n\nB', 0, 4).doc).toBe('## A\n\n## B');
+    expect(run(setHeading(2), '\nB', 0).doc).toBe('## \nB');
+    // Toggles off only when every selected line already has the level.
+    expect(run(setHeading(2), '## A\nB', 0, 6).doc).toBe('## A\n## B');
+    expect(run(setHeading(2), '## A\n## B', 0, 9).doc).toBe('A\nB');
+  });
+
+  it('reads heading levels after quote markers', () => {
+    expect(run(shiftHeading(-1), '> ## Title', 6).doc).toBe('> # Title');
+    expect(run(shiftHeading(1), '> ## Title', 6).doc).toBe('> ### Title');
+    expect(run(removeHeadingMark, '> ## Title', 5).doc).toBe('> Title');
+    expect(run(removeHeadingMark, '## Title', 2).doc).toBe('## Title');
+  });
+
+  it('keeps quote markers and indentation when formatting or extending a table', () => {
+    const quoted = '> | a | b |\n> |---|---|\n> | 1 | 2 |\n';
+    expect(run(formatTable, quoted, 4).doc).toBe('> | a   | b   |\n> | --- | --- |\n> | 1   | 2   |\n');
+    const added = run(moveCell(1), quoted, quoted.indexOf('2 |'));
+    expect(added.doc).toBe('> | a | b |\n> |---|---|\n> | 1 | 2 |\n> |  |  |\n');
+    expect(added.head).toBe(added.doc.indexOf('> |  |') + 4);
+    expect(run(moveCell(1), quoted, 2).head).toBe(quoted.indexOf('a |'));
+    const listed = '- item\n\n  | a |\n  |---|\n  | 1 |\n';
+    expect(run(insertRow, listed, listed.indexOf('1 |')).doc).toBe('- item\n\n  | a |\n  |---|\n  | 1 |\n  |  |\n');
+  });
+
+  it('escapes the characters that would break an image link', () => {
+    expect(imageMarkdown('assets/100% done (v2) #1?.png')).toBe('![](assets/100%25%20done%20%28v2%29%20%231%3F.png)');
+    expect(imageMarkdown('图/截图.png')).toBe('![](图/截图.png)');
+  });
+
+  it('does not link a pasted image into a document opened while it was saved', async () => {
+    let state = EditorState.create({ doc: 'a', extensions: markdownEditing() });
+    const view = { get state() { return state; }, dispatch: (spec: TransactionSpec) => { state = state.update(spec).state; }, dom: { isConnected: true } };
+    const notice = vi.fn();
+    let release!: (path: string) => void;
+    const pending = pasteImages(view as never, { pasteImage: () => new Promise(done => { release = done; }), notice }, [new File([], 'x.png')]);
+    // Another document is shown before the save finishes.
+    state = EditorState.create({ doc: 'other', extensions: markdownEditing() });
+    release('assets/x.png');
+    await pending;
+    expect(state.doc.toString()).toBe('other');
+    expect(notice).toHaveBeenCalledOnce();
+    // The same document gets its link.
+    const same = pasteImages(view as never, { pasteImage: async () => 'assets/y.png', notice }, [new File([], 'y.png')]);
+    await same;
+    expect(state.doc.toString()).toBe('![](assets/y.png)other');
   });
 });
 
@@ -115,6 +167,12 @@ describe('Markdown parser additions', () => {
     expect(frontmatterLength(doc)).toBe('---\ntitle: Draft\ntags: [a]\n---\n'.length);
   });
 
+  it('ends unclosed front matter at the first line that is not YAML', () => {
+    const doc = '---\nNote: written in a hurry\n\nA paragraph with **bold**.\n';
+    expect(tree(doc)).toContain('StrongEmphasis');
+    expect(frontmatterLength(doc)).toBe('---\nNote: written in a hurry\n\n'.length);
+  });
+
   it('leaves a document that merely starts with a rule alone', () => {
     expect(tree('---\nSome prose.\n')).not.toContain('Frontmatter');
     expect(frontmatterLength('---\nSome prose.\n')).toBe(0);
@@ -134,6 +192,12 @@ describe('focus and to-dos', () => {
     expect(lines(doc.indexOf('three'))).toEqual({ first: 3, last: 4 });
     expect(lines(0)).toEqual({ first: 1, last: 1 });
     expect(lines(doc.indexOf('\n\nfour') + 1)).toEqual({ first: 5, last: 5 });
+  });
+
+  it('skips to-dos that are switched off, in URLs or shown as code', () => {
+    expect(findTodos('% \\todo{off}\n\\todo{on} % TODO: also', 'latex')).toEqual([{ line: 2, text: 'also' }]);
+    expect(findTodos('#link("https://todo.example")\n// TODO real', 'typst')).toEqual([{ line: 2, text: 'real' }]);
+    expect(findTodos('```html\n<!-- TODO: example -->\n```\n<!-- TODO: real -->', 'markdown')).toEqual([{ line: 4, text: 'real' }]);
   });
 
   it('collects to-do notes per language', () => {

@@ -42,6 +42,26 @@ class ReleaseGuardTests(unittest.TestCase):
             self.assertEqual(len(check_release.validate_build_entrypoints(root)), 2)
 
 
+class ReleaseNotesTests(unittest.TestCase):
+    def notes(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs/releases").mkdir(parents=True)
+            if text is not None:
+                (root / "docs/releases/v1.9.0.md").write_text(text, encoding="utf-8")
+            return check_release.validate_release_notes(root, "v1.9.0", "1.9.0")
+
+    def test_heading_and_up_to_three_short_bullets_pass(self):
+        self.assertEqual(self.notes("# Clavis 1.9.0\r\n\r\n- 修复表格。\r\n- Faster typing.\n"), [])
+
+    def test_missing_wrong_heading_too_many_or_too_long_fail(self):
+        self.assertTrue(self.notes(None))
+        self.assertTrue(self.notes("# Clavis 1.8.0\n\n- a\n"))
+        self.assertTrue(self.notes("# Clavis 1.9.0\n\n- a\n- b\n- c\n- d\n"))
+        self.assertTrue(self.notes("# Clavis 1.9.0\n\nNot a bullet.\n"))
+        self.assertTrue(self.notes("# Clavis 1.9.0\n\n- " + "长" * 240 + "\n"))
+
+
 class VersionWriterTests(unittest.TestCase):
     def test_writes_utf8_with_lf_without_reformatting(self):
         import set_version

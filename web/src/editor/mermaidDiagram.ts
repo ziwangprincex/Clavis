@@ -8,11 +8,19 @@ let library: Promise<Mermaid> | null = null;
 /** Mermaid keeps global configuration and a scratch element, so renders run one at a time. */
 let queue: Promise<unknown> = Promise.resolve();
 const drawn = new Map<string, Promise<string>>();
+const ready = new Map<string, string>();
 let count = 0;
+
+const keyOf = (source: string, dark: boolean) => `${dark}\0${source}`;
+
+/** The SVG of a diagram already drawn, without waiting. */
+export function drawnDiagram(source: string, dark: boolean): string | undefined {
+  return ready.get(keyOf(source, dark));
+}
 
 /** SVG for a diagram; rejects with Mermaid's message when the source does not parse. */
 export function drawDiagram(source: string, dark: boolean): Promise<string> {
-  const key = `${dark}\0${source}`;
+  const key = keyOf(source, dark);
   let found = drawn.get(key);
   if (found) return found;
   found = queue.then(async () => {
@@ -29,7 +37,11 @@ export function drawDiagram(source: string, dark: boolean): Promise<string> {
   queue = found.catch(() => undefined);
   drawn.set(key, found);
   // Bounded: drawings are small, but a long editing session makes many variants.
-  if (drawn.size > 48) drawn.delete(drawn.keys().next().value!);
-  found.catch(() => drawn.delete(key));
+  if (drawn.size > 48) {
+    const oldest = drawn.keys().next().value!;
+    drawn.delete(oldest);
+    ready.delete(oldest);
+  }
+  found.then(svg => { if (drawn.has(key)) ready.set(key, svg); }, () => drawn.delete(key));
   return found;
 }

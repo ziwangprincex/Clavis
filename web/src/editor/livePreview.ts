@@ -24,9 +24,9 @@ import type { SyntaxNode, Tree } from '@lezer/common';
 import { t } from '../i18n';
 import { markdownHeadings, markdownInline, sanitizeUrl } from '../render/markdown';
 import { katexHtml } from './inlineMath';
-import { drawDiagram } from './mermaidDiagram';
+import { drawDiagram, drawnDiagram } from './mermaidDiagram';
 import {
-  alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, insertColumn, insertRow,
+  alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, insertColumn, insertRow, tableAt,
   type ColumnAlign, type MarkdownImageHost,
 } from './markdownEditing';
 
@@ -217,8 +217,14 @@ class ImageWidget extends WidgetType {
 }
 
 /** A ```mermaid fence drawn as its diagram; `preview` sits under the source being edited. */
+/** The last drawing previewed under a diagram's source, by the block's start:
+ *  shown while the next one waits for typing to pause. */
+let lastPreview: { slot: number; svg: string } | null = null;
+/** Typing inside a fence makes a new source per key; draw only once it pauses. */
+const PREVIEW_DELAY = 350;
+
 class DiagramWidget extends WidgetType {
-  constructor(readonly source: string, readonly dark: boolean, readonly offset: number, readonly preview: boolean) { super(); }
+  constructor(readonly source: string, readonly dark: boolean, readonly offset: number, readonly preview: boolean, readonly slot = 0) { super(); }
   eq(other: DiagramWidget) {
     return other.source === this.source && other.dark === this.dark && other.offset === this.offset && other.preview === this.preview;
   }
@@ -226,16 +232,34 @@ class DiagramWidget extends WidgetType {
   toDOM(view: EditorView) {
     const dom = document.createElement('div');
     dom.className = this.preview ? 'cm-md-diagram cm-md-diagram-preview' : 'cm-md-diagram';
-    dom.textContent = t('Drawing diagram…');
-    void drawDiagram(this.source, this.dark).then(svg => {
-      dom.innerHTML = svg;
-    }, (error: unknown) => {
+    const ready = drawnDiagram(this.source, this.dark);
+    if (ready !== undefined) this.show(dom, ready);
+    else if (this.preview) {
+      if (lastPreview?.slot === this.slot) {
+        dom.innerHTML = lastPreview.svg;
+        dom.classList.add('cm-md-diagram-pending');
+      } else dom.textContent = t('Drawing diagram…');
+      // A newer keystroke replaces this widget, and its timer then finds it gone.
+      setTimeout(() => { if (dom.isConnected) this.draw(view, dom); }, PREVIEW_DELAY);
+    } else {
+      dom.textContent = t('Drawing diagram…');
+      this.draw(view, dom);
+    }
+    if (!this.preview) revealOnClick(view, dom, () => this.offset);
+    return dom;
+  }
+  private show(dom: HTMLElement, svg: string) {
+    dom.innerHTML = svg;
+    dom.classList.remove('cm-md-diagram-pending');
+    if (this.preview) lastPreview = { slot: this.slot, svg };
+  }
+  private draw(view: EditorView, dom: HTMLElement) {
+    void drawDiagram(this.source, this.dark).then(svg => this.show(dom, svg), (error: unknown) => {
+      dom.classList.remove('cm-md-diagram-pending');
       dom.classList.add('cm-md-diagram-error');
       const message = String(error instanceof Error ? error.message : error).split('\n')[0];
       dom.textContent = t('Diagram not drawn: {error}', { error: message });
     }).finally(() => view.requestMeasure());
-    if (!this.preview) revealOnClick(view, dom, () => this.offset);
-    return dom;
   }
   ignoreEvent() { return !this.preview; }
 }
@@ -626,7 +650,7 @@ function collectBlocks(state: EditorState, tree: Tree, host: LivePreviewHost, pr
         const key = `Diagram\0${dark}\0${state.sliceDoc(from, to)}`;
         const widget = previous.get(key) ?? widgets.get(key) ?? new DiagramWidget(source, dark, ref.from - from, false);
         widgets.set(key, widget);
-        blocks.push({ from, to, widget, preview: new DiagramWidget(source, dark, 0, true) });
+        blocks.push({ from, to, widget, preview: new DiagramWidget(source, dark, 0, true, from) });
         return false;
       }
       if (ref.name === 'Table' || ref.name === 'DisplayMath') {
@@ -760,12 +784,8 @@ const tableToolbar = StateField.define<Tooltip | null>({
   create: () => null,
   update(value, tr) {
     const head = tr.state.selection.main.head;
-    let start: number | null = null;
-    if (revealing(tr.state)) {
-      for (let node: SyntaxNode | null = syntaxTree(tr.state).resolveInner(head, -1); node; node = node.parent) {
-        if (node.name === 'Table') { start = tr.state.doc.lineAt(node.from).from; break; }
-      }
-    }
+    const table = revealing(tr.state) ? tableAt(tr.state, head) : null;
+    const start = table ? tr.state.doc.line(table.first).from : null;
     if (start === null) return null;
     // The same tooltip object keeps its DOM while the cursor moves inside the table.
     return value?.pos === start ? value : tableTools(start);
@@ -872,6 +892,7 @@ const theme = EditorView.baseTheme({
   '.cm-md-diagram svg': { maxWidth: '100%', height: 'auto' },
   '.cm-md-diagram-preview': { borderBottom: '1px solid var(--border)', marginBottom: '0.3em', cursor: 'default' },
   '.cm-md-diagram-error': { color: 'var(--error)', textAlign: 'left' },
+  '.cm-md-diagram-pending': { opacity: '0.55' },
   '.cm-line.cm-md-frontmatter': { color: 'var(--text-muted)' },
   // Callouts read in full text colour, the bar and label in the kind's colour.
   '.cm-line.cm-md-callout': { color: 'var(--text)' },

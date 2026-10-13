@@ -299,6 +299,8 @@ export class EditorController {
   private typewriterCompartment = new Compartment();
   private activeLineCompartment = new Compartment();
   private typewriter = false;
+  private focusCompartment = new Compartment();
+  private focusBlock = false;
   private markdownLive: boolean;
   private markdownHost?: LivePreviewHost;
   private onToggleMarkdownSourceCb?: () => void;
@@ -357,7 +359,8 @@ export class EditorController {
       // also cut through code, table and front matter boxes.
       this.activeLineCompartment.of(this.isLive(this.currentLang) ? [] : highlightActiveLine()),
       highlightActiveLineGutter(),
-      currentBlock,
+      // Marks the paragraph Focus mode keeps; only while it is on, as it runs per keystroke.
+      this.focusCompartment.of(this.focusBlock ? currentBlock : []),
       this.typewriterCompartment.of(this.typewriter ? typewriterScrolling : []),
       drawSelection(),
       history(),
@@ -431,7 +434,10 @@ export class EditorController {
     this.setTheme(this.themeSpec);
     this.setSpellcheck(this.spellcheck);
     this.setIndent(this.tabSize, this.indentWithSpaces);
-    this.view.dispatch({ effects: this.typewriterCompartment.reconfigure(this.typewriter ? typewriterScrolling : []) });
+    this.view.dispatch({ effects: [
+      this.typewriterCompartment.reconfigure(this.typewriter ? typewriterScrolling : []),
+      this.focusCompartment.reconfigure(this.focusBlock ? currentBlock : []),
+    ] });
     if (reusable) this.view.dispatch({ effects: reusable.scroll });
     else this.view.scrollDOM.scrollTop = 0;
     const selection = this.view.state.selection.main;
@@ -553,6 +559,13 @@ export class EditorController {
   /** Compile problems for the shown document, marked in the margin. */
   setProblems(problems: LineProblem[]) {
     this.view.dispatch({ effects: setProblems.of(problems) });
+  }
+
+  /** Focus mode fades everything but the paragraph being written. */
+  setFocusBlock(on: boolean) {
+    if (on === this.focusBlock) return;
+    this.focusBlock = on;
+    this.view.dispatch({ effects: this.focusCompartment.reconfigure(on ? currentBlock : []) });
   }
 
   setTypewriter(on: boolean) {

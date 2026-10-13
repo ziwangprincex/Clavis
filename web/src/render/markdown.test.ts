@@ -72,7 +72,7 @@ describe('whole-document export rendering', () => {
     expect(title).toBe('My Draft');
     expect(html).toContain('<h1 id="intro">Intro</h1>');
     expect(html).toContain('<sup class="footnote-ref"><a href="#fn-a">1</a></sup>');
-    expect(html).toContain('<li id="fn-a">The <strong>source</strong>.</li>');
+    expect(html).toContain('<li id="fn-a" value="1">The <strong>source</strong>.</li>');
     expect(html).toContain('<blockquote class="callout callout-tip"><p class="callout-title">');
     expect(html).toContain('<p>Save often.</p>');
     expect(html).toContain('data-diagram="graph LR; A--&gt;B"');
@@ -84,5 +84,18 @@ describe('whole-document export rendering', () => {
 
   it('falls back to the first heading for the title', () => {
     expect(markdownDocument('## Notes\n\nText').title).toBe('Notes');
+  });
+});
+
+describe('export fixes after 1.8.0', () => {
+  it('numbers footnotes by first use even when one has no definition', () => {
+    const { html } = markdownDocument('A[^gone] and B[^b].\n\n[^b]: Defined.\n');
+    expect(html).toContain('<a href="#fn-b">2</a>');
+    expect(html).toContain('<li id="fn-b" value="2">Defined.</li>');
+  });
+
+  it('makes a callout only from [!KIND] alone on the first line, as the editor does', () => {
+    expect(markdownDocument('> [!NOTE] Title\n> text\n').html).not.toContain('callout');
+    expect(markdownDocument('> [!NOTE]\n> text\n').html).toContain('callout-note');
   });
 });
