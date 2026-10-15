@@ -57,6 +57,10 @@ pub struct CompileResult {
     pub log_tail: String,
     pub runs: u32,
     pub workdir_token: Option<String>,
+    /// The program that typeset the document (`xelatex`, or `latexmk` for a full build).
+    pub engine: String,
+    /// `bibtex` or `biber` when the bibliography was processed during this build.
+    pub bib_tool: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

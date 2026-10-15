@@ -1,7 +1,11 @@
-import { TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTask } from 'pdfjs-dist';
+import { OPS, TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTask } from 'pdfjs-dist';
 import { capturePageAnchor, restorePageAnchor, type ZoomPoint } from './zoom';
 import { isLink, resolveLink, type LinkAnnotation, type PdfLinkTarget } from './links';
+import { gradeCanvas, imageRects } from './darkGrading';
 import styles from '../components/PdfViewer.module.css';
+
+/** Dark paper that keeps colour: off, every grey pixel, or everything but raster images. */
+export type PdfGrading = 'off' | 'colors' | 'images';
 
 type Slot = {
   page: PDFPageProxy;
@@ -37,8 +41,20 @@ export class PdfPages {
     private onPaint: () => void,
     private onError: (error: unknown) => void,
     private onLink?: (target: PdfLinkTarget) => void,
+    private grading: PdfGrading = 'off',
   ) {
     this.zoom = zoom;
+  }
+
+  /** Repaints visible pages when the dark-paper mode changes. */
+  setGrading(grading: PdfGrading) {
+    if (this.disposed || grading === this.grading) return;
+    this.grading = grading;
+    for (const slot of this.slots) {
+      this.cancel(slot);
+      slot.paintedZoom = undefined;
+    }
+    for (const slot of this.nearby) void this.paint(slot).catch(this.onError);
   }
 
   get elements() {
@@ -177,7 +193,9 @@ export class PdfPages {
     layer.className = `textLayer ${styles.textLayer}`;
     surface.append(canvas, layer);
     if (this.onLink) surface.append(this.linkLayer(slot, viewport));
-    const context = canvas.getContext('2d');
+    const grading = this.grading;
+    // Read back once per paint to grade the pixels.
+    const context = canvas.getContext('2d', grading === 'off' ? undefined : { willReadFrequently: true });
     if (!context) throw new Error('Could not create the PDF canvas.');
     try {
       slot.task = slot.page.render({
@@ -187,6 +205,11 @@ export class PdfPages {
       });
       await slot.task.promise;
       if (this.disposed || revision !== slot.revision) return;
+      if (grading !== 'off') {
+        const keep = grading === 'images' ? imageRects(OPS, await slot.page.getOperatorList(), raster.transform) : [];
+        if (this.disposed || revision !== slot.revision) return;
+        gradeCanvas(context, keep);
+      }
       slot.wrap.replaceChildren(surface);
       slot.surface = surface;
       slot.paintedZoom = zoom;

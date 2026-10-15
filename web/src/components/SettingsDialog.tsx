@@ -33,6 +33,9 @@ type Category = (typeof CATEGORIES)[number];
 /// binary. Used only to decide whether a stored value is off-list.
 const BIB_ENGINE_CHOICES = ['auto', 'none', ...BIB_ENGINES] as const;
 
+
+/** The image folder presets offered; anything else is a custom folder. */
+const IMAGE_FOLDERS = ['assets', '${filename}.assets', '.'];
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const stored = useSettingsStore(s => s.settings);
   const saveDraft = useSettingsStore(s => s.saveDraft);
@@ -132,8 +135,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   function onReset() {
     const keys: Record<Category, (keyof Settings)[]> = {
       Appearance: ['editor_theme', 'ui_font_family', 'ui_mono_font_family', 'ui_font_size', 'ui_accent_color', 'ui_color_overrides'],
-      Editor: ['editor_font_family', 'editor_font_size', 'editor_line_height', 'editor_theme_overrides', 'editor_spellcheck', 'editor_tab_size', 'editor_indent_with_spaces', 'writing_main_word_limit', 'writing_abstract_word_limit', 'autosave_enabled'],
-      Markdown: ['preview_font_family', 'preview_font_size', 'preview_line_height', 'preview_heading_fonts', 'preview_heading_sizes', 'preview_heading_weights', 'preview_quote_font_family', 'preview_inline_code_font_family', 'preview_code_font_family', 'preview_reading_width'],
+      Editor: ['editor_font_family', 'editor_font_size', 'editor_line_height', 'editor_theme_overrides', 'editor_spellcheck', 'editor_tab_size', 'editor_indent_with_spaces', 'writing_main_word_limit', 'writing_abstract_word_limit', 'reading_speed', 'autosave_enabled'],
+      Markdown: ['preview_font_family', 'preview_font_size', 'preview_line_height', 'preview_heading_fonts', 'preview_heading_sizes', 'preview_heading_weights', 'preview_quote_font_family', 'preview_inline_code_font_family', 'preview_code_font_family', 'preview_reading_width', 'markdown_image_folder', 'markdown_smart_punctuation'],
       'LaTeX & PDF': ['latex_engine', 'bib_engine', 'auto_rerun', 'max_runs', 'pdf_dark_mode'],
       Updates: [],
     };
@@ -270,6 +273,24 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     <option value="wide">{t("Wide")}</option>
                   </select>
                 </label>
+                <label> {t("Pasted and dropped images")} <select
+                    value={IMAGE_FOLDERS.includes(draft.markdown_image_folder) ? draft.markdown_image_folder : 'custom'}
+                    onChange={e => update('markdown_image_folder', e.target.value === 'custom' ? 'images' : e.target.value)}
+                  >
+                    <option value="assets">{t("Copy to ./assets")}</option>
+                    <option value="${filename}.assets">{t("Copy to ./document-name.assets")}</option>
+                    <option value=".">{t("Copy to the document's folder")}</option>
+                    <option value="custom">{t("Copy to a folder of my choice")}</option>
+                  </select>
+                </label>
+                {!IMAGE_FOLDERS.includes(draft.markdown_image_folder) && <label> {t("Image folder")} <input type="text" value={draft.markdown_image_folder} spellCheck={false}
+                    onChange={e => update('markdown_image_folder', e.target.value)} />
+                </label>}
+                <label className={styles.inline}>
+                  <input type="checkbox" checked={draft.markdown_smart_punctuation} onChange={e => update('markdown_smart_punctuation', e.target.checked)} />
+                  {' '}{t('Smart punctuation: curly quotes, and -- as an en dash, --- as an em dash')}
+                </label>
+                <p className={styles.hint}>{t('Relative to the document; ${filename} is its name, and ../ may go up within the open folder. A document can choose its own with typora-copy-images-to in its front matter.')}</p>
               </section>
             )}
 
@@ -364,6 +385,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                       onChange={e => update('pdf_dark_mode', e.target.value)}
                     >
                       <option value="off">{t("Off (white paper)")}</option>
+                      <option value="dark">{t("Dark paper, colors kept")}</option>
+                      <option value="dark-images">{t("Dark paper, images untouched")}</option>
                       <option value="invert">{t("Invert colors")}</option>
                       <option value="sepia">{t("Sepia")}</option>
                     </select>
@@ -398,6 +421,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   <label> {t("Main text word limit (0 = off)")} <input type="number" min={0} value={draft.writing_main_word_limit} onChange={e => update('writing_main_word_limit', Math.max(0, +e.target.value || 0))} />
                   </label>
                   <label> {t("Abstract word limit (0 = off)")} <input type="number" min={0} value={draft.writing_abstract_word_limit} onChange={e => update('writing_abstract_word_limit', Math.max(0, +e.target.value || 0))} />
+                  </label>
+                  <label> {t("Reading speed (words per minute)")} <input type="number" min={60} max={2000} step={10} value={draft.reading_speed} onChange={e => update('reading_speed', Math.max(60, Math.min(2000, +e.target.value || 300)))} />
                   </label>
                   <label className={styles.inline}>
                     <input

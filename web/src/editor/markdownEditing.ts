@@ -358,6 +358,93 @@ export const deleteColumn: Command = view => {
   return true;
 };
 
+/** An empty column left of the cursor's column. */
+export const insertColumnLeft: Command = view => {
+  const info = tableRows(view.state);
+  if (!info) return false;
+  const rows = info.rows.map((row, r) => ({ ...row, cells: [...row.cells.slice(0, info.column), r === 1 ? '---' : '', ...row.cells.slice(info.column)] }));
+  writeTable(view, info.table, rows, info.row === 1 ? 0 : info.row, info.column);
+  return true;
+};
+
+/** An empty body row above the cursor's row (the first body row from the header). */
+export const insertRowAbove: Command = view => {
+  const info = tableRows(view.state);
+  if (!info) return false;
+  const at = Math.max(2, info.row);
+  const empty = { prefix: info.rows[Math.min(at, info.rows.length - 1)].prefix, cells: Array.from({ length: info.columns }, () => '') };
+  writeTable(view, info.table, [...info.rows.slice(0, at), empty, ...info.rows.slice(at)], at, 0);
+  return true;
+};
+
+/** Swaps the cursor's body row with the one above or below (Typora's Move Row Up/Down). */
+export function moveRow(dir: 1 | -1): Command {
+  return view => {
+    const info = tableRows(view.state);
+    if (!info) return false;
+    const target = info.row + dir;
+    // The header and delimiter rows stay where they are.
+    if (info.row < 2 || target < 2 || target >= info.rows.length) return true;
+    const rows = [...info.rows];
+    // Prefixes stay with their line, so a quoted table keeps its markers in place.
+    [rows[info.row], rows[target]] = [{ ...rows[target], prefix: rows[info.row].prefix }, { ...rows[info.row], prefix: rows[target].prefix }];
+    writeTable(view, info.table, rows, target, info.column);
+    return true;
+  };
+}
+
+/** Swaps the cursor's column with its left or right neighbour, alignment included. */
+export function moveColumn(dir: 1 | -1): Command {
+  return view => {
+    const info = tableRows(view.state);
+    if (!info) return false;
+    const target = info.column + dir;
+    if (target < 0 || target >= info.columns) return true;
+    const rows = info.rows.map((row, r) => {
+      const cellsNow = [...row.cells];
+      while (cellsNow.length < info.columns) cellsNow.push(r === 1 ? '---' : '');
+      [cellsNow[info.column], cellsNow[target]] = [cellsNow[target], cellsNow[info.column]];
+      return { ...row, cells: cellsNow };
+    });
+    writeTable(view, info.table, rows, info.row === 1 ? 0 : info.row, target);
+    return true;
+  };
+}
+
+/** The table's Markdown source, without blockquote markers. */
+export function tableSource(state: EditorState): string | null {
+  const info = tableRows(state);
+  return info ? info.rows.map(row => rowText({ ...row, prefix: '' })).join('\n') : null;
+}
+
+/** Removes the whole table and one blank line around it. */
+export const deleteTable: Command = view => {
+  const { state } = view;
+  const table = tableAt(state, state.selection.main.head);
+  if (!table) return false;
+  let from = state.doc.line(table.first).from, to = state.doc.line(table.last).to;
+  if (table.last < state.doc.lines && !state.doc.line(table.last + 1).text.trim()) to = state.doc.line(table.last + 1).to + (table.last + 1 < state.doc.lines ? 1 : 0);
+  else if (table.first > 1) from = state.doc.line(table.first - 1).to;
+  view.dispatch({ changes: { from, to }, selection: { anchor: from }, scrollIntoView: true, userEvent: 'delete' });
+  return true;
+};
+
+/** The table commands by name, for menus and the command palette. */
+export const TABLE_COMMANDS = {
+  insertRowAbove: () => insertRowAbove,
+  insertRowBelow: () => insertRow,
+  moveRowUp: () => moveRow(-1),
+  moveRowDown: () => moveRow(1),
+  deleteRow: () => deleteRow,
+  insertColumnLeft: () => insertColumnLeft,
+  insertColumnRight: () => insertColumn,
+  moveColumnLeft: () => moveColumn(-1),
+  moveColumnRight: () => moveColumn(1),
+  deleteColumn: () => deleteColumn,
+  deleteTable: () => deleteTable,
+} satisfies Record<string, () => Command>;
+export type TableCommandName = keyof typeof TABLE_COMMANDS;
+
 /** Removes the cursor's body row; the header and delimiter rows stay. */
 export const deleteRow: Command = view => {
   const info = tableRows(view.state);
@@ -403,6 +490,11 @@ export function markdownEditing(host?: MarkdownImageHost): Extension {
       { key: 'Backspace', run: removeHeadingMark },
       { key: 'Tab', run: moveCell(1), shift: moveCell(-1) },
       { key: 'Mod-Enter', run: insertRow },
+      // Typora's Move Row / Move Column; outside a table these fall through.
+      { key: 'Alt-Mod-ArrowUp', run: moveRow(-1) },
+      { key: 'Alt-Mod-ArrowDown', run: moveRow(1) },
+      { key: 'Alt-Mod-ArrowLeft', run: moveColumn(-1) },
+      { key: 'Alt-Mod-ArrowRight', run: moveColumn(1) },
     ])),
     EditorView.inputHandler.of((view, _from, _to, text) => {
       if (!WRAPPING.has(text) || view.state.selection.ranges.some(range => range.empty)) return false;

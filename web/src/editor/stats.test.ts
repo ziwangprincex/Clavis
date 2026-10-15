@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeResearchDetailStats, computeResearchStats, computeStats, countChars, countLines, countWords } from './stats';
+import { computeResearchDetailStats, computeResearchStats, computeStats, countChars, countLines, countWords, readingMinutes } from './stats';
 
 describe('countLines', () => {
   it('returns 1 for empty string (a blank doc still shows Ln 1)', () => {
@@ -110,5 +110,14 @@ describe('computeResearchDetailStats', () => {
     expect(latex.captionWords).toBe(2); expect(latex.footnoteWords).toBe(2);
     const typst = computeResearchDetailStats('= A\nprose #figure(image("x"), caption: [Figure caption]) #footnote[Note text]', 'typst', 5);
     expect(typst.captionWords).toBe(2); expect(typst.footnoteWords).toBe(2);
+  });
+});
+
+describe('reading time', () => {
+  it('rounds to whole minutes, at least one for any text', () => {
+    expect(readingMinutes(0, 300)).toBe(0);
+    expect(readingMinutes(40, 300)).toBe(1);
+    expect(readingMinutes(1500, 300)).toBe(5);
+    expect(readingMinutes(1650, 300)).toBe(6);
   });
 });

@@ -43,6 +43,12 @@ export interface DocStats {
   lines: number;
 }
 
+/** Whole minutes to read `words` at `perMinute`; at least one for any text. */
+export function readingMinutes(words: number, perMinute: number): number {
+  if (words <= 0) return 0;
+  return Math.max(1, Math.round(words / Math.max(1, perMinute)));
+}
+
 export function computeStats(s: string): DocStats {
   return { words: countWords(s), chars: countChars(s), lines: countLines(s) };
 }

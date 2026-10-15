@@ -15,17 +15,19 @@ import { prefetchCwlForDocument, setCwlOptions } from '../completions/cwlProvide
 import { prefetchTypstSignatures } from '../completions/signatures';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { normalizePath, pathsEqual, resolveSyncTexFile } from '../files/projectPaths';
+import { imageTarget } from '../files/imageFolder';
+import { syncTexForwardFromEditor } from '../compile/synctex';
 import { isLatexError, useCompileStore } from '../store/compile';
 import { useTypstPreviewStore } from '../store/typstPreview';
 import type { LineProblem } from '../editor/diagnostics';
 import { hasTauri, ipc } from '../api/tauri';
 import { base64, imageReadRoot as readRoot, localImagePath } from '../render/markdownView';
 import { sanitizeUrl } from '../render/markdown';
-import { openFileByPath } from '../files/files';
+import { openFileAndScrollToLine, openFileByPath } from '../files/files';
 import { setStatus } from '../store/status';
 import { previewTypography } from '../theme/typography';
 import type { LivePreviewHost } from '../editor/livePreview';
-import { formatTable } from '../editor/markdownEditing';
+import { formatTable, TABLE_COMMANDS, tableSource, type TableCommandName } from '../editor/markdownEditing';
 import styles from './EditorPane.module.css';
 import { citationText, citationsText } from './citationText';
 
@@ -147,7 +149,8 @@ const markdownHost: LivePreviewHost = {
     }
     const extension = ({ 'image/jpeg': 'jpg', 'image/svg+xml': 'svg' } as Record<string, string>)[file.type] ?? file.type.slice(6);
     try {
-      return await ipc.saveMarkdownImage(documentPath, extension, base64(new Uint8Array(await file.arrayBuffer())));
+      const content = useTabsStore.getState().tabs.find(tab => pathsEqual(tab.filePath, documentPath))?.content ?? '';
+      return await ipc.saveMarkdownImage(documentPath, extension, base64(new Uint8Array(await file.arrayBuffer())), imageTarget(documentPath, content));
     } catch (error) {
       setStatus(`Image not added: ${String(error)}`, 'error');
       return null;
@@ -186,6 +189,10 @@ export interface EditorPaneRef {
   insertCites: (keys: string[]) => void;
   /** Align the pipes of the Markdown table at the cursor; false outside a table. */
   formatTable: () => boolean;
+  /** Run a table command at the cursor; false outside a table. */
+  tableCommand: (name: TableCommandName) => boolean;
+  /** The Markdown source of the table at the cursor, or null. */
+  tableSource: () => string | null;
 }
 
 export interface EditorPaneProps {
@@ -246,6 +253,7 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
         });
       },
       getCompletionWorkspace: completionWorkspace,
+      onJumpToSource: (path, line) => void openFileAndScrollToLine(path, line, target => controllerRef.current?.scrollLineIntoView(target)),
       onCursor: (_pos, selectionFrom, selectionTo) => {
         // Publish live cursor/selection state to the status bar. Column is
         // computed against the doc, so we go through the controller helper.
@@ -274,6 +282,12 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
         insertCiteAtCursor(ctrl, key, tab?.lang ?? 'markdown');
       },
       formatTable: () => formatTable(ctrl.view),
+      tableCommand: name => {
+        const ran = TABLE_COMMANDS[name]()(ctrl.view);
+        if (ran) ctrl.focus();
+        return ran;
+      },
+      tableSource: () => tableSource(ctrl.view.state),
       insertCites: (keys: string[]) => {
         const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
         const language = tab?.lang ?? 'markdown';
@@ -322,6 +336,29 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
   useEffect(() => { controllerRef.current?.setMarkdownLive(!settings.markdown_source_mode); }, [settings.markdown_source_mode]);
   useEffect(() => { controllerRef.current?.setTypewriter(settings.editor_typewriter); }, [settings.editor_typewriter]);
   useEffect(() => { controllerRef.current?.setFocusBlock(focusMode); }, [focusMode]);
+  useEffect(() => { controllerRef.current?.setSmartPunctuation(settings.markdown_smart_punctuation); }, [settings.markdown_smart_punctuation]);
+
+  // Texifier's scroll lock: the PDF follows the LaTeX source as it scrolls, by
+  // SyncTeX from the line a third of the way down the editor.
+  useEffect(() => {
+    const view = controllerRef.current?.view;
+    if (!settings.pdf_scroll_lock || activeTab?.lang !== 'latex' || !view) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let last = -1;
+    const follow = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const { scrollTop, clientHeight } = view.scrollDOM;
+        const block = view.lineBlockAtHeight(scrollTop + clientHeight / 3);
+        const line = view.state.doc.lineAt(block.from).number;
+        if (line === last) return;
+        last = line;
+        void syncTexForwardFromEditor(line);
+      }, 200);
+    };
+    view.scrollDOM.addEventListener('scroll', follow, { passive: true });
+    return () => { clearTimeout(timer); view.scrollDOM.removeEventListener('scroll', follow); };
+  }, [settings.pdf_scroll_lock, activeTab?.lang, activeTabId]);
 
   // Formatted Markdown is set in the reading typography; source stays in the editor font.
   const live = (activeTab?.lang ?? 'markdown') === 'markdown' && !settings.markdown_source_mode;

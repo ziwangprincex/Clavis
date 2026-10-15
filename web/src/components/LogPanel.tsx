@@ -1,5 +1,7 @@
 import { t } from '../i18n';
+import { useEffect, useRef, useState } from 'react';
 import { useCompileStore } from '../store';
+import type { LogLine } from '../store/compile';
 import styles from './LogPanel.module.css';
 import { guidance } from '../compile/guidance';
 
@@ -14,8 +16,25 @@ export interface LogPanelProps {
   onInstallPackage?: (pkg: string) => void;
 }
 
+/** The raw-output line a diagnostic came from: the last line containing its
+ *  first line of text, since problems are read from the final pass. */
+export function logLineFor(lines: readonly LogLine[], message: string): number {
+  const needle = message.split('\n')[0].replace(/^!\s*/, '').trim().slice(0, 80);
+  if (!needle) return -1;
+  for (let i = lines.length - 1; i >= 0; i--) if (lines[i].text.includes(needle)) return i;
+  return -1;
+}
+
 export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings, onFullBuild }: LogPanelProps) {
   const { status, errors, logLines, logTail } = useCompileStore();
+  // Texifier selects an issue's place in the raw log; here the line is opened and marked.
+  const [rawOpen, setRawOpen] = useState(false);
+  const [marked, setMarked] = useState(-1);
+  const raw = useRef<HTMLPreElement>(null);
+  useEffect(() => setMarked(-1), [logLines]);
+  useEffect(() => {
+    if (marked >= 0) raw.current?.querySelector(`[data-line="${marked}"]`)?.scrollIntoView({ block: 'center' });
+  }, [marked]);
   const emptyMessage = status === 'compiling' ? 'Compiling…'
     : status === 'error' ? 'Compilation failed. Details are in the raw output.'
     : status === 'ok' ? 'No errors.' : 'No compile result yet.';
@@ -37,6 +56,7 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
             const guide = guidance('latex', err.message);
             const hasLine = typeof err.line === 'number' && Number.isInteger(err.line) && err.line > 0;
             const canAct = guide.action !== 'none' && (guide.action !== 'source' || (hasLine && !!onJumpTo));
+            const inLog = logLineFor(logLines, err.message);
             return (
             <div key={i} className={`${styles.row} ${styles[`kind-${err.kind ?? 'error'}`] ?? ''}`}>
               <div className={styles.rowHead}>
@@ -51,6 +71,8 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
                     <bdi dir="ltr">{err.file ? `${err.file}:${err.line}` : `L${err.line}`}</bdi>
                   </button>
                 )}
+                {inLog >= 0 && <button type="button" className={styles.jump} title={t('Show this problem in the raw output')}
+                  onClick={() => { setRawOpen(true); setMarked(inLog); }}>{t('In log')}</button>}
               </div>
               <div className={styles.message}>{err.message}</div>
               <small className={styles.explanation}>{t(guide.explanation)}</small>
@@ -77,11 +99,11 @@ export function LogPanel({ onJumpTo, onInstallPackage, onEnvironment, onSettings
         )}
       </div>
 
-      <details className={styles.rawDetails}>
+      <details className={styles.rawDetails} open={rawOpen} onToggle={event => setRawOpen(event.currentTarget.open)}>
         <summary>{t('Raw output ({count} lines)', { count: logLines.length })}</summary>
-        <pre className={styles.raw}>
+        <pre className={styles.raw} ref={raw}>
           {logLines.map((l, i) => (
-            <span key={i} className={styles[`stream-${l.stream}`]}>
+            <span key={i} data-line={i} className={`${styles[`stream-${l.stream}`] ?? ''} ${i === marked ? styles.marked : ''}`}>
               [{l.run}] {l.text}{l.text.endsWith('\n') ? '' : '\n'}
             </span>
           ))}

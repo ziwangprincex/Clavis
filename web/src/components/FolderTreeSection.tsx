@@ -38,6 +38,14 @@ async function scan(path: string, previous: NodeWithChildren | null): Promise<No
   return { ...fresh, loaded: true, expanded: true };
 }
 
+/** The folders whose entries the tree shows: the root and every expanded folder. */
+function shownFolders(node: NodeWithChildren): string[] {
+  return [node.path, ...node.children.filter(child => child.isDir && child.expanded).flatMap(shownFolders)];
+}
+
+/** How often the shown folders are checked for changes made outside Clavis. */
+const POLL_MS = 2500;
+
 function replaceNode(root: NodeWithChildren, next: NodeWithChildren): NodeWithChildren {
   if (root.path === next.path) return next;
   return { ...root, children: root.children.map(child => replaceNode(child, next)) };
@@ -76,6 +84,27 @@ export function FolderTreeSection({ rootPath, onOpenFolder, onCloseFolder, onFil
     void loadRoot();
     return () => { request.current += 1; };
   }, [loadRoot, refreshKey]);
+
+  // Typora's file tree follows the folder as it changes; here the shown folders'
+  // stamps are compared, so files added in Finder appear without a rescan.
+  const stamps = useRef<{ paths: string; values: string } | null>(null);
+  useEffect(() => {
+    if (!rootPath || !ipc.folderStamps) return;
+    let busy = false;
+    const timer = setInterval(() => {
+      const shown = currentRoot.current;
+      if (busy || !shown || shown.path !== rootPath || document.visibilityState === 'hidden') return;
+      busy = true;
+      const paths = shownFolders(shown);
+      void ipc.folderStamps(paths).then(values => {
+        const next = { paths: paths.join('\0'), values: values.join('\0') };
+        const previous = stamps.current;
+        stamps.current = next;
+        if (previous && previous.paths === next.paths && previous.values !== next.values) return loadRoot();
+      }).catch(() => undefined).finally(() => { busy = false; });
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [rootPath, loadRoot]);
 
   useEffect(() => {
     if (!rootPath) return;

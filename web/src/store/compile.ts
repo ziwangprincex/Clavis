@@ -20,6 +20,8 @@ interface CompileStore {
   logTail: string;
   /** compile run counter (just for display, e.g. "Rendered (3 runs)") */
   runs: number;
+  /** What the last build ran, as Texifier's typeset bar shows it: engine, bibliography tool, passes. */
+  chain: BuildChain | null;
 
   setStatus: (s: CompileStatus) => void;
   setErrors: (errors: LatexDiag[]) => void;
@@ -27,6 +29,21 @@ interface CompileStore {
   clearLog: () => void;
   setLogTail: (tail: string) => void;
   setRuns: (n: number) => void;
+}
+
+export interface BuildChain { engine: string; bibTool: string | null; runs: number }
+
+const ENGINE_NAMES: Record<string, string> = {
+  pdflatex: 'pdfLaTeX', xelatex: 'XeLaTeX', lualatex: 'LuaLaTeX', latexmk: 'latexmk', bibtex: 'BibTeX', biber: 'Biber',
+};
+const programName = (name: string) => ENGINE_NAMES[name.toLowerCase()] ?? name;
+
+/** `XeLaTeX · Biber · 3 passes`; latexmk counts its own passes, so none are listed. */
+export function describeChain(chain: BuildChain, passes: (count: number) => string): string {
+  const parts = [programName(chain.engine)];
+  if (chain.bibTool) parts.push(programName(chain.bibTool));
+  if (chain.engine !== 'latexmk' && chain.runs > 0) parts.push(passes(chain.runs));
+  return parts.join(' · ');
 }
 
 const MAX_LOG_LINES = 5000;
@@ -46,6 +63,7 @@ export const useCompileStore = create<CompileStore>((set, get) => ({
   logLines: [],
   logTail: '',
   runs: 0,
+  chain: null,
 
   setStatus(s) {
     set({ status: s });

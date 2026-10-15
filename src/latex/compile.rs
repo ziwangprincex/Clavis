@@ -138,6 +138,7 @@ pub async fn compile_latex(
     // Diagnostics harvested from bibtex/biber output (kept across runs).
     let mut bib_diags: Vec<LatexDiag> = Vec::new();
     let mut runs: u32 = 0;
+    let mut bib_tool: Option<String> = None;
     let max_runs = if opts.full_build { 1 } else { opts.max_runs.max(1).min(8) };
     let mut font_dirs: Vec<PathBuf> = Vec::new();
     for pf in &opts.project_files {
@@ -241,6 +242,7 @@ pub async fn compile_latex(
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
                         match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs, &cancel).await {
                             Ok((bib_code, bo)) => {
+                                bib_tool = Some(bib_name.to_string());
                                 // Harvest persistent diagnostics from bib runner output
                                 // (e.g. "I couldn't open database file ...", or a .bib
                                 // syntax error with its line). LaTeX runs after this
@@ -302,6 +304,8 @@ pub async fn compile_latex(
         log_tail: log_tail(&log_full),
         runs,
         workdir_token: Some(token),
+        engine: if opts.full_build { "latexmk".to_string() } else { opts.engine.clone() },
+        bib_tool,
     })
     }.await;
     if result.is_err() { state.remove(&cleanup_token); }

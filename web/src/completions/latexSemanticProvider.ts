@@ -1,5 +1,6 @@
 import { normalizePath } from '../files/projectPaths';
 import { latexWorkspaceEnvironments, latexWorkspaceMacros } from './latexMacroScan';
+import { bibDetail, bibSummaries, labelSummaries } from './latexTargets';
 import type {
   CompletionCandidate,
   CompletionDocument,
@@ -194,22 +195,42 @@ export const latexSemanticProvider: CompletionProvider = {
     const docs = documents(request);
 
     switch (site.kind) {
-      case 'citation':
-        return bibKeys(docs).map(key => ({
-          label: key,
-          insertText: key,
-          detail: 'BibTeX citation',
-          kind: 'citation',
-          boost: 20,
-        }));
-      case 'reference':
-        return labels(docs).map(label => ({
-          label,
-          insertText: label,
-          detail: 'LaTeX label',
-          kind: 'reference',
-          boost: 20,
-        }));
+      case 'citation': {
+        const entries = bibSummaries(docs);
+        const known = new Set(entries.map(entry => entry.key));
+        return [
+          ...entries.map((entry): CompletionCandidate => ({
+            label: entry.key,
+            insertText: entry.key,
+            detail: bibDetail(entry),
+            info: [entry.title, entry.author, entry.year].filter(Boolean).join('\n') || undefined,
+            source: { path: entry.path, line: entry.line },
+            kind: 'citation',
+            boost: 20,
+          })),
+          ...bibKeys(docs).filter(key => !known.has(key)).map((key): CompletionCandidate => ({
+            label: key, insertText: key, detail: 'BibTeX citation', kind: 'citation', boost: 20,
+          })),
+        ];
+      }
+      case 'reference': {
+        const found = labelSummaries(docs, withoutLatexComments);
+        const known = new Set(found.map(item => item.label));
+        return [
+          ...found.map((item): CompletionCandidate => ({
+            label: item.label,
+            insertText: item.label,
+            detail: item.kind ? `${item.kind}${item.text ? ` · ${item.text.length > 32 ? `${item.text.slice(0, 31)}…` : item.text}` : ''}` : 'LaTeX label',
+            info: item.text ? `${item.kind ?? 'Label'}: ${item.text}` : undefined,
+            source: { path: item.path, line: item.line },
+            kind: 'reference',
+            boost: 20,
+          })),
+          ...labels(docs).filter(label => !known.has(label)).map((label): CompletionCandidate => ({
+            label, insertText: label, detail: 'LaTeX label', kind: 'reference', boost: 20,
+          })),
+        ];
+      }
       case 'environment':
         return environmentCandidates(request, site.action);
       case 'command':

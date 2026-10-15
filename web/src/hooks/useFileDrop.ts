@@ -9,6 +9,7 @@ import { pathsEqual } from '../files/projectPaths';
 import { imageMarkdown } from '../editor/markdownEditing';
 import { useTabsStore } from '../store';
 import { setStatus } from '../store/status';
+import { imageTarget } from '../files/imageFolder';
 
 const IMAGE = /\.(?:png|jpe?g|gif|webp|svg)$/i;
 
@@ -18,7 +19,8 @@ const activeTab = () => {
 };
 
 async function insertImages(document: string, paths: string[], insert: (text: string) => void) {
-  const placed = await Promise.all(paths.map(path => ipc.placeMarkdownImage(document, path).catch((error: unknown) => {
+  const target = imageTarget(document, activeTab()?.content ?? '');
+  const placed = await Promise.all(paths.map(path => ipc.placeMarkdownImage(document, path, target).catch((error: unknown) => {
     setStatus(`Image not added: ${String(error)}`, 'error');
     return null;
   })));

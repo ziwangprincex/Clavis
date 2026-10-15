@@ -28,6 +28,7 @@ import { tags as t } from '@lezer/highlight';
 import {
   autocompletion,
   closeBrackets,
+  closeCompletion,
 } from '@codemirror/autocomplete';
 import { highlightSelectionMatches } from '@codemirror/search';
 import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown';
@@ -49,6 +50,8 @@ import { markdownLivePreview, syncMarkdownFocus, type LivePreviewHost } from './
 import { buildEditorKeymap } from './keymaps';
 import { currentBlock, typewriterScrolling } from './focusBlock';
 import { problemGutter, setProblems, type LineProblem } from './diagnostics';
+import { lineNumberShading } from './lineNumberShading';
+import { smartPunctuationInput } from './smartPunctuation';
 import { signatureTheme, signatureTooltipExt } from './signatureTooltip';
 import { syntaxPalette, type ThemeSpec } from '../theme/themes';
 import { withAlpha } from '../theme/colors';
@@ -203,6 +206,31 @@ function buildThemeExt(spec: ThemeSpec) {
         fontWeight: '400',
         color: 'var(--text-muted)',
       },
+      // The candidate's description beside the list, as Texifier's info box.
+      '.cm-tooltip.cm-completionInfo': {
+        backgroundColor: 'var(--bg-elevated)',
+        color: spec.fg,
+        border: '1px solid var(--border)',
+        borderRadius: '10px',
+        boxShadow: 'var(--shadow-md)',
+        padding: '9px 12px',
+        maxWidth: 'min(360px, 60vw)',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '0.9231rem',
+        lineHeight: '1.5',
+      },
+      '.cm-completion-detail-text': { whiteSpace: 'pre-line', overflowWrap: 'anywhere' },
+      '.cm-completion-detail-jump': {
+        display: 'block',
+        marginTop: '6px',
+        padding: '0',
+        border: '0',
+        background: 'none',
+        color: 'var(--accent)',
+        font: 'inherit',
+        cursor: 'pointer',
+      },
+      '.cm-completion-detail-text + .cm-completion-detail-jump': { borderTop: '1px solid var(--border)', paddingTop: '6px', width: '100%', textAlign: 'left' },
     },
     { dark: spec.dark },
   );
@@ -247,6 +275,10 @@ function buildFontExt(font: FontSpec) {
       paddingInlineStart: '8px',
       paddingInlineEnd: '8px',
     },
+    // Smaller line numbers keep the text's line box, so they sit level with its first row.
+    '.cm-lineNumbers .cm-gutterElement': {
+      lineHeight: `${font.size * font.lineHeight}px`,
+    },
   });
 }
 
@@ -275,6 +307,8 @@ export interface EditorOptions {
   onToggleMarkdownSource?: () => void;
   /** A compile problem's margin marker was clicked. */
   onShowProblems?: () => void;
+  /** Go to where a completion candidate is defined (its file, or this document when null). */
+  onJumpToSource?: (path: string | null, line: number) => void;
 }
 
 /** Wrapper around CodeMirror EditorView with a textarea-shaped API. */
@@ -297,6 +331,8 @@ export class EditorController {
   private inlineMathEnabled = false;
   private liveCompartment = new Compartment();
   private typewriterCompartment = new Compartment();
+  private smartCompartment = new Compartment();
+  private smartPunctuation = false;
   private activeLineCompartment = new Compartment();
   private typewriter = false;
   private focusCompartment = new Compartment();
@@ -321,6 +357,7 @@ export class EditorController {
   private onCursorCb?: (pos: number, selectionFrom: number, selectionTo: number) => void;
   private getCompletionWorkspaceCb?: () => CompletionWorkspace | undefined;
   private onOpenIncludeCb?: (raw: string, kind: 'latex' | 'typst' | 'latex-macro' | 'latex-environment', isImport: boolean) => void;
+  private onJumpToSourceCb?: (path: string | null, line: number) => void;
 
   constructor(opts: EditorOptions) {
     this.currentLang = opts.lang;
@@ -331,6 +368,7 @@ export class EditorController {
     this.onCursorCb = opts.onCursor;
     this.getCompletionWorkspaceCb = opts.getCompletionWorkspace;
     this.onOpenIncludeCb = opts.onOpenInclude;
+    this.onJumpToSourceCb = opts.onJumpToSource;
     this.markdownHost = opts.markdownHost;
     this.markdownLive = opts.markdownLive !== false;
     this.onToggleMarkdownSourceCb = opts.onToggleMarkdownSource;
@@ -351,6 +389,7 @@ export class EditorController {
     const exts = [
       problemGutter(() => this.onShowProblemsCb?.()),
       lineNumbers(),
+      lineNumberShading,
       this.writingCompartment.of(writingAssist(this.currentLang, this.getCompletionWorkspaceCb)),
       this.inlineMathCompartment.of([]),
       this.liveCompartment.of(this.liveExt(this.currentLang)),
@@ -359,6 +398,7 @@ export class EditorController {
       // also cut through code, table and front matter boxes.
       this.activeLineCompartment.of(this.isLive(this.currentLang) ? [] : highlightActiveLine()),
       highlightActiveLineGutter(),
+      this.smartCompartment.of(this.smartExt(this.currentLang)),
       // Marks the paragraph Focus mode keeps; only while it is on, as it runs per keystroke.
       this.focusCompartment.of(this.focusBlock ? currentBlock : []),
       this.typewriterCompartment.of(this.typewriter ? typewriterScrolling : []),
@@ -369,7 +409,7 @@ export class EditorController {
       closeBrackets(),
       this.completionCompartment.of(
         autocompletion({
-          override: [buildCompletionSource(this.currentLang, this.getCompletionWorkspaceCb)],
+          override: [buildCompletionSource(this.currentLang, this.getCompletionWorkspaceCb, this.jumpToSource)],
           interactionDelay: 0,
         }),
       ),
@@ -507,9 +547,10 @@ export class EditorController {
         this.inlineMathCompartment.reconfigure(this.inlineMathExt(lang)),
         this.liveCompartment.reconfigure(this.liveExt(lang)),
         this.activeLineCompartment.reconfigure(this.isLive(lang) ? [] : highlightActiveLine()),
+        this.smartCompartment.reconfigure(this.smartExt(lang)),
         this.completionCompartment.reconfigure(
           autocompletion({
-            override: [buildCompletionSource(lang, this.getCompletionWorkspaceCb)],
+            override: [buildCompletionSource(lang, this.getCompletionWorkspaceCb, this.jumpToSource)],
             interactionDelay: 0,
           }),
         ),
@@ -566,6 +607,17 @@ export class EditorController {
     if (on === this.focusBlock) return;
     this.focusBlock = on;
     this.view.dispatch({ effects: this.focusCompartment.reconfigure(on ? currentBlock : []) });
+  }
+
+  private smartExt(lang: Lang) {
+    return this.smartPunctuation && lang === 'markdown' ? smartPunctuationInput : [];
+  }
+
+  /** Typora's smart quotes and dashes, in Markdown only. */
+  setSmartPunctuation(on: boolean) {
+    if (on === this.smartPunctuation) return;
+    this.smartPunctuation = on;
+    this.view.dispatch({ effects: this.smartCompartment.reconfigure(this.smartExt(this.currentLang)) });
   }
 
   setTypewriter(on: boolean) {
@@ -635,6 +687,12 @@ export class EditorController {
       ],
     });
   }
+
+  private jumpToSource = (path: string | null, line: number) => {
+    closeCompletion(this.view);
+    if (this.onJumpToSourceCb) this.onJumpToSourceCb(path, line);
+    else this.scrollLineIntoView(line);
+  };
 
   scrollLineIntoView(line1Based: number) {
     const ln = Math.max(1, Math.min(line1Based, this.view.state.doc.lines));

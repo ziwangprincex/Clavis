@@ -39,10 +39,21 @@ one.
 
 Images pasted or dropped into a Markdown document are written by
 `save_markdown_image` / `place_markdown_image` (`src/markdown_images.rs`): only
-png, jpg, gif, webp and svg, at most 20 MiB, into an `assets` folder beside the
-document. Files are created with `create_new`, so an existing file is never
+png, jpg, gif, webp and svg, at most 20 MiB, into a folder beside the document
+(`assets` by default; the setting or the document's `typora-copy-images-to`
+front matter can name another). That folder must be relative and resolve inside
+the open workspace, or the document's own folder outside one; it is checked
+again after creation through its canonical path, so a symlink cannot lead
+elsewhere. Files are created with `create_new`, so an existing file is never
 replaced (an identical one is reused); a dropped image already inside the
 document's folder is linked where it is, not copied.
+
+The PDF window (`open_pdf_window`) loads the same bundled frontend and only
+receives the compiled PDF and scroll requests from the main window as events;
+compiling and SyncTeX stay with the main window, which alone owns the compile
+workdirs (closing the PDF window does not clear them). The file tree notices
+outside changes through `folder_stamps`, which reads only the modification times
+of folders it already shows.
 
 Cmd/Ctrl+click on a relative link opens other documents in Clavis. Any other
 file goes through `open_workspace_file` (`src/system_open.rs`), which hands the

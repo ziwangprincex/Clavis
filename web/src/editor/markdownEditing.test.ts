@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state';
 import { LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { EditorView } from '@codemirror/view';
-import { alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, imageMarkdown, insertColumn, insertLink, insertRow, markdownEditing, moveCell, pasteImages, removeHeadingMark, setHeading, shiftHeading, toggleMark } from './markdownEditing';
+import { alignColumn, columnAlign, deleteColumn, deleteRow, deleteTable, formatTable, imageMarkdown, insertColumn, insertColumnLeft, insertLink, insertRow, insertRowAbove, markdownEditing, moveCell, moveColumn, moveRow, pasteImages, removeHeadingMark, setHeading, shiftHeading, tableSource, toggleMark } from './markdownEditing';
 import { codeLanguages } from './codeLanguages';
 import { frontmatterLength } from './markdownFrontmatter';
 import { currentBlockLines } from './focusBlock';
@@ -148,6 +148,40 @@ describe('table toolbar commands', () => {
     expect(run(deleteRow, table, table.indexOf('3 |')).doc).toBe('| a | b |\n|:--|---|\n| 1 | 2 |\n');
     expect(run(deleteRow, table, 2).doc).toBe(table);
   });
+
+  it('inserts above and to the left, as Typora\'s table menu does', () => {
+    const above = run(insertRowAbove, table, table.indexOf('3 |'));
+    expect(above.doc).toBe('| a | b |\n| :-- | --- |\n| 1 | 2 |\n|  |  |\n| 3 | 4 |\n');
+    expect(above.head).toBe(above.doc.indexOf('|  |  |') + 2);
+    // From the header the new row becomes the first body row.
+    expect(run(insertRowAbove, table, 2).doc).toBe('| a | b |\n| :-- | --- |\n|  |  |\n| 1 | 2 |\n| 3 | 4 |\n');
+    expect(run(insertColumnLeft, table, inB).doc).toBe('| a |  | b |\n| :-- | --- | --- |\n| 1 |  | 2 |\n| 3 |  | 4 |\n');
+  });
+
+  it('moves rows within the body and columns with their alignment', () => {
+    const down = run(moveRow(1), table, table.indexOf('1 |'));
+    expect(down.doc).toBe('| a | b |\n| :-- | --- |\n| 3 | 4 |\n| 1 | 2 |\n');
+    expect(down.head).toBe(down.doc.indexOf('1 |'));
+    // The first body row cannot move above the header; the last cannot move further down.
+    expect(run(moveRow(-1), table, table.indexOf('1 |')).doc).toBe(table);
+    expect(run(moveRow(1), table, table.indexOf('3 |')).doc).toBe(table);
+    expect(run(moveRow(-1), table, 2).doc).toBe(table);
+    const right = run(moveColumn(1), table, 2);
+    expect(right.doc).toBe('| b | a |\n| --- | :-- |\n| 2 | 1 |\n| 4 | 3 |\n');
+    expect(right.head).toBe(right.doc.indexOf('a |'));
+    expect(run(moveColumn(1), table, inB).doc).toBe(table);
+    const quoted = '> | a |\n> |---|\n> | 1 |\n> | 2 |\n';
+    expect(run(moveRow(1), quoted, quoted.indexOf('1 |')).doc).toBe('> | a |\n> | --- |\n> | 2 |\n> | 1 |\n');
+  });
+
+  it('copies and deletes the whole table', () => {
+    const quoted = '> | a |\n> |---|\n> | 1 |';
+    const state = EditorState.create({ doc: quoted, selection: { anchor: 4 }, extensions: markdownLanguage() });
+    ensureSyntaxTree(state, quoted.length, 5000);
+    expect(tableSource(state)).toBe('| a |\n| --- |\n| 1 |');
+    expect(run(deleteTable, `Before\n\n${table}\nAfter`, 10).doc).toBe('Before\n\nAfter');
+    expect(run(deleteTable, `Before\n\n${table.trimEnd()}`, 10).doc).toBe('Before\n');
+  });
 });
 
 describe('Markdown parser additions', () => {
@@ -176,6 +210,11 @@ describe('Markdown parser additions', () => {
   it('leaves a document that merely starts with a rule alone', () => {
     expect(tree('---\nSome prose.\n')).not.toContain('Frontmatter');
     expect(frontmatterLength('---\nSome prose.\n')).toBe(0);
+  });
+
+  it('recognizes bare web addresses as links, as Typora does', () => {
+    expect(tree('See https://typora.io and www.example.org today.')).toEqual(expect.arrayContaining(['URL']));
+    expect(tree('See https://typora.io today.').filter(name => name === 'URL')).toHaveLength(1);
   });
 
   it('knows the common fence languages by name and alias', () => {

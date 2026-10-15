@@ -188,3 +188,5 @@
 
 .guide { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 0.8462rem; padding: 3px 0; cursor: pointer; }
 .guide:disabled { opacity: .4; cursor: default; }
+/* The raw-output line of the problem picked with "In log". */
+.marked { background: var(--tint-accent); outline: 1px solid var(--accent); border-radius: 2px; }

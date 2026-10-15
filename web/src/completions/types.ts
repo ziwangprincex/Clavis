@@ -56,6 +56,10 @@ export interface CompletionCandidate {
    */
   reopenCompletion?: boolean;
   boost?: number;
+  /** Longer description, shown beside the list for the selected candidate. */
+  info?: string;
+  /** Where the candidate is defined; the info panel offers to jump there. */
+  source?: { path: string | null; line: number };
 }
 
 export interface CompletionResponse {

@@ -56,6 +56,28 @@ describe('sidebar hierarchy and automatic refresh', () => {
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
     expect(scan).toHaveBeenCalledWith('/paper/chap');
   });
+  it('rescans when a shown folder changes outside Clavis, and only then', async () => {
+    vi.useFakeTimers();
+    let stamp = '1';
+    const stamps = vi.fn(async (paths: string[]) => paths.map(() => stamp));
+    Object.assign(ipc, { folderStamps: stamps });
+    try {
+      await act(async () => { tree = create(<FolderTreeSection rootPath="/paper" />); });
+      expect(scan).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+      expect(stamps).toHaveBeenCalledWith(['/paper']);
+      expect(scan).toHaveBeenCalledTimes(1);
+      scan.mockImplementation(async path => folder(path, [file('/paper/main.tex'), file('/paper/new.tex')]));
+      stamp = '2';
+      await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+      expect(scan).toHaveBeenCalledTimes(2);
+      expect(button('new.tex')).toBeDefined();
+    } finally {
+      Object.assign(ipc, { folderStamps: undefined });
+      vi.useRealTimers();
+    }
+  });
   it('keeps command-menu refresh working without a standalone rescan button', async () => {
     await act(async () => { tree = create(<FolderTreeSection rootPath="/paper" refreshKey={0} />); });
     expect(scan).toHaveBeenCalledTimes(1);
@@ -120,5 +142,24 @@ describe('sidebar hierarchy and automatic refresh', () => {
     expect(button('Part 4L4')).toBeUndefined();
     act(() => filter.props.onKeyDown({ key: 'Escape' }));
     expect(button('Part 4L4')).toBeDefined();
+  });
+
+  it('collapses and expands every branch and limits the depth shown', async () => {
+    useTabsStore.getState().patchTab('draft', { lang: 'markdown', content: '# A\n## A1\n### A1a\n# B\n## B1' });
+    useSettingsStore.setState({ settings: { ...useSettingsStore.getState().settings, outline_depth: 0 }, patchAndSave: async (patch: Partial<typeof defaultSettings>) => {
+      useSettingsStore.setState({ settings: { ...useSettingsStore.getState().settings, ...patch } });
+    } } as never);
+    await act(async () => { tree = create(<OutlineSection />); });
+    const toggles = () => tree.root.findAll(node => node.type === 'button' && node.props['aria-expanded'] !== undefined && ['A', 'A1', 'B'].includes(node.props['aria-label']));
+    expect(toggles().map(node => node.props['aria-expanded'])).toEqual([true, true, true]);
+    act(() => tree.root.findByProps({ 'aria-label': 'Collapse all' }).props.onClick());
+    expect(toggles().map(node => node.props['aria-expanded'])).toEqual([false, false, false]);
+    act(() => tree.root.findByProps({ 'aria-label': 'Expand all' }).props.onClick());
+    expect(toggles().map(node => node.props['aria-expanded'])).toEqual([true, true, true]);
+    // Two levels: A1 is shown, but its own child is not, so it has no toggle.
+    await act(async () => { tree.root.findByProps({ 'aria-label': 'Heading levels shown' }).props.onChange({ target: { value: '2' } }); });
+    expect(toggles().map(node => node.props['aria-label'])).toEqual(['A', 'B']);
+    expect(button('A1')).toBeDefined();
+    expect(button('A1a')).toBeUndefined();
   });
 });

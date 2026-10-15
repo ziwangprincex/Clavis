@@ -2,7 +2,8 @@ import { statusMessage } from '../i18n/status';
 import { t } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTabsStore, useCompileStore, useCursorStore, useStatusStore, useSettingsStore } from '../store';
-import { computeResearchDetailStats, computeResearchStats, computeStats, countWords } from '../editor/stats';
+import { describeChain } from '../store/compile';
+import { computeResearchDetailStats, computeResearchStats, computeStats, countWords, readingMinutes } from '../editor/stats';
 import { documentLanguageLabel } from '../files/documentIdentity';
 import { useDebounced } from '../hooks/useDebounced';
 import styles from './StatusBar.module.css';
@@ -20,9 +21,11 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const cursor = useCursorStore();
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const compileStatus = useCompileStore(s => s.status);
+  const chain = useCompileStore(s => s.chain);
   const errors = useCompileStore(s => s.errors);
   const mainLimit = useSettingsStore(s => s.settings.writing_main_word_limit);
   const abstractLimit = useSettingsStore(s => s.settings.writing_abstract_word_limit);
+  const readingSpeed = useSettingsStore(s => s.settings.reading_speed ?? 300);
   const disclosure = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -80,6 +83,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
           <strong>{t("Document statistics")}</strong>
           <dl>
             <dt>{t("Characters")}</dt><dd>{stats.chars.toLocaleString()}</dd>
+            <dt>{t("Reading time")}</dt><dd>{t('About {count} min', { count: readingMinutes(research?.mainWords ?? stats.words, readingSpeed) })}</dd>
             <dt>{t("Language")}</dt><dd>{activeTab ? documentLanguageLabel(activeTab.filePath, activeTab.lang) : t("None")}</dd>
             <dt>{t("Cursor")}</dt><dd>{t('Ln {line}, Col {column}', { line: cursor.line, column: cursor.column })}</dd>
             {research && <><dt>{t("Main text (estimated)")}</dt><dd className={mainLimit > 0 && research.mainWords > mainLimit ? styles.limit : ''}>{research.mainWords.toLocaleString()}{mainLimit > 0 ? ` / ${mainLimit.toLocaleString()}` : ''}</dd></>}
@@ -90,6 +94,9 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
           </dl>
         </div>
       </details>
+      {isLatex && chain && !compiling && <span className={styles.cell} title={t('Programs that ran in the last build')}>
+        {describeChain(chain, count => t(count === 1 ? '{count} pass' : '{count} passes', { count }))}
+      </span>}
       {isLatex && <button type="button" className={`${styles.cell} ${shownProblemCount > 0 || compileStatus === 'error' ? styles.problems : ''}`} onClick={onToggleProblems} title={t("Toggle problems panel")}>
         {problemsLabel}
       </button>}

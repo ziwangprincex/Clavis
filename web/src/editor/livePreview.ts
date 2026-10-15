@@ -26,7 +26,8 @@ import { markdownHeadings, markdownInline, sanitizeUrl } from '../render/markdow
 import { katexHtml } from './inlineMath';
 import { drawDiagram, drawnDiagram } from './mermaidDiagram';
 import {
-  alignColumn, columnAlign, deleteColumn, deleteRow, formatTable, insertColumn, insertRow, tableAt,
+  alignColumn, columnAlign, deleteColumn, deleteRow, deleteTable, formatTable, insertColumn, insertColumnLeft,
+  insertRow, insertRowAbove, moveColumn, moveRow, tableAt, tableSource,
   type ColumnAlign, type MarkdownImageHost,
 } from './markdownEditing';
 
@@ -729,18 +730,85 @@ function blockDecorations(state: EditorState, blocks: Block[]): DecorationSet {
 // ---- Table toolbar (Typora's table tooltip) ----
 
 const icon = (path: string) => `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="${path}"/></svg>`;
-const TABLE_TOOLS: ({ label: string; path: string; run: Command; align?: ColumnAlign } | null)[] = [
+type TableAction = { label: string; run: Command; keys?: string };
+type TableTool =
+  | { label: string; path: string; run: Command; align?: ColumnAlign }
+  | { label: string; path: string; menu: TableAction[] }
+  | null;
+
+const copyTable: Command = view => {
+  const source = tableSource(view.state);
+  if (source === null) return false;
+  void navigator.clipboard?.writeText(source).catch(() => undefined);
+  return true;
+};
+
+/** Typora's table toolbar: alignment, then row, column and table menus. */
+const TABLE_TOOLS: TableTool[] = [
   { label: 'Align left', path: 'M2 3h10M2 6h7M2 9h10M2 12h6', run: alignColumn('left'), align: 'left' },
   { label: 'Align center', path: 'M2 3h10M3.5 6h7M2 9h10M4 12h6', run: alignColumn('center'), align: 'center' },
   { label: 'Align right', path: 'M2 3h10M5 6h7M2 9h10M6 12h6', run: alignColumn('right'), align: 'right' },
   null,
-  { label: 'Insert row below', path: 'M2 2.5h10v4H2zM7 8.5v4M5 10.5h4', run: insertRow },
-  { label: 'Delete row', path: 'M2 2.5h10v4H2zM5 10.5h4', run: deleteRow },
-  { label: 'Insert column right', path: 'M2.5 2h4v10h-4zM10.5 5v4M8.5 7h4', run: insertColumn },
-  { label: 'Delete column', path: 'M2.5 2h4v10h-4zM8.5 7h4', run: deleteColumn },
+  { label: 'Row', path: 'M2 2.5h10v4H2zM2 9.5h10', menu: [
+    { label: 'Insert row above', run: insertRowAbove },
+    { label: 'Insert row below', run: insertRow, keys: 'Mod-Enter' },
+    { label: 'Move row up', run: moveRow(-1), keys: 'Alt-Mod-ArrowUp' },
+    { label: 'Move row down', run: moveRow(1), keys: 'Alt-Mod-ArrowDown' },
+    { label: 'Delete row', run: deleteRow },
+  ] },
+  { label: 'Column', path: 'M2.5 2h4v10h-4zM9.5 2v10', menu: [
+    { label: 'Insert column left', run: insertColumnLeft },
+    { label: 'Insert column right', run: insertColumn },
+    { label: 'Move column left', run: moveColumn(-1), keys: 'Alt-Mod-ArrowLeft' },
+    { label: 'Move column right', run: moveColumn(1), keys: 'Alt-Mod-ArrowRight' },
+    { label: 'Delete column', run: deleteColumn },
+  ] },
   null,
   { label: 'Format table source', path: 'M2 4h10M2 7h10M2 10h10M5 2v10M9 2v10', run: formatTable },
+  { label: 'More table actions', path: 'M3.5 7h.01M7 7h.01M10.5 7h.01', menu: [
+    { label: 'Copy table as Markdown', run: copyTable },
+    { label: 'Delete table', run: deleteTable },
+  ] },
 ];
+
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const KEY_NAMES: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Enter: '↩' };
+function keyLabel(keys: string): string {
+  const parts = keys.split('-');
+  const key = KEY_NAMES[parts[parts.length - 1]] ?? parts[parts.length - 1];
+  const mods = parts.slice(0, -1).map(mod => MAC ? ({ Alt: '⌥', Mod: '⌘', Shift: '⇧', Ctrl: '⌃' } as Record<string, string>)[mod] : ({ Alt: 'Alt+', Mod: 'Ctrl+', Shift: 'Shift+', Ctrl: 'Ctrl+' } as Record<string, string>)[mod]);
+  return mods.join('') + key;
+}
+
+/** A small menu under `button`; closes on choice, Escape or a click elsewhere. */
+function openTableMenu(view: EditorView, button: HTMLButtonElement, actions: TableAction[], host: HTMLElement) {
+  host.querySelector('.cm-md-table-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.className = 'cm-md-table-menu';
+  menu.setAttribute('role', 'menu');
+  for (const action of actions) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitem');
+    item.append(Object.assign(document.createElement('span'), { textContent: t(action.label) }));
+    if (action.keys) item.append(Object.assign(document.createElement('kbd'), { textContent: keyLabel(action.keys) }));
+    item.addEventListener('click', () => { close(); action.run(view); view.focus(); });
+    menu.append(item);
+  }
+  menu.style.left = `${button.offsetLeft}px`;
+  host.append(menu);
+  button.setAttribute('aria-expanded', 'true');
+  const outside = (event: MouseEvent) => { if (!menu.contains(event.target as Node) && event.target !== button) close(); };
+  const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
+  function close() {
+    menu.remove();
+    button.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', outside, true);
+    document.removeEventListener('keydown', escape, true);
+  }
+  document.addEventListener('mousedown', outside, true);
+  document.addEventListener('keydown', escape, true);
+}
 
 function tableTools(pos: number): Tooltip {
   return {
@@ -765,8 +833,19 @@ function tableTools(pos: number): Tooltip {
         button.title = t(tool.label);
         button.setAttribute('aria-label', t(tool.label));
         button.innerHTML = icon(tool.path);
-        button.addEventListener('click', () => { tool.run(view); view.focus(); });
-        if (tool.align) aligns.push({ button, align: tool.align });
+        if ('menu' in tool) {
+          button.classList.add('cm-md-table-tools-menu');
+          button.setAttribute('aria-haspopup', 'menu');
+          button.setAttribute('aria-expanded', 'false');
+          button.insertAdjacentHTML('beforeend', '<svg width="7" height="7" viewBox="0 0 7 7" aria-hidden="true"><path d="M1 2.5l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>');
+          button.addEventListener('click', () => {
+            if (button.getAttribute('aria-expanded') === 'true') dom.querySelector('.cm-md-table-menu')?.remove();
+            else openTableMenu(view, button, tool.menu, dom);
+          });
+        } else {
+          button.addEventListener('click', () => { tool.run(view); view.focus(); });
+          if (tool.align) aligns.push({ button, align: tool.align });
+        }
         dom.append(button);
       }
       const sync = (state: EditorState) => {
@@ -919,7 +998,7 @@ const theme = EditorView.baseTheme({
   '.cm-md-image-block.cm-md-image-missing': { display: 'block', textAlign: 'center' },
   '.cm-md-image-missing': { color: 'var(--text-muted)', fontSize: '0.9em', fontStyle: 'italic' },
   '.cm-md-table': { overflowX: 'auto', padding: '0.4em 0', cursor: 'text' },
-  '.cm-md-table-tools': { display: 'flex', alignItems: 'center', gap: '1px', padding: '3px', fontFamily: 'var(--font-sans)' },
+  '.cm-md-table-tools': { position: 'relative', display: 'flex', alignItems: 'center', gap: '1px', padding: '3px', fontFamily: 'var(--font-sans)' },
   '.cm-md-table-tools button': {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '24px',
     padding: '0', border: 'none', borderRadius: '5px', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
@@ -927,6 +1006,20 @@ const theme = EditorView.baseTheme({
   '.cm-md-table-tools button:hover': { background: 'var(--panel-soft)', color: 'var(--text)' },
   '.cm-md-table-tools button[aria-pressed=true]': { background: 'var(--tint-accent)', color: 'var(--accent)' },
   '.cm-md-table-tools-gap': { width: '1px', height: '16px', margin: '0 4px', background: 'var(--border)' },
+  '.cm-tooltip:has(> .cm-md-table-tools)': { overflow: 'visible' },
+  '.cm-md-table-tools button.cm-md-table-tools-menu': { width: '34px', gap: '2px' },
+  '.cm-md-table-tools button[aria-expanded=true]': { background: 'var(--panel-soft)', color: 'var(--text)' },
+  '.cm-md-table-menu': {
+    position: 'absolute', top: 'calc(100% + 4px)', zIndex: '10', minWidth: '210px', padding: '4px',
+    display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+    borderRadius: '8px', boxShadow: 'var(--shadow-md)',
+  },
+  '.cm-md-table-menu button': {
+    display: 'flex', justifyContent: 'space-between', gap: '18px', width: '100%', height: 'auto', padding: '5px 9px',
+    borderRadius: '5px', color: 'var(--text)', font: '13px/1.4 var(--font-sans)', textAlign: 'left',
+  },
+  '.cm-md-table-menu button:hover': { background: 'var(--tint-accent)' },
+  '.cm-md-table-menu kbd': { font: 'inherit', color: 'var(--text-muted)' },
   '.cm-md-table table': { borderCollapse: 'collapse', fontSize: '0.94em', lineHeight: '1.5' },
   '.cm-md-table th, .cm-md-table td': { padding: '0.35em 0.9em', borderBottom: '1px solid var(--border)', textAlign: 'left' },
   // Rules only, no side borders: the outer cells sit on the text edges.

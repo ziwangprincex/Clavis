@@ -91,14 +91,17 @@ export function Sidebar(props: SidebarProps) {
   );
 }
 
-export function SidebarSection({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: ReactNode }) {
+export function SidebarSection({ title, defaultOpen = false, actions, children }: { title: string; defaultOpen?: boolean; actions?: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
   return <section className={styles.section}>
-    <button type="button" className={styles.sectionHeader} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls={id}>
-      <IconChevronDown size={12} aria-hidden="true" className={`${styles.caret} ${open ? styles.caretOpen : ''}`} />
-      <span className={styles.sectionTitle}>{title}</span>
-    </button>
+    <div className={styles.sectionHead}>
+      <button type="button" className={styles.sectionHeader} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls={id}>
+        <IconChevronDown size={12} aria-hidden="true" className={`${styles.caret} ${open ? styles.caretOpen : ''}`} />
+        <span className={styles.sectionTitle}>{title}</span>
+      </button>
+      {open && actions && <div className={styles.sectionActions}>{actions}</div>}
+    </div>
     <div id={id} className={styles.sectionBody} hidden={!open}>{children}</div>
   </section>;
 }

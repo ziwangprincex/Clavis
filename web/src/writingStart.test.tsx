@@ -37,6 +37,8 @@ vi.mock('./files/files', () => ({ openFileDialog: vi.fn(), pushRecentFolder: vi.
 vi.mock('./api/tauri', () => ({
   hasTauri: () => true, dialogOpen: vi.fn(), dialogSave: vi.fn(), dialogConfirm: vi.fn(),
   ipc: { inspectWorkspace: vi.fn(), scanWorkspaceReferences: vi.fn() },
+  // The PDF window bridge listens from startup.
+  listen: vi.fn(async () => () => {}), emit: vi.fn(async () => {}),
 }));
 const settingsState = useSettingsStore.getState();
 let tree: ReactTestRenderer;

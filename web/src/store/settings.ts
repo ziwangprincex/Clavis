@@ -23,7 +23,7 @@ export interface Settings {
   auto_rerun: boolean;
   max_runs: number;
   latex_custom_paths: Record<string, string>;
-  pdf_dark_mode: 'off' | 'on' | 'invert' | 'sepia' | string;
+  pdf_dark_mode: 'off' | 'on' | 'dark' | 'dark-images' | 'invert' | 'sepia' | string;
   editor_font_family: string;
   editor_font_size: number;
   editor_line_height: number;
@@ -88,6 +88,18 @@ export interface Settings {
   writing_main_word_limit: number;
   /** Optional estimated Abstract word target; 0 disables the warning. */
   writing_abstract_word_limit: number;
+  /** Words (or CJK characters) read per minute, for the reading-time estimate. */
+  reading_speed: number;
+  /** Outline tree depth shown in the sidebar; 0 shows every level. */
+  outline_depth: number;
+  /** Folder for pasted and dropped Markdown images, relative to the document (`${filename}` = its name). */
+  markdown_image_folder: string;
+  /** Typora's smart punctuation: curly quotes and dashes as they are typed. */
+  markdown_smart_punctuation: boolean;
+  /** PDF pages two by two, as a book spread. */
+  pdf_spread: boolean;
+  /** The PDF follows the LaTeX editor as it scrolls (Texifier's scroll lock). */
+  pdf_scroll_lock: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -141,6 +153,12 @@ export const defaultSettings: Settings = {
   cwl_respect_context: true,
   writing_main_word_limit: 0,
   writing_abstract_word_limit: 0,
+  reading_speed: 300,
+  outline_depth: 0,
+  markdown_image_folder: 'assets',
+  markdown_smart_punctuation: false,
+  pdf_spread: false,
+  pdf_scroll_lock: false,
 };
 
 interface SettingsStore {

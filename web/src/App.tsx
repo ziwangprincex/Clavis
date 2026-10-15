@@ -33,6 +33,7 @@ import { documentRoot, inside, latexOptions, typstInput } from './compile/projec
 import { useTypstPreviewStore } from './store/typstPreview';
 import { belongsToPdf } from './compile/target';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
+import { openPdfWindow, usePdfWindowFeed } from './pdf/pdfWindow';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
 import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile, resolveTypstTarget } from './files/projectPaths';
 import { checkForUpdates } from './update/updater';
@@ -170,6 +171,14 @@ export function App() {
 
   // Apply UI theme / fonts / accent / color overrides to :root.
   useAppTheme(settings);
+  /** A click in the PDF (this window's or the PDF window's) goes to its source line. */
+  const syncFromPdf = (page: number, x: number, y: number) =>
+    syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
+      void openFileAndScrollToLine(absPath, line, l => editorApiRef.current?.scrollToLine(l)),
+    );
+  const syncFromPdfRef = useRef(syncFromPdf);
+  syncFromPdfRef.current = syncFromPdf;
+  usePdfWindowFeed((page, x, y) => void syncFromPdfRef.current(page, x, y));
 
   // Boot: load persisted settings, then restore the previous session (crash
   // recovery). If there's nothing to restore, open a single empty scratch tab
@@ -470,6 +479,34 @@ export function App() {
         name: 'Format table source',
         when: () => lang === 'markdown',
         run: () => { if (!editorApiRef.current?.formatTable()) setStatus('Place the cursor in a table to format it.', 'info'); },
+      }),
+      ...([
+        ['insertRowAbove', 'Table: insert row above'],
+        ['insertRowBelow', 'Table: insert row below'],
+        ['moveRowUp', 'Table: move row up'],
+        ['moveRowDown', 'Table: move row down'],
+        ['deleteRow', 'Table: delete row'],
+        ['insertColumnLeft', 'Table: insert column left'],
+        ['insertColumnRight', 'Table: insert column right'],
+        ['moveColumnLeft', 'Table: move column left'],
+        ['moveColumnRight', 'Table: move column right'],
+        ['deleteColumn', 'Table: delete column'],
+        ['deleteTable', 'Table: delete table'],
+      ] as const).map(([command, name]) => reg({
+        id: `markdown.table.${command}`,
+        name,
+        when: () => lang === 'markdown',
+        run: () => { if (!editorApiRef.current?.tableCommand(command)) setStatus('Place the cursor in a table first.', 'info'); },
+      })),
+      reg({
+        id: 'markdown.table.copy',
+        name: 'Table: copy as Markdown',
+        when: () => lang === 'markdown',
+        run: () => {
+          const source = editorApiRef.current?.tableSource();
+          if (source == null) setStatus('Place the cursor in a table first.', 'info');
+          else void navigator.clipboard.writeText(source).then(() => setStatus('Table copied', 'info'));
+        },
       }),
       reg({ id: 'file.quickOpen', name: 'Quick Open…', shortcut: fmtShortcut('Ctrl+P'), run: () => setQuickOpen(true) }),
       reg({ id: 'file.new', name: 'New document', shortcut: fmtShortcut('Ctrl+N'), run: newBlankNote }),
@@ -869,13 +906,8 @@ export function App() {
                       onCompile={compileNow}
                       onEnvironment={() => setWriterTool('environment')}
                       onProblems={showProblems}
-                      onSyncTexBackward={(page, x, y) =>
-                        syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
-                          void openFileAndScrollToLine(absPath, line, l =>
-                            editorApiRef.current?.scrollToLine(l),
-                          ),
-                        )
-                      }
+                      onSyncTexBackward={syncFromPdf}
+                      onDetach={hasTauri() ? () => void openPdfWindow().catch(error => setStatus(String(error), 'error')) : undefined}
                     />
                   ) : lang === 'typst' ? (
                     <PreviewPane onEnvironment={() => setWriterTool('environment')} visible={layout !== 'editor'} onNavigate={(path, line) => void openFileAndScrollToLine(path, line, l => editorApiRef.current?.scrollToLine(l))} />

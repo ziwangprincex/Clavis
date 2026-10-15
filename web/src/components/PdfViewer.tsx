@@ -10,12 +10,12 @@ import { t } from '../i18n';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
-import { PdfPages } from '../pdf/pages';
+import { PdfPages, type PdfGrading } from '../pdf/pages';
 import { bindPreviewZoom, capturePageAnchor, type ZoomPoint } from '../pdf/zoom';
 import { ensurePdfjs } from '../pdf/pdfjs';
 import { ipc } from '../api/tauri';
 import { IconSearch } from './icons';
-import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore } from '../store';
+import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore, type Settings } from '../store';
 import { headlineProblem } from '../store/compile';
 import { usePdfSearch } from '../hooks/usePdfSearch';
 import { fmtShortcut } from '../platform';
@@ -31,6 +31,10 @@ export interface PdfViewerProps {
   onEnvironment?: () => void;
   onProblems?: () => void;
   onSyncTexBackward?: (page: number, x: number, y: number) => void;
+  /** The PDF window: shows whatever PDF it was sent, with no document of its own. */
+  standalone?: boolean;
+  /** Offer to show the PDF in its own window. */
+  onDetach?: () => void;
 }
 
 // pdf.js shares one worker and rejects getDocument() while any document on it
@@ -42,14 +46,21 @@ function release(target: { destroy(): Promise<void> } | null | undefined) {
 
 /** Zoom that fits the widest page inside the pane's 24px padding, never above
  *  100%. Border-box width, so a scrollbar appearing cannot feed back into it. */
-function fitZoom(host: HTMLElement, pageWidth: number) {
-  return Math.round(Math.max(0.5, Math.min(1, (host.offsetWidth - 48 - 12) / pageWidth)) * 100) / 100;
+/** A 16 px stroke icon for the viewer toolbar. */
+function ToolIcon({ d }: { d: string }) {
+  return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 }
 
-export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvironment, onProblems }: PdfViewerProps) {
+/** The zoom that fits a page (or two side by side, with their gap) to the pane's width. */
+function fitZoom(host: HTMLElement, pageWidth: number, spread = false) {
+  const room = host.offsetWidth - 48 - 12 - (spread ? 24 : 0);
+  return Math.round(Math.max(0.3, Math.min(1, room / (pageWidth * (spread ? 2 : 1)))) * 100) / 100;
+}
+
+export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvironment, onProblems, standalone = false, onDetach }: PdfViewerProps) {
   const activeTab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const pdf = usePdfStore();
-  const bytes = belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
+  const bytes = standalone || belongsToPdf(activeTab, pdf) ? pdf.bytes : null;
   const compileStatus = useCompileStore(s => s.status);
   const compileError = useCompileStore(s => headlineProblem(s.errors));
   const compiling = compileStatus === 'compiling';
@@ -63,6 +74,18 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
   const scrollRequest = usePdfStore(s => s.scrollRequest);
 
   const pdfDarkMode = useSettingsStore(s => s.settings.pdf_dark_mode);
+  const spread = useSettingsStore(s => s.settings.pdf_spread);
+  const scrollLock = useSettingsStore(s => s.settings.pdf_scroll_lock);
+  const patchAndSave = useSettingsStore(s => s.patchAndSave);
+  // The PDF window does not write settings: the main window owns the file and would overwrite them.
+  const patchSettings = standalone
+    ? async (patch: Partial<Settings>) => useSettingsStore.setState(state => ({ settings: { ...state.settings, ...patch } }))
+    : patchAndSave;
+  const spreadRef = useRef(spread);
+  spreadRef.current = spread;
+  const grading: PdfGrading = pdfDarkMode === 'dark' ? 'colors' : pdfDarkMode === 'dark-images' ? 'images' : 'off';
+  const gradingRef = useRef(grading);
+  gradingRef.current = grading;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PDFDocumentProxy | null>(null);
@@ -114,6 +137,8 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     zoomPoint.current = undefined;
   }, [zoom]);
 
+  useEffect(() => { pagesRef.current?.setGrading(grading); }, [grading]);
+
   // Until the reader zooms, the page follows the pane: Split, the splitter and
   // window resizes all keep a whole page width in view.
   useEffect(() => {
@@ -121,11 +146,11 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     if (!host || !visible || !fit) return;
     const observer = new ResizeObserver(() => {
       const width = pagesRef.current?.widest;
-      if (width) usePdfStore.setState({ zoom: fitZoom(host, width) });
+      if (width) usePdfStore.setState({ zoom: fitZoom(host, width, spreadRef.current) });
     });
     observer.observe(host, { box: 'border-box' });
     return () => observer.disconnect();
-  }, [visible, fit]);
+  }, [visible, fit, spread]);
 
   // Keep the last successful pages visible while new bytes load. A candidate
   // owns its render tasks until attach; hide/tab switch cancels it immediately.
@@ -167,13 +192,14 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
             if (target.kind === 'page') usePdfStore.getState().requestScroll(target.page, target.y);
             else void ipc.openExternalUrl(target.url).catch(error => console.warn('Could not open link', error));
           },
+          gradingRef.current,
         );
         await candidate.prepare();
         if (cancelled) return;
         pagesRef.current?.destroy();
         const previous = docRef.current;
         if (usePdfStore.getState().fit) {
-          zoomRef.current = fitZoom(host, candidate.widest);
+          zoomRef.current = fitZoom(host, candidate.widest, spreadRef.current);
           usePdfStore.setState({ zoom: zoomRef.current });
         }
         candidate.attach(zoomRef.current);
@@ -279,69 +305,78 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <button className={styles.btn} onClick={() => scrollToPage(1)} disabled={!numPages || currentPage <= 1} aria-label={t("First page")} title={t("First page")}>
-          «
-        </button>
-        <button
-          className={styles.btn}
-          onClick={() => scrollToPage(Math.max(1, currentPage - 1))}
-          disabled={!numPages || currentPage <= 1}
-          aria-label={t("Previous page")}
-        >
-          ←
-        </button>
-        {/* Type a page and press Enter, as in Texifier's toolbar; leaving the field discards it. */}
-        <span className={styles.info}>
-          <input
-            className={styles.pageInput}
-            aria-label={t("Page number")}
-            disabled={!numPages}
-            value={pageDraft ?? (numPages ? String(currentPage) : '—')}
-            onFocus={event => { setPageDraft(String(currentPage)); event.currentTarget.select(); }}
-            onChange={event => setPageDraft(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === 'Enter') {
-                const page = Number.parseInt(pageDraft ?? '', 10);
-                if (page) scrollToPage(Math.min(numPages, Math.max(1, page)));
-                event.currentTarget.blur();
-              } else if (event.key === 'Escape') event.currentTarget.blur();
-            }}
-            onBlur={() => setPageDraft(null)}
-          />
-          {` / ${numPages || '—'}`}
-        </span>
-        <button
-          className={styles.btn}
-          onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))}
-          disabled={!numPages || currentPage >= numPages}
-          aria-label={t("Next page")}
-        >
-          →
-        </button>
-        <button className={styles.btn} onClick={() => scrollToPage(numPages)} disabled={!numPages || currentPage >= numPages} aria-label={t("Last page")} title={t("Last page")}>
-          »
-        </button>
-        <span className={styles.divider} />
-        <button className={styles.btn} aria-label={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
-          −
-        </button>
-        <button className={`${styles.btn} ${styles.info}`} aria-pressed={fit} title={t("Fit width")}
-          onClick={() => usePdfStore.setState({ fit: true })}>
-          {Math.round(zoom * 100)}%
-        </button>
-        <button className={styles.btn} aria-label={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
-          +
-        </button>
-        <span className={styles.divider} />
-        <button
-          className={styles.btn}
-          onClick={() => (findOpen ? closeFinder() : openFinder())}
-          disabled={!bytes}
-          title={`Find in PDF (${fmtShortcut('Ctrl+F')})`}
-          aria-label={t("Find in PDF")}
-        >
-          <IconSearch size={13} />
-        </button>
+        {/* Zoom on the left, pages in the middle, tools on the right, as Texifier's viewer bar. */}
+        <div className={styles.group}>
+          <button className={styles.btn} aria-pressed={spread} title={t('Two pages side by side')} aria-label={t('Two pages side by side')}
+            onClick={() => void patchSettings({ pdf_spread: !spread })}>
+            <ToolIcon d="M2 3h4.5v10H2zM9.5 3H14v10H9.5z" />
+          </button>
+          <span className={styles.divider} />
+          <button className={styles.btn} aria-label={t("Zoom out")} title={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
+            <ToolIcon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.6 10.6 14 14M4.8 7h4.4" />
+          </button>
+          <button className={`${styles.btn} ${styles.info}`} aria-pressed={fit} title={t("Fit width")}
+            onClick={() => usePdfStore.setState({ fit: true })}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button className={styles.btn} aria-label={t("Zoom in")} title={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
+            <ToolIcon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.6 10.6 14 14M4.8 7h4.4M7 4.8v4.4" />
+          </button>
+        </div>
+        <div className={`${styles.group} ${styles.pagesGroup}`}>
+          <button className={styles.btn} onClick={() => scrollToPage(1)} disabled={!numPages || currentPage <= 1} aria-label={t("First page")} title={t("First page")}>
+            <ToolIcon d="M9 4 5 8l4 4M13 4 9 8l4 4" />
+          </button>
+          <button className={styles.btn} onClick={() => scrollToPage(Math.max(1, currentPage - 1))} disabled={!numPages || currentPage <= 1} aria-label={t("Previous page")} title={t("Previous page")}>
+            <ToolIcon d="M10 4 6 8l4 4" />
+          </button>
+          {/* Type a page and press Enter, as in Texifier's toolbar; leaving the field discards it. */}
+          <span className={styles.pageLabel}>
+            <input
+              className={styles.pageInput}
+              aria-label={t("Page number")}
+              disabled={!numPages}
+              value={pageDraft ?? (numPages ? String(currentPage) : '—')}
+              onFocus={event => { setPageDraft(String(currentPage)); event.currentTarget.select(); }}
+              onChange={event => setPageDraft(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') {
+                  const page = Number.parseInt(pageDraft ?? '', 10);
+                  if (page) scrollToPage(Math.min(numPages, Math.max(1, page)));
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') event.currentTarget.blur();
+              }}
+              onBlur={() => setPageDraft(null)}
+            />
+            <span>{t('of {count}', { count: numPages || '—' })}</span>
+          </span>
+          <button className={styles.btn} onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))} disabled={!numPages || currentPage >= numPages} aria-label={t("Next page")} title={t("Next page")}>
+            <ToolIcon d="m6 4 4 4-4 4" />
+          </button>
+          <button className={styles.btn} onClick={() => scrollToPage(numPages)} disabled={!numPages || currentPage >= numPages} aria-label={t("Last page")} title={t("Last page")}>
+            <ToolIcon d="m3 4 4 4-4 4M7 4l4 4-4 4" />
+          </button>
+        </div>
+        <div className={`${styles.group} ${styles.toolsGroup}`}>
+          {activeTab?.lang === 'latex' && <button className={styles.btn} aria-pressed={scrollLock}
+            title={t('Follow the editor: the PDF scrolls with the source')} aria-label={t('Follow the editor: the PDF scrolls with the source')}
+            onClick={() => void patchSettings({ pdf_scroll_lock: !scrollLock })}>
+            <ToolIcon d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6.5H4z" />
+          </button>}
+          {onDetach && <button className={styles.btn} title={t('Show the PDF in its own window')} aria-label={t('Show the PDF in its own window')} onClick={onDetach}>
+            <ToolIcon d="M2 5v8.5h8.5M5 2h9v8.5H5z" />
+          </button>}
+          <button
+            className={styles.btn}
+            onClick={() => (findOpen ? closeFinder() : openFinder())}
+            disabled={!bytes}
+            aria-pressed={findOpen}
+            title={`${t('Find in PDF')} (${fmtShortcut('Ctrl+F')})`}
+            aria-label={t("Find in PDF")}
+          >
+            <IconSearch size={14} />
+          </button>
+        </div>
       </div>
 
       {findOpen && (
@@ -405,7 +440,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
         {(compiling || pdf.stale) && bytes && <div className={styles.updateNotice} role="status">{compiling ? t("Updating preview") : t("Preview not updated")} {t("· showing the last successful render")}</div>}
         <div
           ref={containerRef}
-          className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''}`}
+          className={`${styles.pages} ${pdfDarkMode === 'invert' ? styles.invert : ''} ${pdfDarkMode === 'sepia' ? styles.sepia : ''} ${grading !== 'off' ? styles.darkPaper : ''} ${spread ? styles.spread : ''}`}
           onScroll={onScroll}
           onClick={onPageClick}
         />

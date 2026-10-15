@@ -1,0 +1,9 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.root > * { flex: 1; min-height: 0; }

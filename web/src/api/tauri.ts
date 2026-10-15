@@ -88,6 +88,11 @@ export function listen<T = unknown>(
   return tauri().event.listen<T>(event, e => handler(e.payload));
 }
 
+/** Broadcasts an event to every window of the app. */
+export function emit(event: string, payload?: unknown): Promise<void> {
+  return tauri().event.emit(event, payload);
+}
+
 export function getAppVersion(): Promise<string> {
   return tauri().app.getVersion();
 }
@@ -236,6 +241,10 @@ export interface CompileResult {
   logTail: string;
   runs: number;
   workdirToken: string | null;
+  /** The program that typeset the document (`xelatex`, or `latexmk` for a full build). */
+  engine?: string;
+  /** `bibtex` or `biber` when the bibliography was processed during the build. */
+  bibTool?: string | null;
 }
 
 export interface BibEntry {
@@ -512,11 +521,11 @@ export const ipc = {
   assetPreview: (root: string, path: string) =>
     invoke<string | null>('asset_preview', { root, path }),
   /** Base64 clipboard image saved beside the document; returns its relative path. */
-  saveMarkdownImage: (document: string, extension: string, data: string) =>
-    invoke<string>('save_markdown_image', { document, extension, data }),
+  saveMarkdownImage: (document: string, extension: string, data: string, target?: { folder: string; root: string }) =>
+    invoke<string>('save_markdown_image', { document, extension, data, folder: target?.folder ?? null, root: target?.root ?? null }),
   /** A dropped image file referenced in place, or copied beside the document. */
-  placeMarkdownImage: (document: string, source: string) =>
-    invoke<string>('place_markdown_image', { document, source }),
+  placeMarkdownImage: (document: string, source: string, target?: { folder: string; root: string }) =>
+    invoke<string>('place_markdown_image', { document, source, folder: target?.folder ?? null, root: target?.root ?? null }),
   /** Documents under an open folder, for Quick Open. */
   listWorkspaceDocuments: (root: string) => invoke<string[]>('list_workspace_documents', { root }),
   searchWorkspace: (options: { root: string; query: string; regex: boolean; caseSensitive: boolean }) =>
@@ -577,6 +586,10 @@ export const ipc = {
 
   // --- Filesystem ---
   scanFolderShallow: (root: string) => invoke<TreeNode>('scan_folder_shallow', { root }),
+  /** Shows the PDF in a window of its own (focuses it when already open). */
+  openPdfWindow: () => invoke<void>('open_pdf_window'),
+  /** Folder modification stamps (null for a missing folder), to notice added, removed or renamed entries. */
+  folderStamps: (paths: string[]) => invoke<(string | null)[]>('folder_stamps', { paths }),
   saveBinaryFile: (path: string, base64: string) =>
     invoke<void>('save_binary_file', { path, base64 }),
 };

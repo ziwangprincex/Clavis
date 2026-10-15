@@ -83,7 +83,9 @@ describe('editorial writing surfaces', () => {
     expect(sidebar.get('.view.selected')?.['border-bottom-color']).toBeUndefined();
     expect(sidebar.get('.view')?.width).toBe('32px');
     expect(sidebar.get('.view')?.height).toBe('32px');
-    expect(sidebar.get('.view.selected')?.background).toBe('var(--panel-soft)');
+    // The selected view is filled, as Texifier marks its sidebar tab.
+    expect(sidebar.get('.view.selected')?.background).toBe('var(--accent)');
+    expect(sidebar.get('.view.selected')?.color).toBe('var(--on-accent)');
     expect(rules('Tabs').get('.tab')?.['min-height']).toBe('36px');
   });
 

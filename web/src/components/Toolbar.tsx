@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTabsStore, useCompileStore, usePdfStore, useSettingsStore, type Lang, type EditorLayout } from '../store';
 import { fmtShortcut } from '../platform';
 import { belongsToPdf } from '../compile/target';
+import { isLatexError } from '../store/compile';
 import { LATEX_ENGINES, isUnknownEngine } from './engineStatus';
 import {
   IconClock, IconCommandPalette, IconDoc, IconExport,
@@ -51,6 +52,7 @@ export function Toolbar(props: ToolbarProps) {
   const tab = useTabsStore(s => s.tabs.find(t => t.id === s.activeTabId));
   const name = tab ? tab.filePath?.split(/[\\/]/).pop() || t('Untitled') : 'Clavis';
   const compiling = useCompileStore(s => s.status === 'compiling');
+  const errorCount = useCompileStore(s => s.errors.filter(diag => isLatexError(diag.kind)).length);
   const pdf = usePdfStore();
   const canExport = !!tab && (lang === 'typst' || (!!pdf.bytes && !!pdf.workdirToken && !pdf.stale && belongsToPdf(tab, pdf) && !compiling));
   const [menu, setMenu] = useState<'document' | 'typesetting' | null>(null);
@@ -61,12 +63,15 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <header className={styles.toolbar} data-tauri-drag-region>
-      <button className={`${styles.iconBtn} ${props.sidebarVisible ? styles.pressed : ''}`} onClick={props.onToggleSidebar} aria-label={t('Toggle sidebar')} aria-pressed={props.sidebarVisible} title={`${t('Toggle sidebar')} (${fmtShortcut('Ctrl+Shift+L')})`}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M6 3v10" /></svg>
-      </button>
-      <button className={styles.iconBtn} onClick={props.onNewDocument} aria-label={t('New document')} title={`${t('New document')} (${fmtShortcut('Ctrl+N')})`}>
-        <IconDoc size={15} aria-hidden="true" />
-      </button>
+      {/* Grouped in capsules, as Texifier's toolbar is. */}
+      <div className={styles.capsule}>
+        <button className={`${styles.iconBtn} ${props.sidebarVisible ? styles.pressed : ''}`} onClick={props.onToggleSidebar} aria-label={t('Toggle sidebar')} aria-pressed={props.sidebarVisible} title={`${t('Toggle sidebar')} (${fmtShortcut('Ctrl+Shift+L')})`}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M6 3v10" /></svg>
+        </button>
+        <button className={styles.iconBtn} onClick={props.onNewDocument} aria-label={t('New document')} title={`${t('New document')} (${fmtShortcut('Ctrl+N')})`}>
+          <IconDoc size={15} aria-hidden="true" />
+        </button>
+      </div>
       <div className={styles.identity} data-tauri-drag-region>
         <span className={styles.documentName} title={tab?.filePath ?? name} data-tauri-drag-region>{name}</span>
         {tab?.isDirty && <span className={styles.dirty} aria-label={t('Unsaved changes')} title={t('Unsaved changes')} />}
@@ -83,12 +88,18 @@ export function Toolbar(props: ToolbarProps) {
         <button className={`${styles.iconBtn} ${props.focusMode ? styles.pressed : ''}`} onClick={props.onToggleFocus} aria-label={props.focusMode ? t('Leave focus mode') : t('Focus mode')} aria-pressed={props.focusMode} title={`${t('Focus mode')} (${fmtShortcut('Ctrl+Shift+Enter')})`}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" /></svg>
         </button>
-        {lang === 'latex' && (
-          <button className={styles.primaryBtn} aria-label={compiling ? t('Stop compilation') : t('Compile')} aria-busy={compiling} onClick={compiling ? props.onStopCompile : props.onCompile} title={`${t('Compile')} (${fmtShortcut('Ctrl+B')})`}>
-            <IconPlay size={14} aria-hidden="true" /><span className={styles.actionLabel}>{compiling ? t('Stop') : t('Compile')}</span>
-          </button>
-        )}
-        {lang !== 'markdown' && <>
+        {lang !== 'markdown' && <div className={styles.capsule}>
+          {lang === 'latex' && props.autoCompile !== undefined && (
+            <button className={`${styles.live} ${props.autoCompile ? styles.liveOn : ''}`} aria-pressed={props.autoCompile}
+              title={props.autoCompile ? t('Compiling automatically after each pause; click to stop') : t('Compile automatically')}
+              onClick={() => props.onAutoCompileChange?.(!props.autoCompile)}>{t('LIVE')}</button>
+          )}
+          {lang === 'latex' && (
+            <button className={styles.primaryBtn} aria-label={compiling ? t('Stop compilation') : t('Compile')} aria-busy={compiling} onClick={compiling ? props.onStopCompile : props.onCompile} title={`${t('Compile')} (${fmtShortcut('Ctrl+B')})`}>
+              <IconPlay size={14} aria-hidden="true" /><span className={styles.actionLabel}>{compiling ? t('Stop') : t('Compile')}</span>
+              {!compiling && errorCount > 0 && <span className={styles.errorCount} aria-label={t('{count} issues', { count: errorCount })}>{errorCount}</span>}
+            </button>
+          )}
           <ToolbarMenu label={t('Typesetting')} open={menu === 'typesetting'} onToggle={() => setMenu(menu === 'typesetting' ? null : 'typesetting')} onClose={() => setMenu(null)} icon={<IconChevron />}>
             {run => <>
               <div className={styles.menuHeading}>{t('Typesetting')}</div>
@@ -114,6 +125,8 @@ export function Toolbar(props: ToolbarProps) {
               </>}
             </>}
           </ToolbarMenu>
+        </div>}
+        {lang !== 'markdown' && <>
           <button className={styles.textBtn} aria-label={t('Export PDF')} title={canExport ? `${t('Export PDF')} (${fmtShortcut('Ctrl+Shift+E')})` : t('Compile to export PDF')} disabled={!canExport} onClick={lang === 'latex' ? props.onExportLatexPdf : props.onExportTypstPdf}>
             <IconExport size={15} aria-hidden="true" /><span className={styles.actionLabel}>PDF</span>
           </button>

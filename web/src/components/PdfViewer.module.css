@@ -6,6 +6,8 @@
   background: var(--pdf-desk);
   position: relative;
   min-width: 0;
+  /* The toolbar adapts to the pane's width, not the window's. */
+  container-type: inline-size;
 }
 
 /* The reading surround is neutral, not an accent or a saved custom color. */
@@ -17,22 +19,32 @@
  * not an overlay on top of it, so there is nothing behind it to blur — a
  * backdrop-filter here would cost a compositing layer for zero visual effect. */
 .toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 12px;
+  gap: 8px;
+  padding: 6px 10px;
   background: var(--panel-solid);
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--border);
   flex: none;
 }
+
+.group { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.pagesGroup { justify-content: center; }
+.toolsGroup { justify-content: flex-end; }
+/* A narrow split pane drops the zoom readout's neighbours before the page controls. */
+@container (max-width: 440px) {
+  .toolbar { grid-template-columns: auto 1fr auto; gap: 4px; padding-inline: 6px; }
+  .divider, .pageLabel > span { display: none; }
+}
+.pageLabel { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; color: var(--text-muted); font-size: 0.8462rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 22px;
+  min-width: 28px;
+  height: 26px;
   background: transparent;
   color: var(--text-muted);
   border: none;
@@ -51,6 +63,12 @@
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Toggles that are on: two-page spread, scroll lock. */
+.btn:not(.info)[aria-pressed='true'] {
+  background: var(--tint-accent);
+  color: var(--accent);
 }
 
 .info {
@@ -141,6 +159,20 @@
 
 .pages.sepia canvas {
   filter: sepia(0.6) brightness(0.95);
+}
+
+/* Two pages per row, as a book spread. */
+.pages.spread {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+}
+.pages.spread .page { margin-inline: 0; }
+
+/* Graded pages are drawn dark; the page box behind them must not flash white. */
+.pages.darkPaper .page {
+  background: rgb(30 31 34);
 }
 
 .page {

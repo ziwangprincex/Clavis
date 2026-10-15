@@ -17,7 +17,7 @@
   overscroll-behavior: contain;
 }
 .host :global(.cm-content) { min-width: 0; padding-block: var(--editor-top-padding, 24px) 120px; }
-.host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 0 12px; }
+.host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 4px 12px; font-size: 0.82em; font-variant-numeric: tabular-nums; }
 .host :global(.cm-gutters) { -webkit-user-select: none; user-select: none; }
 .host :global(.cm-activeLineGutter) { font-weight: 500; }
 .host[data-language='markdown'] :global(.cm-gutters) { display: none; }

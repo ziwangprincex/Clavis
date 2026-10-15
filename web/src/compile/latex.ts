@@ -148,6 +148,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     });
     useCompileStore.setState({
       errors: result.errors ?? [], logTail: result.logTail ?? '', runs: result.runs,
+      chain: result.engine ? { engine: result.engine, bibTool: result.bibTool ?? null, runs: result.runs } : null,
       status: result.ok ? 'ok' : 'error',
     });
     usePdfStore.setState({

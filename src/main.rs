@@ -102,6 +102,42 @@ fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))
 }
 
+/// Label of the window that shows only the PDF (it can sit on another display).
+const PDF_WINDOW: &str = "pdf";
+
+/// Shows the compiled PDF in a window of its own, which can be moved to an
+/// external display, as Texifier's viewer can. The main window keeps it updated.
+#[tauri::command]
+async fn open_pdf_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_window(PDF_WINDOW) {
+        return window.set_focus().map_err(|e| format!("cannot show the PDF window: {e}"));
+    }
+    tauri::WindowBuilder::new(&app, PDF_WINDOW, tauri::WindowUrl::App("index.html?window=pdf".into()))
+        .title("Clavis — PDF")
+        .inner_size(900.0, 1100.0)
+        .min_inner_size(420.0, 360.0)
+        .build()
+        .map(|_| ())
+        .map_err(|e| format!("cannot open the PDF window: {e}"))
+}
+
+/// Modification stamps of folders, for the file tree's change polling: a folder's
+/// stamp changes when an entry in it is added, removed or renamed. A missing
+/// folder is `None`. Stamps are nanoseconds as text, beyond JavaScript numbers.
+#[tauri::command]
+fn folder_stamps(paths: Vec<String>) -> Vec<Option<String>> {
+    paths
+        .iter()
+        .take(2_000)
+        .map(|path| {
+            let metadata = std::fs::metadata(path).ok().filter(|m| m.is_dir())?;
+            let modified = metadata.modified().ok()?;
+            let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+            Some(since.as_nanos().to_string())
+        })
+        .collect()
+}
+
 /// Scan only the current folder level so the UI can lazy-load children on demand.
 #[tauri::command]
 fn scan_folder_shallow(root: String) -> Result<TreeNode, String> {
@@ -227,6 +263,8 @@ fn main() {
             system_fonts::list_system_fonts,
             typst_sig::list_typst_signatures,
             scan_folder_shallow,
+            folder_stamps,
+            open_pdf_window,
             save_binary_file,
             read_text_file,
             document_io::read_document,
@@ -271,12 +309,37 @@ fn main() {
             settings::detect_bib_engines,
         ])
         .on_window_event(|event| {
+            // Only the main window owns the compile workdirs; the PDF window
+            // closing must not discard what SyncTeX still needs.
             if let tauri::WindowEvent::Destroyed = event.event() {
-                if let Some(s) = event.window().try_state::<latex::LatexState>() {
-                    s.clear();
+                if event.window().label() != PDF_WINDOW {
+                    if let Some(s) = event.window().try_state::<latex::LatexState>() {
+                        s.clear();
+                    }
+                    if let Some(pdf) = event.window().get_window(PDF_WINDOW) {
+                        let _ = pdf.close();
+                    }
                 }
             }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::folder_stamps;
+
+    #[test]
+    fn folder_stamp_changes_when_an_entry_is_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let missing = dir.path().join("gone").to_string_lossy().into_owned();
+        let before = folder_stamps(vec![path.clone(), missing]);
+        assert!(before[0].is_some());
+        assert_eq!(before[1], None);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(dir.path().join("new.tex"), "x").unwrap();
+        assert_ne!(folder_stamps(vec![path])[0], before[0]);
+    }
 }
