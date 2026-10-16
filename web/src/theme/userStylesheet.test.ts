@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const css = vi.fn(async () => '');
-vi.mock('../api/tauri', () => ({ ipc: { readUserStylesheet: () => css() } }));
+vi.mock('../api/tauri', () => ({ hasTauri: () => true, ipc: { readUserStylesheet: () => css() } }));
 
 const children: { id?: string; textContent?: string; remove?: () => void }[] = [];
 const fakeDocument = {
