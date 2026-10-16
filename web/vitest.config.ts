@@ -7,6 +7,6 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/testSetup.ts'],
-    css: { include: [/\.module\.css\?raw$/] },
+    css: { include: [/\.module\.css\?raw$/, /tokens\.css\?raw$/] },
   },
 });

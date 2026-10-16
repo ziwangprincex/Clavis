@@ -1,7 +1,7 @@
 import { t } from '../i18n';
 import { useId, type CSSProperties } from 'react';
 import { BUILTIN_THEMES, SIGNATURE_THEMES, type ThemeSpec } from '../theme/themes';
-import { chromeTokens } from '../theme/chromeTokens';
+import { chromeTokens, overrideTokens } from '../theme/chromeTokens';
 import styles from './ThemePicker.module.css';
 
 export function ThemePicker({ value, selectedSpec, onChange, overrides = {}, uiFont }: {
@@ -19,7 +19,7 @@ export function ThemePicker({ value, selectedSpec, onChange, overrides = {}, uiF
         {SIGNATURE_THEMES.map(id => {
           const checked = value === id;
           const spec = checked ? selectedSpec : BUILTIN_THEMES[id];
-          const tokens = { ...chromeTokens(spec), ...(checked ? Object.fromEntries(Object.entries(overrides).filter(([, value]) => value).map(([key, value]) => [`--${key}`, value])) : {}), ...(uiFont ? { '--font-sans': uiFont } : {}) };
+          const tokens = { ...chromeTokens(spec), ...(checked ? overrideTokens(overrides) : {}), ...(uiFont ? { '--font-sans': uiFont } : {}) };
           return (
             <label key={id} className={styles.choice}>
               <input type="radio" name={name} value={id} checked={checked}

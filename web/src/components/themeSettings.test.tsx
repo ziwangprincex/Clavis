@@ -14,15 +14,16 @@ vi.mock('../api/tauri', () => ({
 }));
 
 let tree: ReactTestRenderer | undefined;
-const properties = new Map<string, string>();
 const root = {
-  style: {
-    setProperty: (key: string, value: string) => properties.set(key, value),
-    removeProperty: (key: string) => properties.delete(key),
-  },
+  style: {} as Record<string, string>,
   dataset: {} as Record<string, string>,
   setAttribute: vi.fn(),
 };
+// The managed :root rule written by useAppTheme; parsed by tokenRule() below.
+const tokensRule = { id: '', textContent: '' };
+const tokenRule = () => Object.fromEntries(
+  [...tokensRule.textContent.matchAll(/(--[\w-]+): ?([^;]+);/g)].map(match => [match[1], match[2]]),
+);
 const media = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
 const close = vi.fn();
 const button = (text: string) => tree!.root.findAllByType('button').find(b => b.children.join('').trim() === text)!;
@@ -31,11 +32,19 @@ const mountDialog = () => act(() => { tree = create(<SettingsDialog open onClose
 
 beforeEach(() => {
   vi.clearAllMocks();
-  properties.clear();
+  tokensRule.id = '';
+  tokensRule.textContent = '';
   root.dataset = {};
+  root.style = {};
   media.matches = false;
   vi.stubGlobal('window', { matchMedia: () => media });
-  vi.stubGlobal('document', { documentElement: root, body: { style: {} } });
+  vi.stubGlobal('document', {
+    documentElement: root,
+    body: { style: {} },
+    head: { append: () => {} },
+    createElement: () => tokensRule,
+    getElementById: (id: string) => (id === 'clavis-tokens' ? tokensRule : null),
+  });
   useSettingsStore.setState({ settings: { ...defaultSettings, editor_theme: 'paper' } });
 });
 afterEach(() => {
@@ -122,10 +131,12 @@ describe('theme settings without a browser', () => {
     }
     useSettingsStore.getState().patch({ ui_color_overrides: { bg: '#123456', selection: '#654321' }, ui_accent_color: '#aa1234' });
     act(() => { tree = create(<Harness />); });
-    expect(properties.get('--bg')).toBe('#123456');
+    expect(tokenRule()['--bg']).toBe('#123456');
+    expect(tokenRule()['--selection']).toBe('#654321');
+    expect(tokenRule()['--accent']).toBe('#aa1234');
     act(() => useSettingsStore.getState().patch({ editor_theme: 'dusk', ui_color_overrides: {}, ui_accent_color: '' }));
     for (const [key, value] of Object.entries(chromeTokens(BUILTIN_THEMES.dusk))) {
-      expect(properties.get(key)).toBe(value);
+      expect(tokenRule()[key]).toBe(value);
     }
   });
 });

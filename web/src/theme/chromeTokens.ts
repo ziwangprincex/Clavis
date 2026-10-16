@@ -12,6 +12,17 @@ export function accentTokens(accent: string, dark: boolean): Record<string, stri
   };
 }
 
+/** ui_color_overrides as token declarations ('bg' → '--bg'), empties dropped.
+ * Shared by useAppTheme (applies them to the window) and ThemePicker (previews
+ * them), so the previewed palette cannot drift from the applied one. */
+export function overrideTokens(overrides: Record<string, string> | undefined): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(overrides ?? {})
+      .filter(([, value]) => value)
+      .map(([key, value]) => [`--${key}`, value]),
+  );
+}
+
 /** Flat document, recessed workspace, lifted popovers. No translucent chrome. */
 export function chromeTokens(spec: ThemeSpec): Record<string, string> {
   const { bg, fg, dark } = spec;

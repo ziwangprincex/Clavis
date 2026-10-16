@@ -81,6 +81,10 @@ Open:
 - Typora-style theme ecosystem: done as far as one `user.css`
   (`<config_dir>/clavis/user.css`, edited in Settings → Appearance → Custom
   CSS). Not done: installable/switchable theme folders and a shared gallery.
+- Editor surfaces beyond the writing surface (caret, active line, selection
+  fills) do not follow Custom CSS tokens; tokenizing them needs WebKit-safe
+  translucency (`color-mix` wants a newer WebView than the deployment target),
+  so the settings hint documents the boundary for now.
 
 ---
 

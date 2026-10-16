@@ -15,7 +15,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '../store';
 import { BUILTIN_THEMES, type ThemeSpec } from './themes';
-import { accentTokens, chromeTokens } from './chromeTokens';
 import { mix } from './colors';
 
 /** Theme id used when `editor_theme` is 'auto' and the OS is in dark/light. */
@@ -48,23 +47,6 @@ export function resolveThemeSpec(
     ...(ov.cursor && { cursor: ov.cursor }),
     ...(ov.selection && { selection: ov.selection }),
   };
-}
-
-/** Keep filled buttons and selected-row tints in the same accent family. */
-export function setAccent(root: HTMLElement, accent: string, dark: boolean): void {
-  for (const [key, value] of Object.entries(accentTokens(accent, dark))) {
-    root.style.setProperty(key, value);
-  }
-}
-
-/** Apply exactly the same palette used by the Appearance samples. */
-export function applyChromeTokens(spec: ThemeSpec): void {
-  const root = document.documentElement;
-  for (const [key, value] of Object.entries(chromeTokens(spec))) {
-    root.style.setProperty(key, value);
-  }
-  root.style.setProperty('color-scheme', spec.dark ? 'dark' : 'light');
-  root.setAttribute('data-theme', spec.dark ? 'dark' : 'light');
 }
 
 /** Track the OS dark-mode preference, but only subscribe while `active`. */

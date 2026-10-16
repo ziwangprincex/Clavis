@@ -108,7 +108,12 @@ export function selectionFill(spec: ThemeSpec, focused: boolean): string {
 function buildThemeExt(spec: ThemeSpec) {
   return EditorView.theme(
     {
-      '&': { backgroundColor: spec.bg, color: spec.fg, height: '100%' },
+      // The writing surface reads the chrome tokens, with the theme spec as
+      // fallback, so overriding --bg / --text (Settings → Custom CSS) restyles
+      // the editor surface too. Gutters stay on the theme spec: gutterBg is a
+      // distinct shade in several themes (solarized, github-light), and
+      // editor_theme_overrides.gutter_bg remains the way to steer it.
+      '&': { backgroundColor: `var(--bg, ${spec.bg})`, color: `var(--text, ${spec.fg})`, height: '100%' },
       '.cm-gutters': { backgroundColor: spec.gutterBg, color: spec.gutterFg, border: 'none' },
       '.cm-activeLine': { backgroundColor: spec.activeBg },
       '.cm-activeLineGutter': { backgroundColor: spec.activeBg, color: spec.fg },

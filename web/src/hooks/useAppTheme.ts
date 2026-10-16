@@ -2,15 +2,19 @@
 // whenever the relevant settings change.
 //
 // The chosen theme (settings.editor_theme, possibly 'auto') is the single source
-// of truth: `applyChromeTokens` derives the whole chrome palette from its
-// ThemeSpec so toolbar/sidebar/preview match the editor. User-level overrides
-// (custom UI font, accent, and ad-hoc --var color overrides) are then layered on
-// top so they win over the theme defaults.
+// of truth: the chrome palette derives from its ThemeSpec so toolbar/sidebar/
+// preview match the editor. User-level overrides (custom UI font, accent, and
+// ad-hoc --var color overrides) are layered on top so they win over the theme
+// defaults. Everything lands in one managed :root rule (see theme/rootTokens.ts)
+// that sits before the user stylesheet, so user.css still wins over all of it
+// without needing !important.
 
 import { useEffect } from 'react';
 import { defaultSettings, type Settings } from '../store';
 import { resolveLocale } from '../i18n';
-import { applyChromeTokens, setAccent, useResolvedThemeSpec } from '../theme/appTheme';
+import { useResolvedThemeSpec } from '../theme/appTheme';
+import { accentTokens, chromeTokens, overrideTokens } from '../theme/chromeTokens';
+import { setRootTokens } from '../theme/rootTokens';
 
 export function useAppTheme(settings: Settings): void {
   const spec = useResolvedThemeSpec();
@@ -18,39 +22,25 @@ export function useAppTheme(settings: Settings): void {
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('lang', resolveLocale(settings.ui_language));
+    root.setAttribute('data-theme', spec.dark ? 'dark' : 'light');
 
-    // Remove previous overrides BEFORE deriving the palette. Removing them
-    // afterward would also erase newly restored theme defaults.
-    const previousKeys = (root.dataset.clavisOverrideKeys ?? '').split(',').filter(Boolean);
-    for (const key of previousKeys) root.style.removeProperty(`--${key}`);
+    // One rule rebuilt from the current settings on every run; stale override
+    // keys cannot survive because nothing merges with the previous state.
+    // --font-display / --font-literary stay derived in tokens.css — nothing
+    // here needs to re-assert them.
+    const decls: Record<string, string> = {
+      ...chromeTokens(spec),
+      'color-scheme': spec.dark ? 'dark' : 'light',
+      ...(settings.ui_font_family ? { '--font-sans': settings.ui_font_family } : {}),
+      '--font-mono': settings.ui_mono_font_family || settings.editor_font_family || defaultSettings.editor_font_family,
+      '--ui-font-size': `${settings.ui_font_size}px`,
+      ...(settings.ui_accent_color ? accentTokens(settings.ui_accent_color, spec.dark) : {}),
+      ...overrideTokens(settings.ui_color_overrides),
+    };
+    setRootTokens(decls);
 
-    // 1) Theme-derived chrome palette (also sets data-theme + color-scheme).
-    applyChromeTokens(spec);
-
-    // 2) User font overrides.
-    if (settings.ui_font_family) {
-      root.style.setProperty('--font-sans', settings.ui_font_family);
-    } else {
-      root.style.removeProperty('--font-sans');
-    }
-    root.style.setProperty('--font-display', 'var(--font-sans)');
-    root.style.setProperty('--font-literary', 'var(--font-sans)');
-    root.style.setProperty('--font-mono', settings.ui_mono_font_family || settings.editor_font_family || defaultSettings.editor_font_family);
-    root.style.setProperty('--ui-font-size', `${settings.ui_font_size}px`);
     root.style.fontSize = `${settings.ui_font_size}px`;
     document.body.style.fontSize = `${settings.ui_font_size}px`;
-
-    // 3) User accent override wins over the theme's accent.
-    if (settings.ui_accent_color) {
-      setAccent(root, settings.ui_accent_color, spec.dark);
-    }
-
-    // 4) Arbitrary --var color overrides, layered last so they always win.
-    const ov = settings.ui_color_overrides ?? {};
-    for (const [key, value] of Object.entries(ov)) {
-      if (value) root.style.setProperty(`--${key}`, value);
-    }
-    root.dataset.clavisOverrideKeys = Object.keys(ov).join(',');
   }, [
     spec,
     settings.ui_language,

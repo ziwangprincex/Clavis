@@ -65,7 +65,7 @@ function UserStylesheetEditor() {
     <textarea className={styles.cssEditor} spellCheck={false} value={css} placeholder={CSS_EXAMPLE}
       onChange={event => setCss(event.target.value)} aria-label={t('Custom CSS')} />
     <p className={styles.hint}>{path}</p>
-    <p className={styles.hint}>{t('Injected after Clavis\'s own styles. Setting the color tokens (--bg, --text, --accent, --panel-solid, --border, --font-sans) restyles the whole window; the editor and preview read the same tokens.')}</p>
+    <p className={styles.hint}>{t("Injected after Clavis's own styles. Setting the color tokens (--bg, --text, --accent, --panel-solid, --border, --font-sans) restyles the whole window, editor surface included; the caret, active line and selection follow the theme and are set in Settings → Editor.")}</p>
     {error && <p className={styles.hint}>{error}</p>}
     <button type="button" className={styles.secondary} onClick={() => void save()}>{saved ? t('Stylesheet saved') : t('Save stylesheet')}</button>
   </>;
