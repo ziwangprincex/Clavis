@@ -586,6 +586,10 @@ export const ipc = {
 
   // --- Filesystem ---
   scanFolderShallow: (root: string) => invoke<TreeNode>('scan_folder_shallow', { root }),
+  /** The user's own stylesheet: `<config_dir>/clavis/user.css`. */
+  readUserStylesheet: () => invoke<string>('read_user_stylesheet'),
+  writeUserStylesheet: (css: string) => invoke<void>('write_user_stylesheet', { css }),
+  userStylesheetPath: () => invoke<string>('user_stylesheet_path'),
   /** Shows the PDF in a window of its own (focuses it when already open). */
   openPdfWindow: () => invoke<void>('open_pdf_window'),
   /** Folder modification stamps (null for a missing folder), to notice added, removed or renamed entries. */

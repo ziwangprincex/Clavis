@@ -45,6 +45,9 @@ Clavis is a desktop editor for Markdown, LaTeX and Typst documents.
   the sidebar.
 - Tabs, workspace-wide search and replace, and a command palette. The file
   tree follows changes made outside Clavis.
+- Custom CSS: `<config_dir>/clavis/user.css` is injected after Clavis's
+  styles, so overriding the color tokens restyles the whole window (Settings →
+  Appearance → Custom CSS).
 - The word count shows an estimated reading time.
 - Automatic saving and session restore.
 

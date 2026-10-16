@@ -249,6 +249,26 @@
 .fontSample { padding: 10px; border: 1px solid var(--border); border-radius: 5px; overflow-wrap: anywhere; }
 .advanced { margin-bottom: 20px; }
 .advanced summary { cursor: pointer; padding: 8px 0; }
+.cssEditor {
+  width: 100%;
+  min-height: 220px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.55;
+  tab-size: 2;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.cssEditor:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .headingField { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .readingSample { border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; overflow: auto; }
 /* Mirrors the formatted Markdown editor (editor/livePreview.ts). */

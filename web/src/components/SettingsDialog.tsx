@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettingsStore, defaultSettings } from '../store';
 import type { Settings } from '../store/settings';
 import { BUILTIN_THEMES } from '../theme/themes';
+import { applyUserStylesheet } from '../theme/userStylesheet';
 import { resolveThemeSpec, useOsDark } from '../theme/appTheme';
 import { ThemePicker } from './ThemePicker';
 import { getAppVersion, hasTauri, ipc } from '../api/tauri';
@@ -36,6 +37,50 @@ const BIB_ENGINE_CHOICES = ['auto', 'none', ...BIB_ENGINES] as const;
 
 /** The image folder presets offered; anything else is a custom folder. */
 const IMAGE_FOLDERS = ['assets', '${filename}.assets', '.'];
+/** Typora's theme folder in one file: the user's own stylesheet. */
+function UserStylesheetEditor() {
+  const [css, setCss] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [path, setPath] = useState('');
+  useEffect(() => {
+    if (!hasTauri()) { setCss(''); return; }
+    void Promise.all([ipc.readUserStylesheet(), ipc.userStylesheetPath()])
+      .then(([text, file]) => { setCss(text); setPath(file); })
+      .catch(reason => { setCss(''); setError(String(reason)); });
+  }, []);
+  const save = async () => {
+    try {
+      await ipc.writeUserStylesheet(css ?? '');
+      applyUserStylesheet(css ?? '');
+      setError(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (reason) {
+      setError(String(reason));
+    }
+  };
+  if (css === null) return <p className={styles.hint}>{t('Loading…')}</p>;
+  return <>
+    <textarea className={styles.cssEditor} spellCheck={false} value={css} placeholder={CSS_EXAMPLE}
+      onChange={event => setCss(event.target.value)} aria-label={t('Custom CSS')} />
+    <p className={styles.hint}>{path}</p>
+    <p className={styles.hint}>{t('Injected after Clavis\'s own styles. Setting the color tokens (--bg, --text, --accent, --panel-solid, --border, --font-sans) restyles the whole window; the editor and preview read the same tokens.')}</p>
+    {error && <p className={styles.hint}>{error}</p>}
+    <button type="button" className={styles.secondary} onClick={() => void save()}>{saved ? t('Stylesheet saved') : t('Save stylesheet')}</button>
+  </>;
+}
+
+const CSS_EXAMPLE = `/* Clavis user.css */
+:root {
+  --accent: #7c9c74;
+}
+
+/* Light mode only */
+:root[data-theme='light'] {
+  --bg: #fbfaf7;
+}`;
+
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const stored = useSettingsStore(s => s.settings);
   const saveDraft = useSettingsStore(s => s.saveDraft);
@@ -220,6 +265,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   overridden={!!draft.ui_accent_color}
                   onChange={value => update('ui_accent_color', value)}
                   onReset={() => update('ui_accent_color', '')} />
+                <details className={styles.advanced}>
+                  <summary>{t('Custom CSS')}</summary>
+                  <UserStylesheetEditor />
+                </details>
               </section>
             )}
 

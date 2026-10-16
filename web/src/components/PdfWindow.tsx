@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useSettingsStore } from '../store';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { sendSyncTex, usePdfWindowFollow } from '../pdf/pdfWindow';
+import { loadUserStylesheet } from '../theme/userStylesheet';
 import { PdfViewer } from './PdfViewer';
 import styles from './PdfWindow.module.css';
 
@@ -24,6 +25,7 @@ export function PdfWindow() {
     return () => window.removeEventListener('focus', onFocus);
   }, [load]);
   useAppTheme(settings);
+  useEffect(() => { void loadUserStylesheet(); }, []);
   usePdfWindowFollow();
   return <div className={styles.root}>
     <PdfViewer standalone onSyncTexBackward={sendSyncTex} />

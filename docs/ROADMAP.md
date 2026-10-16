@@ -64,8 +64,23 @@ Only `Clavis_*_aarch64.dmg` is published; the cask hard-codes
 
 ## P1 — Writing correctness gaps
 
-- Session restore does not validate stale `session.json` entries.
-- Forward SyncTeX from a LaTeX subfile is not implemented.
+Resolved, verified against the code on 2026-10-16:
+
+- Session restore validates its snapshot structurally (`sessionModel.ts`) and
+  then reads every restored file (`checkExternalDocuments(true)`), so a file
+  deleted outside Clavis opens into a conflict instead of a dirty buffer.
+- Forward SyncTeX from a subfile works: `rel_from` keeps nested relative paths
+  (`chapters/intro.tex`), they are written into the workdir with their
+  directories, and `syncTexForwardFromEditor` passes that path to
+  `synctex view -i`.
+- Missing TeX packages install from the problem panel: `extract_missing_pkg`
+  names the package and `install_package` runs the manager after a confirm.
+
+Open:
+
+- Typora-style theme ecosystem: done as far as one `user.css`
+  (`<config_dir>/clavis/user.css`, edited in Settings → Appearance → Custom
+  CSS). Not done: installable/switchable theme folders and a shared gallery.
 
 ---
 

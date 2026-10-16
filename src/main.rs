@@ -22,6 +22,7 @@ mod typst_packages;
 mod typst_sig;
 mod typst_world;
 mod workspace_search;
+mod user_stylesheet;
 
 use base64::Engine as _;
 use serde::Serialize;
@@ -265,6 +266,9 @@ fn main() {
             scan_folder_shallow,
             folder_stamps,
             open_pdf_window,
+            user_stylesheet::user_stylesheet_path,
+            user_stylesheet::read_user_stylesheet,
+            user_stylesheet::write_user_stylesheet,
             save_binary_file,
             read_text_file,
             document_io::read_document,

@@ -39,6 +39,7 @@ import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile, resolveTypstTarge
 import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
+import { loadUserStylesheet } from './theme/userStylesheet';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
 import { useLatexAutoCompile } from "./hooks/useLatexAutoCompile";
 import { useDocumentSync } from './hooks/useDocumentSync';
@@ -171,6 +172,7 @@ export function App() {
 
   // Apply UI theme / fonts / accent / color overrides to :root.
   useAppTheme(settings);
+  useEffect(() => { void loadUserStylesheet(); }, []);
   /** A click in the PDF (this window's or the PDF window's) goes to its source line. */
   const syncFromPdf = (page: number, x: number, y: number) =>
     syncTexBackwardFromPdf(page, x, y, (absPath, line) =>

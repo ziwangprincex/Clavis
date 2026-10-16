@@ -62,6 +62,11 @@ PDF, text, office documents, audio and video). Scripts, installers, shortcuts
 and files without an extension are refused, since their default handler runs
 them: a link in someone else's document must not start a program.
 
+The user stylesheet (`<config_dir>/clavis/user.css`, see `src/user_stylesheet.rs`)
+is read from the user's own configuration directory and injected after Clavis's
+styles. It is their file, never fetched from a document or the network, and is
+capped at 256 KB.
+
 Markdown HTML export (`web/src/files/exportMarkdown.ts`) uses the same
 sanitizing renderer, so raw HTML is still dropped. It embeds only images that
 `asset_preview` would show and writes through `save_binary_file` to the path
