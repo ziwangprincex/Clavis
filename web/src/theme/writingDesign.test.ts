@@ -63,7 +63,8 @@ describe('editorial writing surfaces', () => {
     expect(read('../components/EditorPane.module.css')).toContain('var(--editor-top-padding, 24px)');
   });
 
-  it('uses a compact, aligned titlebar without shrinking the action hit targets', () => {
+  // One density scale (tokens.css) sizes the chrome, Texifier-compact.
+  it('uses a compact, Texifier-like titlebar and controls', () => {
     const rules = (name: string) => {
       const out = new Map<string, Record<string, string>>();
       sheet(name).walkRules(rule => {
@@ -71,22 +72,22 @@ describe('editorial writing surfaces', () => {
       });
       return out;
     };
-    expect(rules('Toolbar').get('.toolbar')?.height).toBe('48px');
-    expect(rules('TitleBar').get('.titlebar')?.height).toBe('48px');
+    expect(rules('Toolbar').get('.toolbar')?.height).toBe('var(--bar-h)');
+    expect(rules('TitleBar').get('.titlebar')?.height).toBe('var(--bar-h)');
     expect(rules('TitleBar').get('.titlebar.mac')?.['padding-left']).toBe('76px');
-    expect(rules('Toolbar').get('.iconBtn, .textBtn, .primaryBtn')?.['min-height']).toBe('32px');
+    expect(rules('Toolbar').get('.iconBtn, .textBtn, .primaryBtn')?.['min-height']).toBe('var(--control-h)');
     expect(rules('Toolbar').get('.primaryBtn')?.background).toBe('var(--panel-soft)');
     const sidebar = rules('Sidebar');
     expect(sidebar.has('.heading')).toBe(false);
     expect(sidebar.get('.views')?.['border-bottom']).toBeUndefined();
     expect(sidebar.get('.view')?.['border-bottom']).toBeUndefined();
     expect(sidebar.get('.view.selected')?.['border-bottom-color']).toBeUndefined();
-    expect(sidebar.get('.view')?.width).toBe('32px');
-    expect(sidebar.get('.view')?.height).toBe('32px');
+    expect(sidebar.get('.view')?.width).toBe('var(--control-h)');
+    expect(sidebar.get('.view')?.height).toBe('var(--control-h)');
     // The selected view is filled, as Texifier marks its sidebar tab.
     expect(sidebar.get('.view.selected')?.background).toBe('var(--accent)');
     expect(sidebar.get('.view.selected')?.color).toBe('var(--on-accent)');
-    expect(rules('Tabs').get('.tab')?.['min-height']).toBe('36px');
+    expect(rules('Tabs').get('.tab')?.['min-height']).toBe('var(--control-h)');
   });
 
   it('keeps Markdown page widths ordered and proportional to the body font size', () => {

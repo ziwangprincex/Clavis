@@ -83,6 +83,13 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
+  /* Density — compact, Texifier-like chrome: bars --bar-h, controls
+   * --control-h, rows --row-h. Corners: radius-md for controls ≥26px,
+   * radius-sm for ≤22px; a container adds its padding to its children's. */
+  --bar-h: 40px;
+  --control-h: 28px;
+  --row-h: 26px;
+
   /* Motion — one standard easing/duration for snappy, consistent feedback. */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --dur: 0.13s;

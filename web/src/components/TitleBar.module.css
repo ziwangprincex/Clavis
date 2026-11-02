@@ -1,8 +1,8 @@
 .titlebar {
   display: flex;
   align-items: center;
-  height: 48px;
-  flex: 0 0 48px;
+  height: var(--bar-h);
+  flex: 0 0 var(--bar-h);
   min-width: 0;
   background: var(--bg);
   border-bottom: 1px solid transparent;

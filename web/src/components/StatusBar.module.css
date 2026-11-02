@@ -1,8 +1,8 @@
 .bar {
   display: flex;
   align-items: center;
-  height: 32px;
-  flex: 0 0 32px;
+  height: var(--row-h);
+  flex: 0 0 var(--row-h);
   padding: 0 16px;
   background: var(--bg);
   /* Softer rule: the status bar is ambient information and should not draw a
