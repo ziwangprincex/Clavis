@@ -10,6 +10,7 @@
   "Follow system": "跟随系统",
   "Applied after saving. Document contents and compiler output are not translated.": "保存后生效。文档内容与编译器输出不作翻译。",
   "Theme": "主题",
+  "More themes": "更多主题",
   "Automatic (Paper in light mode, Ink in dark mode)": "跟随系统（浅色为 Paper，深色为 Ink）",
   "Applied to the whole window after saving. Compiled pages are not affected.": "保存后应用于整个窗口，不影响编译生成的页面。",
   "Custom colors are retained. Clearing them restores the original palette.": "自定义颜色将保留；清除后恢复主题原色。",

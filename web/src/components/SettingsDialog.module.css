@@ -29,7 +29,7 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  animation: pop 0.16s ease-out;
+  animation: pop var(--dur) var(--ease);
 }
 
 @keyframes pop {

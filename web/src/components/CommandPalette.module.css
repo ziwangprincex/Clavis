@@ -30,7 +30,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: pop 0.16s ease-out;
+  animation: pop var(--dur) var(--ease);
 }
 
 @keyframes pop {
