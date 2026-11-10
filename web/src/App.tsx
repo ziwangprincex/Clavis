@@ -1,7 +1,7 @@
 import { t } from './i18n';
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { hasTauri, dialogOpen, dialogConfirm } from './api/tauri';
+import { events, hasTauri, dialogOpen, dialogConfirm } from './api/tauri';
 import { getActiveTab, useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useReferencesStore, useAssetsStore, useWritingStore, useCompileStore, type EditorLayout, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
@@ -555,6 +555,13 @@ export function App() {
     return () => offs.forEach(off => off());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceFolder, activeTab?.id, lang, startTabId, settings.editor_layout, toggleProblems]);
+
+  // The macOS app menu (Settings…, Check for Updates…) runs palette commands by id.
+  useEffect(() => {
+    if (!hasTauri()) return;
+    const off = events.onMenuCommand(id => { void useCommandsStore.getState().commands.get(id)?.run(); });
+    return () => { void off.then(unlisten => unlisten()); };
+  }, []);
 
   // Focus is temporary: leaving it restores the user's exact pane preferences.
   useEffect(() => {

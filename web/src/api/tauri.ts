@@ -618,4 +618,7 @@ export const events = {
     listen<LatexLogPayload>('latex-log', handler),
   onLatexRunStart: (handler: (p: LatexRunStartPayload) => void) =>
     listen<LatexRunStartPayload>('latex-run-start', handler),
+  /** A native menu item was chosen; the payload is a command-palette command id. */
+  onMenuCommand: (handler: (id: string) => void) =>
+    listen<string>('menu-command', handler),
 };

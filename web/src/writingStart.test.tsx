@@ -43,6 +43,8 @@ vi.mock('./api/tauri', () => ({
   },
   // The PDF window bridge listens from startup.
   listen: vi.fn(async () => () => {}), emit: vi.fn(async () => {}),
+  // So does the macOS app menu (Settings…, Check for Updates…).
+  events: { onMenuCommand: vi.fn(async () => () => {}) },
 }));
 const settingsState = useSettingsStore.getState();
 let tree: ReactTestRenderer;

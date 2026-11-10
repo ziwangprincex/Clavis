@@ -106,6 +106,25 @@ fn read_text_file(path: String) -> Result<String, String> {
 /// Label of the window that shows only the PDF (it can sit on another display).
 const PDF_WINDOW: &str = "pdf";
 
+/// The standard macOS menu, with Check for Updates and Settings in the app
+/// menu where Mac apps keep them. Each item's id is a command-palette command
+/// that the main window runs on `menu-command`.
+#[cfg(target_os = "macos")]
+fn app_menu() -> tauri::Menu {
+    use tauri::{CustomMenuItem, MenuEntry, MenuItem};
+    let mut menu = tauri::Menu::os_default("Clavis");
+    if let Some(MenuEntry::Submenu(app)) = menu.items.first_mut() {
+        let updates = CustomMenuItem::new("app.checkUpdates", "Check for Updates…");
+        let settings = CustomMenuItem::new("app.settings", "Settings…").accelerator("CmdOrCtrl+,");
+        // After "About Clavis"; the default's own separator then precedes Services.
+        app.inner.items.splice(
+            1..1,
+            [updates.into(), MenuEntry::NativeItem(MenuItem::Separator), settings.into()],
+        );
+    }
+    menu
+}
+
 /// Shows the compiled PDF in a window of its own, which can be moved to an
 /// external display, as Texifier's viewer can. The main window keeps it updated.
 #[tauri::command]
@@ -225,10 +244,11 @@ fn main() {
     let latex_state = latex::LatexState::default();
 
     // macOS gets the standard system menu (provides ⌘Q, ⌘W, ⌘M, ⌘H, Edit menu
-    // with Cut/Copy/Paste/Undo bindings, etc.). Other platforms use no menu —
-    // we expose actions via the in-app toolbar / command palette.
+    // with Cut/Copy/Paste/Undo bindings, etc.) plus Settings and Check for
+    // Updates. Other platforms use no menu — we expose actions via the in-app
+    // toolbar / command palette.
     #[cfg(target_os = "macos")]
-    let menu = tauri::Menu::os_default("Clavis");
+    let menu = app_menu();
     #[cfg(not(target_os = "macos"))]
     let menu = tauri::Menu::new();
 
@@ -312,6 +332,13 @@ fn main() {
             settings::detect_latex_engines,
             settings::detect_bib_engines,
         ])
+        .on_menu_event(|event| {
+            // The PDF window shares the app menu; commands belong to the main window.
+            if let Some(main) = event.window().get_window("main") {
+                let _ = main.set_focus();
+                let _ = main.emit("menu-command", event.menu_item_id());
+            }
+        })
         .on_window_event(|event| {
             // Only the main window owns the compile workdirs; the PDF window
             // closing must not discard what SyncTeX still needs.
