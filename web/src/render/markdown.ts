@@ -22,6 +22,7 @@ export function escapeAttr(text: string): string {
 /** Ordinary relative paths are valid; control-obfuscated and active schemes are not. */
 export function sanitizeUrl(url: string, image = false): string {
   const value = url.trim();
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (/[\u0000-\u0020\u007f]/.test(value.replace(/ /g, '')) || /^(?:\/\/|\\)/.test(value)) return '';
   if (/^data:/i.test(value)) return image && /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z\d+/=]+$/i.test(value) ? value : '';
   if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:/i.test(value) && !( !image && /^mailto:/i.test(value))) return '';

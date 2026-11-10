@@ -54,7 +54,8 @@ function fields(body: string): Map<string, string> {
   const out = new Map<string, string>();
   const field = /([A-Za-z][\w-]*)\s*=\s*/g;
   for (let match = field.exec(body); match; match = field.exec(body)) {
-    let start = field.lastIndex, end: number;
+    const start = field.lastIndex;
+    let end: number;
     if (body[start] === '{') {
       end = closing(body, start);
       if (end < 0) break;

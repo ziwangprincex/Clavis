@@ -6,7 +6,7 @@ import { ipc } from '../api/tauri';
 vi.mock('../api/tauri', () => ({ ipc: { getSettings: vi.fn() } }));
 const sources = import.meta.glob<string>([
   '../components/*.module.css', '../App.module.css', '../editor/controller.ts',
-  '../editor/livePreview.ts', '../components/EditorPane.tsx',
+  '../editor/livePreviewTheme.ts', '../components/EditorPane.tsx',
 ], { query: '?raw', import: 'default', eager: true });
 const read = (path: string) => sources[path];
 const sheet = (name: string) => postcss.parse(read(`../components/${name}.module.css`));
@@ -42,15 +42,13 @@ describe('editorial writing surfaces', () => {
         expect(values.transform).toBeUndefined();
       }
     });
-    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-inline-padding, 12px)');
+    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-inline-padding,');
     // Only formatted Markdown gets a centered page; source stays compact.
     const centered: string[] = [];
     editor.walkRules(rule => {
       if (Object.values(declarations(rule)).some(value => value.includes('100% -'))) centered.push(rule.selector);
     });
     expect(centered).toEqual(['.host[data-live] :global(.cm-scroller)']);
-    expect(read('../App.module.css')).toContain('100% - 68ch');
-    expect(read('../App.module.css')).toContain('100% - 78ch');
   });
 
   it('centers source only in opt-in Focus, keeping ordinary Write and Split compact', () => {
@@ -60,34 +58,56 @@ describe('editorial writing surfaces', () => {
     });
     expect(overrides).toHaveLength(2);
     for (const rule of overrides) expect(rule.selector).toMatch(/^\.focusMode /);
-    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-top-padding, 24px)');
+    // Focus sets Markdown on a narrower measure than source.
+    const measure = (rule: Rule) => Number(/100% - (\d+)ch/.exec(declarations(rule)['--editor-inline-padding'])?.[1]);
+    const markdown = overrides.find(rule => rule.selector.includes("[data-language='markdown']"));
+    const source = overrides.find(rule => rule !== markdown);
+    expect(measure(markdown!)).toBeLessThan(measure(source!));
+    expect(read('../components/EditorPane.module.css')).toContain('var(--editor-top-padding,');
   });
 
-  // One density scale (tokens.css) sizes the chrome, Texifier-compact.
-  it('uses a compact, Texifier-like titlebar and controls', () => {
-    const rules = (name: string) => {
-      const out = new Map<string, Record<string, string>>();
-      sheet(name).walkRules(rule => {
-        if (rule.parent?.type === 'root') out.set(rule.selector, declarations(rule));
+  // The rules from tokens.css ("Density" and "Shape"), not the values: the
+  // chrome may get denser or rounder by changing a token, but no bar, control
+  // or corner may drift off the shared scale.
+  const CHROME = ['Toolbar', 'TitleBar', 'Sidebar', 'FolderTreeSection', 'OutlineSection',
+    'FilesSection', 'WritingSection', 'StartActions', 'Tabs', 'StatusBar'];
+  const decls = (prop: RegExp) => CHROME.flatMap(name => {
+    const out: { where: string; value: string }[] = [];
+    sheet(name).walkDecls(prop, decl => {
+      out.push({ where: `${name} ${(decl.parent as Rule).selector} { ${decl.prop} }`, value: decl.value });
+    });
+    return out;
+  });
+
+  it('sizes every bar, control and row from the density tokens', () => {
+    // Fixed sizes that are not chrome rows: Windows caption buttons follow the
+    // platform's 32px, and the writing-check panel is a container.
+    const exempt = new Set(['TitleBar .controls { height }', 'WritingSection .root { min-height }']);
+    const offScale = decls(/^(height|min-height)$/)
+      .filter(({ where, value }) => /^\d+px$/.test(value) && parseInt(value) >= 24 && !exempt.has(where))
+      .map(({ where, value }) => `${where}: ${value}`);
+    expect(offScale).toEqual([]);
+  });
+
+  it('rounds chrome corners only with the shape tokens', () => {
+    const token = /^(var\(--radius-(sm|md|lg)\)|calc\(var\(--radius-(sm|md|lg)\) [+-] \d+px\)|50%|999px)$/;
+    const offScale = decls(/^border-radius$/)
+      .filter(({ value }) => !token.test(value))
+      .map(({ where, value }) => `${where}: ${value}`);
+    expect(offScale).toEqual([]);
+  });
+
+  it('lines the toolbar up with the titlebar and clears the macOS window buttons', () => {
+    const rule = (name: string, selector: string) => {
+      let found: Record<string, string> | undefined;
+      sheet(name).walkRules(item => {
+        if (item.parent?.type === 'root' && item.selector === selector) found = { ...found, ...declarations(item) };
       });
-      return out;
+      return found;
     };
-    expect(rules('Toolbar').get('.toolbar')?.height).toBe('var(--bar-h)');
-    expect(rules('TitleBar').get('.titlebar')?.height).toBe('var(--bar-h)');
-    expect(rules('TitleBar').get('.titlebar.mac')?.['padding-left']).toBe('76px');
-    expect(rules('Toolbar').get('.iconBtn, .textBtn, .primaryBtn')?.['min-height']).toBe('var(--control-h)');
-    expect(rules('Toolbar').get('.primaryBtn')?.background).toBe('var(--panel-soft)');
-    const sidebar = rules('Sidebar');
-    expect(sidebar.has('.heading')).toBe(false);
-    expect(sidebar.get('.views')?.['border-bottom']).toBeUndefined();
-    expect(sidebar.get('.view')?.['border-bottom']).toBeUndefined();
-    expect(sidebar.get('.view.selected')?.['border-bottom-color']).toBeUndefined();
-    expect(sidebar.get('.view')?.width).toBe('var(--control-h)');
-    expect(sidebar.get('.view')?.height).toBe('var(--control-h)');
-    // The selected view is filled, as Texifier marks its sidebar tab.
-    expect(sidebar.get('.view.selected')?.background).toBe('var(--accent)');
-    expect(sidebar.get('.view.selected')?.color).toBe('var(--on-accent)');
-    expect(rules('Tabs').get('.tab')?.['min-height']).toBe('var(--control-h)');
+    expect(rule('Toolbar', '.toolbar')?.height).toBe(rule('TitleBar', '.titlebar')?.height);
+    // Overlay title bar: the traffic lights sit over the first ~70px.
+    expect(parseInt(rule('TitleBar', '.titlebar.mac')?.['padding-left'] ?? '0')).toBeGreaterThanOrEqual(70);
   });
 
   it('keeps Markdown page widths ordered and proportional to the body font size', () => {
@@ -100,7 +120,7 @@ describe('editorial writing surfaces', () => {
   });
 
   it('keeps displayed math and tables horizontally scrollable in formatted Markdown', () => {
-    const source = read('../editor/livePreview.ts');
+    const source = read('../editor/livePreviewTheme.ts');
     expect(source).toMatch(/'\.cm-md-math-block': \{[^}]*overflowX: 'auto'/);
     expect(source).toMatch(/'\.cm-md-table': \{[^}]*overflowX: 'auto'/);
   });

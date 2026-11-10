@@ -27,6 +27,8 @@ jobs:
             libssl-dev
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
 
       - name: Test release guards
@@ -56,11 +58,15 @@ jobs:
         run: |
           npm ci
           npm run typecheck
+          npm run lint
           npm test
           npm run build
 
       - name: Rust check
         run: cargo check --locked --all-targets
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: Compile Rust tests
         run: cargo test --locked --no-run

@@ -200,7 +200,7 @@ function parseClassifier(raw: string | null): Classification {
  */
 function convertArgumentBody(body: string, nextField: () => number): string {
   // Strip translation hints first so the placeholder name stays clean.
-  let text = body.replace(/%:([^%]*)%>/g, '%>');
+  const text = body.replace(/%:([^%]*)%>/g, '%>');
 
   let out = '';
   let i = 0;

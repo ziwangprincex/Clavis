@@ -40,6 +40,8 @@ export function usePdfSearch(containerRef: React.RefObject<HTMLDivElement>, doc:
 
   const clearHighlights = useCallback(() => {
     const parents = new Set(marks.current.map(mark => mark.el.parentElement));
+    // Rewriting a text span's own text drops the highlight marks inside it.
+    // eslint-disable-next-line no-self-assign
     for (const span of parents) if (span) span.textContent = span.textContent;
     marks.current = [];
   }, []);

@@ -39,7 +39,7 @@
   color: var(--text-muted);
   font-size: 0.8462rem;
   padding: 1px 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .empty {

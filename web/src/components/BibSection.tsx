@@ -66,7 +66,7 @@ export function BibSection({ onInsertCites, onJumpToSource }: BibSectionProps) {
     await patchAndSave({ recent_citations: [...unique, ...recentKeys.filter(key => !unique.includes(key))].slice(0, RECENT_CITATIONS_LIMIT) });
     setSelected(new Set());
   }
-  function toggle(key: string) { setSelected(current => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; }); }
+  function toggle(key: string) { setSelected(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }
 
   return <div className={styles.root}>
     <div className={styles.searchRow}><input className={styles.filter} type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder={t("author title year key DOI...")} /><button type="button" className={styles.insertBtn} disabled={selected.size === 0} onClick={() => void insert([...selected])}>{t("Insert")} {selected.size || ''}</button></div>

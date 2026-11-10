@@ -160,7 +160,7 @@ fn parse_bib_text(text: &str, source: &str, out: &mut Vec<BibEntry>) {
             keywords: field(&fields, "keywords")
                 .map(|value| {
                     value
-                        .split(|ch| ch == ',' || ch == ';')
+                        .split([',', ';'])
                         .map(str::trim)
                         .filter(|value| !value.is_empty())
                         .map(str::to_string)

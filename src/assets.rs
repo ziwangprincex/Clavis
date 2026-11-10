@@ -140,10 +140,13 @@ fn canonical_root(root: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-fn collect(
-    root: &Path,
-    overrides: Vec<AssetDocumentOverride>,
-) -> Result<(Vec<SourceDoc>, Vec<(PathBuf, String, u64)>, bool), String> {
+/// An asset file found in the workspace: its path, lowercase extension and size.
+type AssetFile = (PathBuf, String, u64);
+
+/// Source documents, asset files, and whether the walk hit a limit.
+type Collected = (Vec<SourceDoc>, Vec<AssetFile>, bool);
+
+fn collect(root: &Path, overrides: Vec<AssetDocumentOverride>) -> Result<Collected, String> {
     let mut override_map = HashMap::new();
     for doc in overrides {
         let path = std::fs::canonicalize(&doc.path).unwrap_or_else(|_| PathBuf::from(&doc.path));

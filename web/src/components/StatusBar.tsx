@@ -34,8 +34,9 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   // A selection shows its own count first, as Typora's word count does.
   const selected = useMemo(() => cursor.selectionTo > cursor.selectionFrom
     ? countWords(content.slice(cursor.selectionFrom, cursor.selectionTo)) : null, [content, cursor.selectionFrom, cursor.selectionTo]);
-  const research = useMemo(() => expanded && activeTab ? computeResearchStats(content, activeTab.lang) : null, [expanded, content, activeTab?.lang]);
-  const detail = useMemo(() => expanded && activeTab ? computeResearchDetailStats(content, activeTab.lang, Math.min(cursor.selectionFrom, content.length), { from: cursor.selectionFrom, to: cursor.selectionTo }) : null, [expanded, content, activeTab?.lang, cursor.selectionFrom, cursor.selectionTo]);
+  const lang = activeTab?.lang;
+  const research = useMemo(() => expanded && lang ? computeResearchStats(content, lang) : null, [expanded, content, lang]);
+  const detail = useMemo(() => expanded && lang ? computeResearchDetailStats(content, lang, Math.min(cursor.selectionFrom, content.length), { from: cursor.selectionFrom, to: cursor.selectionTo }) : null, [expanded, content, lang, cursor.selectionFrom, cursor.selectionTo]);
   useEffect(() => {
     if (!expanded) return;
     const outside = (event: PointerEvent) => {

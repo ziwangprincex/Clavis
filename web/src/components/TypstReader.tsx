@@ -16,6 +16,7 @@ import { findReadingMatches, type ReadingMatch } from '../compile/readingText';
 import { bindPreviewZoom, capturePageAnchor, restorePageAnchor, type ZoomPoint } from '../pdf/zoom';
 
 type Navigate = (path: string | null, line: number) => void;
+const pageElements = (host: HTMLElement) => Array.from(host.querySelectorAll<HTMLElement>('[data-page]'));
 const ReaderPage = memo(function ReaderPage({
   page,
   index,
@@ -184,25 +185,19 @@ export function TypstReader({
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const anchor = useRef<ReturnType<typeof capturePageAnchor>>(null);
-  const pageElements = () =>
-    Array.from(scroll.current?.querySelectorAll<HTMLElement>('[data-page]') ?? []);
   const resize = useCallback(
     (value: number, point?: ZoomPoint) => {
       if (value === zoomRef.current || !scroll.current) return;
-      anchor.current = capturePageAnchor(
-        scroll.current,
-        Array.from(scroll.current.querySelectorAll<HTMLElement>('[data-page]')),
-        point,
-      );
+      anchor.current = capturePageAnchor(scroll.current, pageElements(scroll.current), point);
       zoomRef.current = value;
       setZoom(value);
     },
     [scroll],
   );
   useLayoutEffect(() => {
-    if (scroll.current) restorePageAnchor(scroll.current, pageElements(), anchor.current);
+    if (scroll.current) restorePageAnchor(scroll.current, pageElements(scroll.current), anchor.current);
     anchor.current = null;
-  }, [zoom]);
+  }, [zoom, scroll]);
   useEffect(() => {
     const host = scroll.current;
     if (!host) return;
@@ -212,7 +207,7 @@ export function TypstReader({
     const host = scroll.current;
     if (!host) return;
     let frame = 0;
-    const elements = pageElements();
+    const elements = pageElements(host);
     const update = () => {
       if (frame) return;
       frame = requestAnimationFrame(() => {

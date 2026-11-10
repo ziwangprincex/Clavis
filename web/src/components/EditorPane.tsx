@@ -9,7 +9,7 @@ import { t } from '../i18n';
 //   needed) by passing onContentChange.
 
 import { useEffect, useRef, type CSSProperties } from 'react';
-import { useTabsStore, useSettingsStore, defaultSettings, useCursorStore, useProjectStore, type Lang } from '../store';
+import { getActiveTab, useTabsStore, useSettingsStore, defaultSettings, useCursorStore, useProjectStore, type Lang } from '../store';
 import { EditorController } from '../editor/controller';
 import { prefetchCwlForDocument, setCwlOptions } from '../completions/cwlProvider';
 import { prefetchTypstSignatures } from '../completions/signatures';
@@ -102,7 +102,7 @@ function insertCiteAtCursor(ctrl: EditorController, key: string, language: Lang)
 // created after the reference appears once it exists.
 const images = new Map<string, Promise<string | null>>();
 
-const activeDocumentPath = () => useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath ?? null;
+const activeDocumentPath = () => getActiveTab()?.filePath ?? null;
 
 
 /** Opened in Clavis by Cmd+click on a relative link; other files go to their own app. */
@@ -231,8 +231,8 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
     if (!hostRef.current) return;
     const ctrl = new EditorController({
       parent: hostRef.current,
-      initialDoc: useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.content ?? '',
-      lang: useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.lang ?? 'markdown',
+      initialDoc: getActiveTab()?.content ?? '',
+      lang: getActiveTab()?.lang ?? 'markdown',
       font: {
         family: settings.editor_font_family || defaultSettings.editor_font_family,
         size: settings.editor_font_size,
@@ -278,7 +278,7 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
       insertAtCursor: (text: string) => ctrl.insertAtCursor(text),
       cursorLine: () => ctrl.cursorLine(),
       insertCite: (key: string) => {
-        const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+        const tab = getActiveTab();
         insertCiteAtCursor(ctrl, key, tab?.lang ?? 'markdown');
       },
       formatTable: () => formatTable(ctrl.view),
@@ -289,7 +289,7 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
       },
       tableSource: () => tableSource(ctrl.view.state),
       insertCites: (keys: string[]) => {
-        const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
+        const tab = getActiveTab();
         const language = tab?.lang ?? 'markdown';
         if (keys.length === 1) insertCiteAtCursor(ctrl, keys[0], language);
         else ctrl.insertAtCursor(citationsText(keys, language));
@@ -308,7 +308,7 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
   // come back here too and are recognized without a document comparison.
   useEffect(() => {
     controllerRef.current?.switchDocument(activeTab?.id ?? '__empty__', activeTab?.content ?? '', activeTab?.lang ?? 'markdown');
-  }, [activeTabId, activeTab?.content, activeTab?.lang]);
+  }, [activeTab?.id, activeTab?.content, activeTab?.lang]);
 
   // Reopening or switching documents reloads images from disk.
   useEffect(() => { images.clear(); }, [activeTabId]);

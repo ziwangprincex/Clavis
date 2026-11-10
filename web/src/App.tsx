@@ -1,8 +1,8 @@
-import { resolveLocale, t } from './i18n';
+import { t } from './i18n';
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { hasTauri, dialogOpen, dialogSave, dialogConfirm } from './api/tauri';
-import { useSettingsStore, useTabsStore, useProjectStore, usePdfStore, useStatusStore, useReferencesStore, useAssetsStore, useWritingStore, useCompileStore, type EditorLayout, type Lang, newTabId } from './store';
+import { hasTauri, dialogOpen, dialogConfirm } from './api/tauri';
+import { getActiveTab, useSettingsStore, useTabsStore, useProjectStore, useStatusStore, useReferencesStore, useAssetsStore, useWritingStore, useCompileStore, type EditorLayout, type Lang, newTabId } from './store';
 import { useCommandsStore } from './store/commands';
 import { fmtShortcut, isMac } from './platform';
 import { Toolbar } from './components/Toolbar';
@@ -25,13 +25,13 @@ import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
 import { AssetsSection } from './components/AssetsSection';
 import { WritingSection } from './components/WritingSection';
+import { exportHtml, exportLatexPdf, exportTypstPdf, setProjectMain } from './files/documentActions';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
 import { runLatexCompile, stopLatexCompile } from './compile/latex';
-import { documentRoot, inside, latexOptions, typstInput } from './compile/project';
+import { documentRoot, inside, latexOptions } from './compile/project';
 import { useTypstPreviewStore } from './store/typstPreview';
-import { belongsToPdf } from './compile/target';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openPdfWindow, usePdfWindowFeed } from './pdf/pdfWindow';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
@@ -211,6 +211,8 @@ export function App() {
       }
       setBootReady(true);
     })();
+    // Boot runs once; a later openWorkspaceFolder must not re-run it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSettings, addTab]);
 
   // Start actions belong only to the untouched first-run buffer, never restored work.
@@ -244,7 +246,7 @@ export function App() {
       return;
     }
     void checkForUpdates({ silent: true });
-  }, []);
+  }, [setStatus]);
 
   // Persist session (debounced) on tab changes + flush on unload; manage the
   // disk-autosave interval.
@@ -337,93 +339,7 @@ export function App() {
       timer = setTimeout(refreshWriting, 700);
     });
     return () => { off(); clearTimeout(timer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function exportLatexPdf() {
-    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
-    const pdf = usePdfStore.getState();
-    if (!tab || !pdf.bytes || !pdf.workdirToken || !belongsToPdf(tab, pdf)) {
-      setStatus('No compiled PDF yet', 'error');
-      return;
-    }
-    try {
-      const target = await dialogSave({
-        defaultPath: pdf.sourceRoot ? pdf.sourceRoot.replace(/\.tex$/i, '.pdf') : undefined,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      });
-      if (typeof target === 'string') {
-        const latest = usePdfStore.getState();
-        if (latest.workdirToken !== pdf.workdirToken || latest.bytes !== pdf.bytes) {
-          setStatus('The preview changed during export. Export again after compilation finishes.', 'error');
-          return;
-        }
-        await ipc.exportLatexPdf(pdf.workdirToken!, target);
-        setStatus('PDF exported', 'ok');
-      }
-    } catch (e) {
-      console.error('export PDF failed', e);
-      setStatus('Export failed', 'error');
-    }
-  }
-
-  /** Markdown has no typeset output; it exports as one self-contained HTML file. */
-  function exportHtml() {
-    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
-    if (tab?.lang !== 'markdown') return;
-    const language = resolveLocale(useSettingsStore.getState().settings.ui_language);
-    void import('./files/exportMarkdown').then(module => module.exportMarkdownHtml(tab, language));
-  }
-
-  async function exportTypstPdf() {
-    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
-    if (!tab || tab.lang !== 'typst') return;
-    try {
-      setStatus('Compiling PDF…', 'info');
-      const input = await typstInput(tab);
-      const r = await ipc.compileTypstPdf(input.source, input.docPath, input.snapshot);
-      if (!r.ok || !r.pdfBase64) {
-        setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : t("Compile failed"), 'error');
-        return;
-      }
-      const target = await dialogSave({
-        defaultPath: input.docPath ? input.docPath.replace(/\.typ$/i, '.pdf') : undefined,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      });
-      if (typeof target === 'string') {
-        await ipc.saveBinaryFile(target, r.pdfBase64);
-        setStatus('PDF exported', 'ok');
-      } else {
-        setStatus('Ready', 'info');
-      }
-    } catch (e) {
-      console.error('export Typst PDF failed', e);
-      setStatus('Export failed', 'error');
-    }
-  }
-
-  async function setProjectMain() {
-    const tab = useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId);
-    if (!tab?.filePath) return;
-    try {
-      const r = tab.lang === 'latex' ? await ipc.collectProjectFiles(tab.filePath) : { files: [], warnings: [] };
-      const directory = tab.filePath.replace(/[\\/][^\\/]*$/, '');
-      for (const other of useTabsStore.getState().tabs) {
-        if (other.lang === tab.lang && inside(other.filePath, directory)) useTabsStore.getState().patchTab(other.id, { projectRoot: tab.filePath });
-      }
-      useProjectStore.setState({
-        rootAbs: tab.filePath,
-        rootBasename: tab.filePath.split(/[\\/]/).pop() ?? null,
-        activeAbs: tab.filePath,
-        files: r.files ?? [],
-        warnings: r.warnings ?? [],
-      });
-      setStatus('Project main set', 'ok');
-    } catch (e) {
-      console.error('set main failed', e);
-      setStatus('Set main failed', 'error');
-    }
-  }
 
   async function installPackage(pkg: string) {
     if (!hasTauri()) return;
@@ -632,7 +548,7 @@ export function App() {
       reg({
         id: 'latex.setMain',
         name: 'Set current file as project main',
-        when: () => lang !== 'markdown' && !!useTabsStore.getState().tabs.find(t => t.id === useTabsStore.getState().activeTabId)?.filePath,
+        when: () => lang !== 'markdown' && !!getActiveTab()?.filePath,
         run: setProjectMain,
       }),
     ];
@@ -862,7 +778,7 @@ export function App() {
                       editorApiRef.current = api;
                     }}
                     focusMode={focusMode}
-                    onShowProblems={() => { if (useTabsStore.getState().tabs.find(tab => tab.id === useTabsStore.getState().activeTabId)?.lang === 'latex') showProblems(); }}
+                    onShowProblems={() => { if (getActiveTab()?.lang === 'latex') showProblems(); }}
                     onOpenInclude={(raw, kind, isImport) => {
                       const project = useProjectStore.getState();
                       const active = useTabsStore.getState();

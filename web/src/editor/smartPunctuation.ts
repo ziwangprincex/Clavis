@@ -53,7 +53,7 @@ export function smartPunctuation(state: EditorState, pos: number, text: string):
   if (next === '”') return { from: pos, to: pos, insert: '', cursor: pos + 1 };
   const closing = unmatched(before, '“', '”') > 0 && !/\s/.test(prev || ' ');
   if (closing) return { from: pos, to: pos, insert: '”', cursor: pos + 1 };
-  if (prev && !OPENS_AFTER.test(prev) && !/\p{Script=Han}|[　-〿＀-￯]/u.test(prev)) return { from: pos, to: pos, insert: '”', cursor: pos + 1 };
+  if (prev && !OPENS_AFTER.test(prev) && !/\p{Script=Han}|[\u3000-\u303f\uff00-\uffef]/u.test(prev)) return { from: pos, to: pos, insert: '”', cursor: pos + 1 };
   // An opening quote before a space or the line end gets its partner, as auto-closing does.
   const pair = !next || /[\s)\]}.,;:!?]/.test(next);
   return { from: pos, to: pos, insert: pair ? '“”' : '“', cursor: pos + 1 };

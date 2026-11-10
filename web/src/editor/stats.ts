@@ -61,7 +61,8 @@ export interface ResearchStats {
   abstractWords: number | null;
 }
 
-const PROSE_WORD = /[\p{L}\p{N}]+(?:[?'\-][\p{L}\p{N}]+)*/gu;
+// Words may join across an apostrophe (straight or curly) or a hyphen.
+const PROSE_WORD = /[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu;
 
 function proseWords(text: string): number {
   return cjkCount(text) + (text.replace(CJK, ' ').match(PROSE_WORD)?.length ?? 0);
@@ -101,7 +102,7 @@ function stripTypst(text: string): string {
   // remains prose in Typst and should still be counted.
   out = out.replace(/#[A-Za-z_][\w.-]*\s*\([^)]*\)/g, ' ');
   out = out.replace(/#[A-Za-z_][\w.-]*/g, ' ');
-  return out.replace(/[<>{}\[\]]/g, ' ');
+  return out.replace(/[<>{}[\]]/g, ' ');
 }
 
 // A heading-delimited abstract runs to the next heading or the end of the text.

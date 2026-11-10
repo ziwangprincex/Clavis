@@ -8,7 +8,7 @@ import { t } from '../i18n';
 // - Text search (Ctrl+F): indexes all pages independently of virtualized
 //   surfaces; mounted text layers display the matching fragments.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 import { PdfPages, type PdfGrading } from '../pdf/pages';
 import { bindPreviewZoom, capturePageAnchor, type ZoomPoint } from '../pdf/zoom';
@@ -152,6 +152,23 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     return () => observer.disconnect();
   }, [visible, fit, spread]);
 
+  // A jump can arrive before the first page attaches, or while Write hides it.
+  // Consume it once on a matching attached PDF, not on stale page wrappers.
+  const applyPendingScroll = useCallback(() => {
+    const request = usePdfStore.getState().scrollRequest;
+    const container = containerRef.current;
+    if (!visible || !bytes || attachedBytesRef.current !== bytes || !request || !container
+      || request.seq === handledScrollRef.current) return;
+    const wrap = container.querySelector<HTMLDivElement>(
+      `.${styles.page}[data-page="${request.page}"]`,
+    );
+    if (!wrap) return;
+    const yPx = request.y != null ? request.y * zoomRef.current : 0;
+    container.scrollTop = Math.max(0, wrap.offsetTop + yPx - container.clientHeight / 3);
+    handledScrollRef.current = request.seq;
+    setCurrentPage(request.page);
+  }, [visible, bytes, setCurrentPage]);
+
   // Keep the last successful pages visible while new bytes load. A candidate
   // owns its render tasks until attach; hide/tab switch cancels it immediately.
   useEffect(() => {
@@ -228,7 +245,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
       candidate?.destroy();
       if (!docRef.current || docRef.current.loadingTask !== loading) release(loading);
     };
-  }, [bytes, visible, retry, setNumPages, setCurrentPage]);
+  }, [bytes, visible, retry, setNumPages, setCurrentPage, applyPendingScroll]);
 
   useEffect(() => {
     if (!visible) {
@@ -246,27 +263,9 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     };
   }, [visible]);
 
-  // A jump can arrive before the first page attaches, or while Write hides it.
-  // Consume it once on a matching attached PDF, not on stale page wrappers.
-  function applyPendingScroll() {
-    const request = usePdfStore.getState().scrollRequest;
-    const container = containerRef.current;
-    if (!visible || !bytes || attachedBytesRef.current !== bytes || !request || !container
-      || request.seq === handledScrollRef.current) return;
-    const wrap = container.querySelector<HTMLDivElement>(
-      `.${styles.page}[data-page="${request.page}"]`,
-    );
-    if (!wrap) return;
-    const yPx = request.y != null ? request.y * zoomRef.current : 0;
-    container.scrollTop = Math.max(0, wrap.offsetTop + yPx - container.clientHeight / 3);
-    handledScrollRef.current = request.seq;
-    setCurrentPage(request.page);
-  }
-
   useEffect(() => {
     applyPendingScroll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollRequest, visible]);
+  }, [scrollRequest, applyPendingScroll]);
 
   function onScroll() {
     const container = containerRef.current;

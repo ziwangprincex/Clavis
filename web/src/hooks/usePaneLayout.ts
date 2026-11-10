@@ -86,7 +86,6 @@ export function usePaneLayout(settings: Settings, layout: EditorLayout = setting
     seededRef.current = true;
     if (settings.pane_sidebar_width >= 200) applySidebarWidth(settings.pane_sidebar_width);
     if (settings.pane_editor_ratio > 0) applyEditorRatio(settings.pane_editor_ratio);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, settings.pane_sidebar_width, settings.pane_editor_ratio]);
 
   function startSidebarDrag() {

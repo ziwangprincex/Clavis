@@ -47,8 +47,6 @@ and enforce the 240-character budget.
 
 ## P1 — CI hardening
 
-- Add `cargo clippy --all-targets -- -D warnings` to CI.
-- Add ESLint to the frontend (`web/` has no lint script today).
 - Add a macOS verification step to `release.yml` (`codesign --verify --deep
   --strict`; `spctl -a -vv` once notarization exists).
 

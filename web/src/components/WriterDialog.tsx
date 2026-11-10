@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createTemplate, dialogOpen, history, ipc, type EngineInfo, type LocalVersion } from '../api/tauri';
 import { openFileByPath } from '../files/files';
 import { retainLocalCopy } from '../files/documentSync';
-import { newTabId, useTabsStore, type Tab } from '../store/tabs';
+import { getActiveTab, newTabId, useTabsStore, type Tab } from '../store/tabs';
 import { proseDiff } from '../git/proseDiff';
 import { TemplateEnvironment } from './TemplateEnvironment';
 import styles from './WriterDialog.module.css';
@@ -19,9 +19,7 @@ export interface WriterDialogProps {
 }
 export function WriterDialog({ tool, onClose, onCreated, onSettings, onBlank, hidden = false }: WriterDialogProps) {
   const ref = useRef<HTMLElement>(null);
-  const initial = useRef(
-    useTabsStore.getState().tabs.find((t) => t.id === useTabsStore.getState().activeTabId),
-  );
+  const initial = useRef(getActiveTab());
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   async function run(action: () => Promise<void>) {

@@ -755,10 +755,9 @@ fn build_index(root: &Path, docs: Vec<SourceDoc>, truncated: bool) -> ReferenceI
 
 fn index_diagnostics(items: &[ReferenceOccurrence], truncated: bool) -> Vec<ReferenceDiagnostic> {
     let mut diagnostics = Vec::new();
-    let mut groups: BTreeMap<
-        (String, String),
-        (Vec<&ReferenceOccurrence>, Vec<&ReferenceOccurrence>),
-    > = BTreeMap::new();
+    // (namespace, key) -> (definitions, uses)
+    type Occurrences<'a> = Vec<&'a ReferenceOccurrence>;
+    let mut groups: BTreeMap<(String, String), (Occurrences, Occurrences)> = BTreeMap::new();
     for item in items {
         if item.namespace == "unresolved" {
             diagnostics.push(ReferenceDiagnostic {

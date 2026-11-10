@@ -139,7 +139,7 @@ pub async fn compile_latex(
     let mut bib_diags: Vec<LatexDiag> = Vec::new();
     let mut runs: u32 = 0;
     let mut bib_tool: Option<String> = None;
-    let max_runs = if opts.full_build { 1 } else { opts.max_runs.max(1).min(8) };
+    let max_runs = if opts.full_build { 1 } else { opts.max_runs.clamp(1, 8) };
     let mut font_dirs: Vec<PathBuf> = Vec::new();
     for pf in &opts.project_files {
         if !pf.binary_base64.is_some() { continue; }

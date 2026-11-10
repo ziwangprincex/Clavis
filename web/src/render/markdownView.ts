@@ -31,6 +31,7 @@ function resolveDots(path: string): string {
 export function localImagePath(href: string, documentPath: string): string | null {
   let decoded: string;
   try { decoded = decodeURIComponent(href.split(/[?#]/)[0]); } catch { return null; }
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (!decoded || /[\u0000-\u001f]/.test(decoded) || /^(?:[a-z][a-z\d+.-]*:|\/|\\)/i.test(decoded)) return null;
   return resolveDots(documentPath.replace(/[\\/][^\\/]*$/, '/') + decoded);
 }

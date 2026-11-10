@@ -114,6 +114,7 @@ beforeEach(() => {
     class {
       disconnect = vi.fn();
       constructor(private callback: (entries: object[]) => void) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- the test drives this observer
         observer = this;
       }
       observe() {}

@@ -339,7 +339,7 @@ pub fn list_fonts() -> Vec<String> {
         .families()
         .map(|(name, _)| name.to_string())
         .collect();
-    names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    names.sort_by_cached_key(|name| name.to_lowercase());
     names.dedup_by(|a, b| a.to_lowercase() == b.to_lowercase());
     names
 }

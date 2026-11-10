@@ -47,10 +47,13 @@ export function OutlineSection({ onJumpTo }: OutlineSectionProps) {
   const useProject = !!rootAbs && activeTab?.lang === 'latex' && projectFiles.length > 0 && activeInProject;
   // Parsing is whole-document, so let typing settle first.
   const content = useDebounced(activeTab?.content, 300, activeTabId);
+  // Depend on the tab's path and language, not the tab object, which changes on every keystroke.
+  const activePath = activeTab?.filePath;
+  const activeLang = activeTab?.lang;
   const items = useMemo(() => useProject
-    ? parseProjectOutline(projectFiles, activeTab?.filePath, content)
-    : activeTab && content !== undefined ? parseOutline(content, activeTab.lang) : [],
-  [useProject, projectFiles, activeTab?.filePath, content, activeTab?.lang]);
+    ? parseProjectOutline(projectFiles, activePath, content)
+    : activeLang && content !== undefined ? parseOutline(content, activeLang) : [],
+  [useProject, projectFiles, activePath, content, activeLang]);
   const nodes = useMemo(() => hierarchy(items), [items]);
   // Texifier lists a LaTeX document's figures, tables, labels and citations under its outline.
   const lists = useMemo(() => activeTab?.lang === 'latex' && content !== undefined

@@ -148,7 +148,6 @@ export function detectMathContext(text: string, position: number): MathContext {
       if ((name === 'text' || name === 'mbox' || name === 'textrm' || name === 'intertext')
           && window[i + command[0].length] === '{') {
         inTextEscape = true;
-        textEscapeBraces = 0;
         i += command[0].length; // Land on the `{`, counted below.
         textEscapeBraces = 1;
         continue;

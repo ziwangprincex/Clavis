@@ -17,7 +17,7 @@
 /* Figures, tables, labels and citations sit below the headings. */
 .lists { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
 .group { color: var(--text-muted); }
-.count { min-width: 20px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-soft); color: var(--text-muted); font-size: 0.85em; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.count { min-width: 20px; padding: 0 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-soft); color: var(--text-muted); font-size: 0.85em; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
 .group { align-items: center; }
 .groupIcon { flex: none; color: var(--text-muted); }
 .filter {

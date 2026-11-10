@@ -78,3 +78,9 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     }
   },
 }));
+
+/** The Active Document's tab, read outside React (commands, async actions). */
+export function getActiveTab(): Tab | undefined {
+  const { tabs, activeTabId } = useTabsStore.getState();
+  return tabs.find(tab => tab.id === activeTabId);
+}

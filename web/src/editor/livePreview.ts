@@ -9,27 +9,15 @@
 
 import { syntaxTree } from '@codemirror/language';
 import { StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
-import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  WidgetType,
-  showTooltip,
-  type Command,
-  type DecorationSet,
-  type Tooltip,
-  type ViewUpdate,
-} from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { t } from '../i18n';
 import { markdownHeadings, markdownInline, sanitizeUrl } from '../render/markdown';
 import { katexHtml } from './inlineMath';
+import { livePreviewTheme } from './livePreviewTheme';
+import { tableToolbar } from './tableToolbar';
 import { drawDiagram, drawnDiagram } from './mermaidDiagram';
-import {
-  alignColumn, columnAlign, deleteColumn, deleteRow, deleteTable, formatTable, insertColumn, insertColumnLeft,
-  insertRow, insertRowAbove, moveColumn, moveRow, tableAt, tableSource,
-  type ColumnAlign, type MarkdownImageHost,
-} from './markdownEditing';
+import type { MarkdownImageHost } from './markdownEditing';
 
 export interface LivePreviewHost extends MarkdownImageHost {
   /** Resolve a relative image target to a displayable URL, or null. */
@@ -727,151 +715,6 @@ function blockDecorations(state: EditorState, blocks: Block[]): DecorationSet {
   }).filter(range => range !== null));
 }
 
-// ---- Table toolbar (Typora's table tooltip) ----
-
-const icon = (path: string) => `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="${path}"/></svg>`;
-type TableAction = { label: string; run: Command; keys?: string };
-type TableTool =
-  | { label: string; path: string; run: Command; align?: ColumnAlign }
-  | { label: string; path: string; menu: TableAction[] }
-  | null;
-
-const copyTable: Command = view => {
-  const source = tableSource(view.state);
-  if (source === null) return false;
-  void navigator.clipboard?.writeText(source).catch(() => undefined);
-  return true;
-};
-
-/** Typora's table toolbar: alignment, then row, column and table menus. */
-const TABLE_TOOLS: TableTool[] = [
-  { label: 'Align left', path: 'M2 3h10M2 6h7M2 9h10M2 12h6', run: alignColumn('left'), align: 'left' },
-  { label: 'Align center', path: 'M2 3h10M3.5 6h7M2 9h10M4 12h6', run: alignColumn('center'), align: 'center' },
-  { label: 'Align right', path: 'M2 3h10M5 6h7M2 9h10M6 12h6', run: alignColumn('right'), align: 'right' },
-  null,
-  { label: 'Row', path: 'M2 2.5h10v4H2zM2 9.5h10', menu: [
-    { label: 'Insert row above', run: insertRowAbove },
-    { label: 'Insert row below', run: insertRow, keys: 'Mod-Enter' },
-    { label: 'Move row up', run: moveRow(-1), keys: 'Alt-Mod-ArrowUp' },
-    { label: 'Move row down', run: moveRow(1), keys: 'Alt-Mod-ArrowDown' },
-    { label: 'Delete row', run: deleteRow },
-  ] },
-  { label: 'Column', path: 'M2.5 2h4v10h-4zM9.5 2v10', menu: [
-    { label: 'Insert column left', run: insertColumnLeft },
-    { label: 'Insert column right', run: insertColumn },
-    { label: 'Move column left', run: moveColumn(-1), keys: 'Alt-Mod-ArrowLeft' },
-    { label: 'Move column right', run: moveColumn(1), keys: 'Alt-Mod-ArrowRight' },
-    { label: 'Delete column', run: deleteColumn },
-  ] },
-  null,
-  { label: 'Format table source', path: 'M2 4h10M2 7h10M2 10h10M5 2v10M9 2v10', run: formatTable },
-  { label: 'More table actions', path: 'M3.5 7h.01M7 7h.01M10.5 7h.01', menu: [
-    { label: 'Copy table as Markdown', run: copyTable },
-    { label: 'Delete table', run: deleteTable },
-  ] },
-];
-
-const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const KEY_NAMES: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Enter: '↩' };
-function keyLabel(keys: string): string {
-  const parts = keys.split('-');
-  const key = KEY_NAMES[parts[parts.length - 1]] ?? parts[parts.length - 1];
-  const mods = parts.slice(0, -1).map(mod => MAC ? ({ Alt: '⌥', Mod: '⌘', Shift: '⇧', Ctrl: '⌃' } as Record<string, string>)[mod] : ({ Alt: 'Alt+', Mod: 'Ctrl+', Shift: 'Shift+', Ctrl: 'Ctrl+' } as Record<string, string>)[mod]);
-  return mods.join('') + key;
-}
-
-/** A small menu under `button`; closes on choice, Escape or a click elsewhere. */
-function openTableMenu(view: EditorView, button: HTMLButtonElement, actions: TableAction[], host: HTMLElement) {
-  host.querySelector('.cm-md-table-menu')?.remove();
-  const menu = document.createElement('div');
-  menu.className = 'cm-md-table-menu';
-  menu.setAttribute('role', 'menu');
-  for (const action of actions) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.setAttribute('role', 'menuitem');
-    item.append(Object.assign(document.createElement('span'), { textContent: t(action.label) }));
-    if (action.keys) item.append(Object.assign(document.createElement('kbd'), { textContent: keyLabel(action.keys) }));
-    item.addEventListener('click', () => { close(); action.run(view); view.focus(); });
-    menu.append(item);
-  }
-  menu.style.left = `${button.offsetLeft}px`;
-  host.append(menu);
-  button.setAttribute('aria-expanded', 'true');
-  const outside = (event: MouseEvent) => { if (!menu.contains(event.target as Node) && event.target !== button) close(); };
-  const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
-  function close() {
-    menu.remove();
-    button.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('mousedown', outside, true);
-    document.removeEventListener('keydown', escape, true);
-  }
-  document.addEventListener('mousedown', outside, true);
-  document.addEventListener('keydown', escape, true);
-}
-
-function tableTools(pos: number): Tooltip {
-  return {
-    pos,
-    above: true,
-    arrow: false,
-    create(view) {
-      const dom = document.createElement('div');
-      dom.className = 'cm-md-table-tools';
-      dom.setAttribute('role', 'toolbar');
-      dom.setAttribute('aria-label', t('Table tools'));
-      // Keep the editor focused, or the table would be drawn again and the toolbar close.
-      dom.addEventListener('mousedown', event => event.preventDefault());
-      const aligns: { button: HTMLButtonElement; align: ColumnAlign }[] = [];
-      for (const tool of TABLE_TOOLS) {
-        if (!tool) {
-          dom.append(Object.assign(document.createElement('span'), { className: 'cm-md-table-tools-gap' }));
-          continue;
-        }
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.title = t(tool.label);
-        button.setAttribute('aria-label', t(tool.label));
-        button.innerHTML = icon(tool.path);
-        if ('menu' in tool) {
-          button.classList.add('cm-md-table-tools-menu');
-          button.setAttribute('aria-haspopup', 'menu');
-          button.setAttribute('aria-expanded', 'false');
-          button.insertAdjacentHTML('beforeend', '<svg width="7" height="7" viewBox="0 0 7 7" aria-hidden="true"><path d="M1 2.5l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>');
-          button.addEventListener('click', () => {
-            if (button.getAttribute('aria-expanded') === 'true') dom.querySelector('.cm-md-table-menu')?.remove();
-            else openTableMenu(view, button, tool.menu, dom);
-          });
-        } else {
-          button.addEventListener('click', () => { tool.run(view); view.focus(); });
-          if (tool.align) aligns.push({ button, align: tool.align });
-        }
-        dom.append(button);
-      }
-      const sync = (state: EditorState) => {
-        const align = columnAlign(state);
-        for (const item of aligns) item.button.setAttribute('aria-pressed', String(item.align === align));
-      };
-      sync(view.state);
-      return { dom, update: update => sync(update.state) };
-    },
-  };
-}
-
-/** Shown above a table while its source is being edited. */
-const tableToolbar = StateField.define<Tooltip | null>({
-  create: () => null,
-  update(value, tr) {
-    const head = tr.state.selection.main.head;
-    const table = revealing(tr.state) ? tableAt(tr.state, head) : null;
-    const start = table ? tr.state.doc.line(table.first).from : null;
-    if (start === null) return null;
-    // The same tooltip object keeps its DOM while the cursor moves inside the table.
-    return value?.pos === start ? value : tableTools(start);
-  },
-  provide: field => showTooltip.from(field),
-});
-
 // ---- Links ----
 
 /** The other end of a footnote: a reference's definition, or a definition's first reference. */
@@ -901,134 +744,6 @@ function linkAt(state: EditorState, pos: number): string | null {
   return null;
 }
 
-const theme = EditorView.baseTheme({
-  // Text, quote bars, code backgrounds, rules and tables share one left edge.
-  '.cm-line': { paddingInline: '0' },
-  '.cm-line.cm-md-h1, .cm-line.cm-md-h2, .cm-line.cm-md-h3, .cm-line.cm-md-h4, .cm-line.cm-md-h5, .cm-line.cm-md-h6': {
-    lineHeight: '1.35', paddingTop: '0.65em', paddingBottom: '0.15em',
-  },
-  '.cm-md-h1': { fontSize: 'var(--h1-size, 2em)', fontWeight: 'var(--h1-weight, 600)', fontFamily: 'var(--h1-font, inherit)' },
-  '.cm-md-h2': { fontSize: 'var(--h2-size, 1.5em)', fontWeight: 'var(--h2-weight, 600)', fontFamily: 'var(--h2-font, inherit)' },
-  '.cm-md-h3': { fontSize: 'var(--h3-size, 1.2em)', fontWeight: 'var(--h3-weight, 600)', fontFamily: 'var(--h3-font, inherit)' },
-  '.cm-md-h4': { fontSize: 'var(--h4-size, 1em)', fontWeight: 'var(--h4-weight, 600)', fontFamily: 'var(--h4-font, inherit)' },
-  '.cm-md-h5': { fontSize: 'var(--h5-size, 1em)', fontWeight: 'var(--h5-weight, 600)', fontFamily: 'var(--h5-font, inherit)' },
-  '.cm-md-h6': { fontSize: 'var(--h6-size, 1em)', fontWeight: 'var(--h6-weight, 600)', fontFamily: 'var(--h6-font, inherit)' },
-  '.cm-line.cm-md-setext': { fontSize: '0.5em', lineHeight: '1' },
-  '.cm-line.cm-md-quote': {
-    borderLeft: '3px solid var(--border-strong)', paddingLeft: '1em',
-    color: 'var(--text-muted)', fontFamily: 'var(--quote-font, inherit)',
-  },
-  '.cm-line.cm-md-code': {
-    fontFamily: 'var(--code-font, var(--font-mono))', fontSize: '0.88em', lineHeight: '1.6',
-    background: 'var(--panel-soft)', paddingInline: '1em',
-  },
-  '.cm-line.cm-md-code-first': { borderTopLeftRadius: '6px', borderTopRightRadius: '6px', paddingTop: '0.5em' },
-  '.cm-line.cm-md-code-last': { borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px', paddingBottom: '0.5em' },
-  '.cm-line.cm-md-fence': { lineHeight: '1.2', fontSize: '0.72em' },
-  '.cm-line.cm-md-fence-label-line': { textAlign: 'right' },
-  '.cm-md-fence-label': { color: 'var(--text-dim)', fontFamily: 'var(--font-sans)', letterSpacing: '0.02em' },
-  // Tables and formulas being edited: their source in a quiet box, as Typora's input fields.
-  // Ligatures would turn a table's `--` delimiters into dashes.
-  '.cm-line.cm-md-source-block': {
-    fontFamily: 'var(--code-font, var(--font-mono))', fontSize: '0.88em', fontVariantLigatures: 'none',
-    background: 'var(--panel-soft)', paddingInline: '0.75em',
-  },
-  '.cm-line.cm-md-source-first': { borderTopLeftRadius: '6px', borderTopRightRadius: '6px' },
-  '.cm-line.cm-md-source-last': { borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px' },
-  '.cm-md-inline-code': {
-    fontFamily: 'var(--inline-code-font, var(--font-mono))', fontSize: '0.88em',
-    background: 'var(--panel-soft)', borderRadius: '4px', padding: '0.1em 0.3em',
-  },
-  '.cm-md-link': {
-    color: 'var(--accent)', textDecoration: 'underline', textDecorationThickness: '1px', textUnderlineOffset: '3px',
-  },
-  '.cm-md-bullet': {
-    display: 'inline-block', boxSizing: 'border-box', paddingRight: '0.5em', textAlign: 'right',
-    textIndent: '0', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums',
-  },
-  '.cm-md-task': {
-    display: 'inline-block', boxSizing: 'border-box', width: '0.82em', height: '0.82em', verticalAlign: '-0.06em',
-    border: '1.5px solid var(--text-dim)', borderRadius: '0.22em', cursor: 'pointer',
-  },
-  '.cm-md-task[aria-checked=true]': { background: 'var(--accent)', borderColor: 'var(--accent)', color: 'var(--bg)' },
-  '.cm-md-task svg': {
-    display: 'block', width: '100%', height: '100%',
-    fill: 'none', stroke: 'currentColor', strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round',
-  },
-  '.cm-line.cm-md-task-done': { color: 'var(--text-muted)' },
-  '.cm-md-rule': {
-    display: 'inline-block', width: '100%', height: '0', verticalAlign: 'middle',
-    borderTop: '1px solid var(--border-strong)',
-  },
-  '.cm-md-math': { cursor: 'text' },
-  '.cm-md-math-block': { padding: '0.6em 0', textAlign: 'center', overflowX: 'auto', cursor: 'text' },
-  '.cm-md-math-preview': {
-    padding: '0.6em 0', textAlign: 'center', overflowX: 'auto',
-    borderBottom: '1px solid var(--border)', marginBottom: '0.3em',
-  },
-  '.cm-md-math-pending': { color: 'var(--text-dim)', fontSize: '0.85em' },
-  '.cm-md-diagram': { padding: '0.6em 0', textAlign: 'center', overflowX: 'auto', cursor: 'text', color: 'var(--text-dim)', fontSize: '0.85em' },
-  '.cm-md-diagram svg': { maxWidth: '100%', height: 'auto' },
-  '.cm-md-diagram-preview': { borderBottom: '1px solid var(--border)', marginBottom: '0.3em', cursor: 'default' },
-  '.cm-md-diagram-error': { color: 'var(--error)', textAlign: 'left' },
-  '.cm-md-diagram-pending': { opacity: '0.55' },
-  '.cm-line.cm-md-frontmatter': { color: 'var(--text-muted)' },
-  // Callouts read in full text colour, the bar and label in the kind's colour.
-  '.cm-line.cm-md-callout': { color: 'var(--text)' },
-  '.cm-line.cm-md-callout-note, .cm-line.cm-md-callout-important': { borderLeftColor: 'var(--accent)' },
-  '.cm-line.cm-md-callout-tip': { borderLeftColor: 'var(--ok)' },
-  '.cm-line.cm-md-callout-warning': { borderLeftColor: 'var(--warning)' },
-  '.cm-line.cm-md-callout-caution': { borderLeftColor: 'var(--error)' },
-  '.cm-md-callout-label': { fontWeight: '600' },
-  '.cm-md-callout-note .cm-md-callout-label, .cm-md-callout-important .cm-md-callout-label': { color: 'var(--accent)' },
-  '.cm-md-callout-tip .cm-md-callout-label': { color: 'var(--ok)' },
-  '.cm-md-callout-warning .cm-md-callout-label': { color: 'var(--warning)' },
-  '.cm-md-callout-caution .cm-md-callout-label': { color: 'var(--error)' },
-  '.cm-md-highlight': { background: 'color-mix(in srgb, var(--warning) 30%, transparent)', borderRadius: '2px', padding: '0.05em 0' },
-  // Raised and lowered without growing the line, so the paragraph keeps its rhythm.
-  '.cm-md-sup': { fontSize: '0.75em', verticalAlign: 'super', lineHeight: '0' },
-  '.cm-md-sub': { fontSize: '0.75em', verticalAlign: 'sub', lineHeight: '0' },
-  '.cm-md-table mark': { background: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'inherit' },
-  '.cm-md-footnote-ref': { fontSize: '0.72em', verticalAlign: 'super', lineHeight: '0', color: 'var(--accent)', padding: '0 0.1em' },
-  '.cm-line.cm-md-footnote': { fontSize: '0.9em', color: 'var(--text-muted)' },
-  '.cm-md-footnote-label': { color: 'var(--text-dim)' },
-  '.cm-md-image img': { maxHeight: '1.5em', verticalAlign: 'middle' },
-  // An image alone in its paragraph is centred, as Typora does.
-  '.cm-md-image-block img': { display: 'block', maxWidth: '100%', maxHeight: 'none', margin: '0.4em auto', borderRadius: '4px' },
-  '.cm-md-image-block.cm-md-image-missing': { display: 'block', textAlign: 'center' },
-  '.cm-md-image-missing': { color: 'var(--text-muted)', fontSize: '0.9em', fontStyle: 'italic' },
-  '.cm-md-table': { overflowX: 'auto', padding: '0.4em 0', cursor: 'text' },
-  '.cm-md-table-tools': { position: 'relative', display: 'flex', alignItems: 'center', gap: '1px', padding: '3px', fontFamily: 'var(--font-sans)' },
-  '.cm-md-table-tools button': {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '24px',
-    padding: '0', border: 'none', borderRadius: '5px', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
-  },
-  '.cm-md-table-tools button:hover': { background: 'var(--panel-soft)', color: 'var(--text)' },
-  '.cm-md-table-tools button[aria-pressed=true]': { background: 'var(--tint-accent)', color: 'var(--accent)' },
-  '.cm-md-table-tools-gap': { width: '1px', height: '16px', margin: '0 4px', background: 'var(--border)' },
-  '.cm-tooltip:has(> .cm-md-table-tools)': { overflow: 'visible' },
-  '.cm-md-table-tools button.cm-md-table-tools-menu': { width: '34px', gap: '2px' },
-  '.cm-md-table-tools button[aria-expanded=true]': { background: 'var(--panel-soft)', color: 'var(--text)' },
-  '.cm-md-table-menu': {
-    position: 'absolute', top: 'calc(100% + 4px)', zIndex: '10', minWidth: '210px', padding: '4px',
-    display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-    borderRadius: '8px', boxShadow: 'var(--shadow-md)',
-  },
-  '.cm-md-table-menu button': {
-    display: 'flex', justifyContent: 'space-between', gap: '18px', width: '100%', height: 'auto', padding: '5px 9px',
-    borderRadius: '5px', color: 'var(--text)', font: '13px/1.4 var(--font-sans)', textAlign: 'left',
-  },
-  '.cm-md-table-menu button:hover': { background: 'var(--tint-accent)' },
-  '.cm-md-table-menu kbd': { font: 'inherit', color: 'var(--text-muted)' },
-  '.cm-md-table table': { borderCollapse: 'collapse', fontSize: '0.94em', lineHeight: '1.5' },
-  '.cm-md-table th, .cm-md-table td': { padding: '0.35em 0.9em', borderBottom: '1px solid var(--border)', textAlign: 'left' },
-  // Rules only, no side borders: the outer cells sit on the text edges.
-  '.cm-md-table th:first-child, .cm-md-table td:first-child': { paddingLeft: '0' },
-  '.cm-md-table th:last-child, .cm-md-table td:last-child': { paddingRight: '0' },
-  '.cm-md-table th': { fontWeight: '600', borderBottomColor: 'var(--border-strong)' },
-  '.cm-md-table code': { fontFamily: 'var(--inline-code-font, var(--font-mono))', fontSize: '0.9em' },
-});
-
 /** Scroll to the heading a `#fragment` link names, using the outline's ids. */
 function jumpToAnchor(view: EditorView, href: string) {
   let id: string;
@@ -1041,9 +756,9 @@ function jumpToAnchor(view: EditorView, href: string) {
 
 export function markdownLivePreview(host: LivePreviewHost): Extension {
   return [
-    theme,
+    livePreviewTheme,
     focused,
-    tableToolbar,
+    tableToolbar(revealing),
     EditorView.focusChangeEffect.of((_state, focusing) => markdownFocus.of(focusing)),
     blockField(host),
     ViewPlugin.fromClass(class {

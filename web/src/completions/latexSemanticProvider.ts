@@ -111,7 +111,7 @@ function openEnvironments(text: string, position: number): string[] {
 
 function macroCandidates(request: CompletionRequest): CompletionCandidate[] {
   return [...latexWorkspaceMacros(request.workspace, request.text).values()].map(macro => {
-    const required = Array.from({ length: macro.required }, (_, index) => `\{\${${index + 1}:arg${index + 1}}\}`).join('');
+    const required = Array.from({ length: macro.required }, (_, index) => `{\${${index + 1}:arg${index + 1}}}`).join('');
     return {
       label: `\\${macro.name}`,
       insertText: `\\${macro.name}${required}`,

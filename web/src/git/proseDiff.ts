@@ -1,7 +1,7 @@
 ﻿export type DiffPart = { kind: 'equal' | 'insert' | 'delete'; text: string };
 
 const MAX_TOKENS = 700;
-const TOKEN = /\s+|[\p{L}\p{N}]+(?:[’'\-][\p{L}\p{N}]+)*|[^\s]/gu;
+const TOKEN = /\s+|[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*|[^\s]/gu;
 
 function tokens(text: string): string[] {
   return text.match(TOKEN) ?? [];

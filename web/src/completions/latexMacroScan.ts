@@ -70,7 +70,7 @@ export function scanLatexMacros(text: string, sourcePath: string | null = null):
     out.set(name, { name, required: declarationSlots.filter(slot => !slot).length, optional, slots: declarationSlots, sourcePath, imported: false });
   }
   const xparseStart = /\\(?:NewDocumentCommand|RenewDocumentCommand|ProvideDocumentCommand)\s*/g;
-  while ((match = xparseStart.exec(source)) !== null && out.size < MAX_DECLARATIONS) {
+  while (xparseStart.exec(source) !== null && out.size < MAX_DECLARATIONS) {
     let cursor = xparseStart.lastIndex;
     const named = /^\\([A-Za-z@]+)/.exec(source.slice(cursor));
     if (!named) continue;

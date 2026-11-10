@@ -57,6 +57,12 @@ describe('computeResearchStats', () => {
     expect(stats.mainWords).toBe(5);
   });
 
+  it('keeps words joined by a curly apostrophe, and splits on a question mark', () => {
+    expect(computeResearchStats('don’t stop', 'markdown').mainWords).toBe(2);
+    expect(computeResearchStats("don't stop", 'markdown').mainWords).toBe(2);
+    expect(computeResearchStats('Why?Because', 'markdown').mainWords).toBe(2);
+  });
+
   it('counts multi-paragraph Markdown and Typst abstracts until the next section', () => {
     expect(computeResearchStats(`# Abstract
 First paragraph.

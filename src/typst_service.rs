@@ -168,7 +168,10 @@ mod tests {
 #[cfg(test)]
 mod formula_tests {
     use super::*;
+    // Both tests hold a lock across the await on purpose: that contention is
+    // exactly what they check the formula path tolerates.
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn formulas_do_not_wait_for_document_lock() {
         let compiler = Arc::new(TypstCompiler::default());
         let _document_lock = compiler.world.lock();
@@ -181,6 +184,7 @@ mod formula_tests {
             .contains("<svg"));
     }
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn busy_formula_work_is_discardable() {
         let compiler = Arc::new(TypstCompiler::default());
         let _formula_lock = compiler.formula_world.lock();
