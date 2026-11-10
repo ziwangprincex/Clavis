@@ -3,14 +3,13 @@
 Reads icons/logo-source.svg (regenerate it with tools/make_logo.py) and writes
 the Tauri PNG set, the Windows Store logos, icon.ico, and icon.icns.
 
-Usage: python tools/render_icons.py
+Usage: uv run --with resvg_py python tools/render_icons.py
 """
-import io
 import os
+import re
 import struct
 
 import resvg_py
-from PIL import Image
 
 SVG_PATH = 'icons/logo-source.svg'
 SMALL_SVG_PATH = 'icons/logo-source-small.svg'
@@ -55,9 +54,35 @@ ICNS_ENTRIES = (
 )
 
 
-def render(size):
+# macOS draws app icons on Apple's grid: on a 1024 canvas the rounded square is
+# 824 wide and centred, and the margin holds a soft shadow. Artwork that fills
+# the canvas shows about a quarter larger than every other app in the Dock.
+MAC_CANVAS = 1024
+MAC_BODY = 824
+MAC_SHADOW = '<feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity="0.3"/>'
+
+
+def on_mac_grid(source):
+    """Wrap a 512-viewBox logo SVG so it sits on Apple's icon grid."""
+    opening = re.match(r'\s*<svg\b[^>]*viewBox="0 0 (\d+) (\d+)"[^>]*>', source)
+    assert opening and opening.group(1) == opening.group(2), 'logo SVG must be square'
+    inner = source[opening.end():source.rindex('</svg>')]
+    scale = MAC_BODY / int(opening.group(1))
+    offset = (MAC_CANVAS - MAC_BODY) / 2
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{MAC_CANVAS}" height="{MAC_CANVAS}" '
+        f'viewBox="0 0 {MAC_CANVAS} {MAC_CANVAS}">'
+        f'<defs><filter id="mac-shadow" x="-20%" y="-20%" width="140%" height="140%">{MAC_SHADOW}</filter></defs>'
+        f'<g filter="url(#mac-shadow)"><g transform="translate({offset} {offset}) scale({scale})">{inner}</g></g>'
+        '</svg>'
+    )
+
+
+def render(size, mac=False):
     """Rasterise the size-appropriate SVG directly at the target dimensions."""
     source = SMALL_SVG if size <= SMALL_MAX_SIZE else SVG
+    if mac:
+        source = on_mac_grid(source)
     png = bytes(resvg_py.svg_to_bytes(svg_string=source, width=size, height=size))
     return strip_ancillary(png)
 
@@ -121,7 +146,7 @@ def write_icns(path):
     type+length+payload record per size, each payload a plain PNG."""
     records = bytearray()
     for code, size in ICNS_ENTRIES:
-        png = render(size)
+        png = render(size, mac=True)
         records += code + struct.pack('>I', len(png) + 8) + png
     blob = b'icns' + struct.pack('>I', len(records) + 8) + bytes(records)
     with open(path, 'wb') as f:
