@@ -797,7 +797,7 @@ export function App() {
                         active.tabs.find(t => t.id === active.activeTabId)?.filePath ?? null;
                       if (kind === 'latex-macro' || kind === 'latex-environment') {
                         const workspace = { rootPath: project.rootAbs, activePath: currentAbs, documents: [
-                          ...project.files.filter(file => !file.binaryBase64 && !file.isBib).map(file => ({ path: file.absPath, language: 'latex' as const, text: file.content })),
+                          ...project.files.filter(file => !file.isBinary && !file.isBib).map(file => ({ path: file.absPath, language: 'latex' as const, text: file.content })),
                           ...active.tabs.filter(tab => tab.filePath).map(tab => ({ path: tab.filePath, language: tab.lang, text: tab.content })),
                         ] };
                         const activeText = active.tabs.find(tab => tab.id === active.activeTabId)?.content ?? '';

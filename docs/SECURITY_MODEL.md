@@ -50,9 +50,10 @@ replaced (an identical one is reused); a dropped image already inside the
 document's folder is linked where it is, not copied.
 
 The PDF window (`open_pdf_window`) loads the same bundled frontend and only
-receives the compiled PDF and scroll requests from the main window as events;
-compiling and SyncTeX stay with the main window, which alone owns the compile
-workdirs (closing the PDF window does not clear them). The file tree notices
+receives the compiled PDF (handed over through `share_pdf` / `shared_pdf`) and
+scroll requests from the main window; compiling and SyncTeX stay with the main
+window, which alone owns the build folders (closing the PDF window does not
+clear them). The file tree notices
 outside changes through `folder_stamps`, which reads only the modification times
 of folders it already shows.
 
@@ -84,7 +85,13 @@ as an option it must default to off, carry an explicit danger prompt, and be
 scoped to the session rather than saved.
 
 Also: `-interaction=nonstopmode`, `-halt-on-error`, per-run and total timeouts,
-and a temporary workdir that the frontend only knows by an opaque token.
+and a build folder in the temporary directory that the frontend only knows by
+an opaque token. The backend reads the project itself (the frontend sends only
+the main file's path and its open buffers), and a successful build writes only
+`<main>.pdf` beside the main file, through a temporary file in that folder.
+Each document keeps one build folder; it is emptied whenever the toolchain,
+the set of files, or a non-`.tex` input changes (`src/latex/build_dir.rs`), so
+a source removed from the project never satisfies a later build.
 
 ### latexmk full builds — workspace trust
 

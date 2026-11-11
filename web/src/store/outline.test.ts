@@ -98,7 +98,7 @@ describe('parseProjectOutline', () => {
     const files: ProjectFile[] = [
       pf({ relPath: 'main.tex', absPath: '/p/main.tex', content: '\\section{Only}' }),
       pf({ relPath: 'refs.bib', absPath: '/p/refs.bib', content: '@article{k, title={x}}', isBib: true }),
-      pf({ relPath: 'fig.png', absPath: '/p/fig.png', content: '', binaryBase64: 'AAAA' }),
+      pf({ relPath: 'fig.png', absPath: '/p/fig.png', content: '', isBinary: true }),
     ];
     const out = parseProjectOutline(files);
     expect(out.map(o => o.title)).toEqual(['Only']);

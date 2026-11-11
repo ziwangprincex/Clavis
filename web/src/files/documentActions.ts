@@ -52,9 +52,12 @@ export async function exportTypstPdf() {
   try {
     setStatus('Compiling PDF…', 'info');
     const input = await typstInput(tab);
-    const r = await ipc.compileTypstPdf(input.source, input.docPath, input.snapshot);
-    if (!r.ok || !r.pdfBase64) {
-      setStatus(r.error ? `Compile failed: ${r.error.split('\n')[0]}` : t("Compile failed"), 'error');
+    let pdf: Uint8Array;
+    try {
+      pdf = await ipc.compileTypstPdf(input.source, input.docPath, input.snapshot);
+    } catch (error) {
+      const message = String(error).split('\n')[0];
+      setStatus(message ? `Compile failed: ${message}` : t("Compile failed"), 'error');
       return;
     }
     const target = await dialogSave({
@@ -62,7 +65,7 @@ export async function exportTypstPdf() {
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     });
     if (typeof target === 'string') {
-      await ipc.saveBinaryFile(target, r.pdfBase64);
+      await ipc.saveBinaryFile(target, pdf);
       setStatus('PDF exported', 'ok');
     } else {
       setStatus('Ready', 'info');

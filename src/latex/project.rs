@@ -3,9 +3,11 @@
 //! referenced file (plus a resource-tree sweep for images/fonts), all confined
 //! to the root document's directory.
 //!
+//! Binary files (images, fonts) are listed but never read here: their bytes
+//! stay on disk and the build folder copies them from `source`.
+//!
 //! Also hosts the path-safety helper and font helpers shared with `compile`.
 
-use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -82,13 +84,16 @@ pub(crate) fn write_local_cjk_font_shim(workdir: &Path, source: &str, has_local_
 pub struct CollectedFile {
     pub rel_path: String,
     pub abs_path: String,
+    /// Text of a source file; empty for a binary file.
     pub content: String,
     pub is_bib: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub binary_base64: Option<String>,
+    pub is_binary: bool,
+    /// Canonical path on disk, where a build copies a binary file from.
+    #[serde(skip)]
+    pub source: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectResult {
     pub root_rel: String,
@@ -96,7 +101,7 @@ pub struct CollectResult {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SourceOverlay {
     pub path: String,
     pub content: String,
@@ -109,12 +114,7 @@ pub fn collect_project_files(root: String) -> Result<CollectResult, String> {
 
 /// Read a compile snapshot without saving editor buffers to the user's files.
 /// Dependency traversal must use the overlays too, including new unsaved inputs.
-#[tauri::command]
-pub fn collect_latex_snapshot(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
-    collect_with_overlays(root, documents)
-}
-
-fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
+pub(crate) fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<CollectResult, String> {
     let root_path = std::fs::canonicalize(&root).map_err(|e| match e.kind() {
         // Typically a document whose folder was moved or deleted after it was opened.
         std::io::ErrorKind::NotFound => format!("main document not found on disk: {root}"),
@@ -152,13 +152,11 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
         std::fs::read_to_string(p).ok()
     }
 
-    fn read_binary(p: &Path) -> Option<String> {
-        let meta = std::fs::metadata(p).ok()?;
+    /// A binary file is used if it is a readable file within the size limit.
+    fn binary_fits(p: &Path) -> bool {
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
         let limit = if is_font_like_ext(&ext) { MAX_FONT_BYTES } else { MAX_FILE_BYTES };
-        if meta.len() > limit { return None; }
-        let bytes = std::fs::read(p).ok()?;
-        Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+        std::fs::metadata(p).is_ok_and(|meta| meta.is_file() && meta.len() <= limit)
     }
 
     fn rel_from(base: &Path, full: &Path) -> Option<String> {
@@ -188,8 +186,12 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
         let ext = canon.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
         let Some(rel) = rel_from(root_dir_canon, &canon) else { return };
         let is_bib = ext == "bib";
-        let binary_base64 = if binary_ext(&ext) { read_binary(&canon) } else { None };
-        let content = if binary_base64.is_some() {
+        let is_binary = binary_ext(&ext);
+        let content = if is_binary {
+            if !binary_fits(&canon) {
+                warnings.push(format!("could not read or too large: {}", canon.display()));
+                return;
+            }
             String::new()
         } else {
             match read_text(&canon, overlays) {
@@ -206,7 +208,8 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
             abs_path: canon.to_string_lossy().to_string(),
             content,
             is_bib,
-            binary_base64,
+            is_binary,
+            source: canon,
         });
     }
 
@@ -221,7 +224,8 @@ fn collect_with_overlays(root: String, documents: Vec<SourceOverlay>) -> Result<
         abs_path: root_path.to_string_lossy().to_string(),
         content: root_content,
         is_bib: false,
-        binary_base64: None,
+        is_binary: false,
+        source: root_path.clone(),
     });
     visited.insert(root_path.clone());
 
@@ -397,7 +401,7 @@ mod tests {
         std::fs::write(&main, "disk main").unwrap();
         std::fs::write(&chapter, "disk chapter").unwrap();
         std::fs::write(&extra, "newly referenced file").unwrap();
-        let collected = collect_latex_snapshot(main.to_string_lossy().into(), vec![
+        let collected = collect_with_overlays(main.to_string_lossy().into(), vec![
             SourceOverlay { path: main.to_string_lossy().into(), content: "\\input{chapter}".into() },
             SourceOverlay { path: chapter.to_string_lossy().into(), content: "unsaved chapter \\input{extra}".into() },
         ]).unwrap();
@@ -421,6 +425,22 @@ mod tests {
         let collected = collect_project_files(main.clone()).unwrap();
         let paths: Vec<_> = collected.files.iter().map(|f| f.abs_path.clone()).collect();
         assert_eq!(paths, [main, link.join("chapter.tex").to_string_lossy().to_string()]);
+    }
+
+    #[test]
+    fn binary_files_are_listed_with_their_source_but_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        std::fs::write(root.join("main.tex"), "\\includegraphics{figure.png}").unwrap();
+        std::fs::write(root.join("figure.png"), [0x89, b'P', b'N', b'G']).unwrap();
+        let collected = collect_project_files(root.join("main.tex").to_string_lossy().into()).unwrap();
+        let figure = collected.files.iter().find(|f| f.rel_path == "figure.png").unwrap();
+        assert!(figure.is_binary);
+        assert!(figure.content.is_empty());
+        assert_eq!(figure.source, root.join("figure.png"));
+        let json = serde_json::to_value(figure).unwrap();
+        assert_eq!(json["isBinary"], true);
+        assert!(json.get("source").is_none(), "disk paths for copying stay in Rust");
     }
 
     #[test]

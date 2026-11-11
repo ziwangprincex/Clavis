@@ -68,7 +68,7 @@ Resolved, verified against the code on 2026-10-16:
   then reads every restored file (`checkExternalDocuments(true)`), so a file
   deleted outside Clavis opens into a conflict instead of a dirty buffer.
 - Forward SyncTeX from a subfile works: `rel_from` keeps nested relative paths
-  (`chapters/intro.tex`), they are written into the workdir with their
+  (`chapters/intro.tex`), they are written into the build folder with their
   directories, and `syncTexForwardFromEditor` passes that path to
   `synctex view -i`.
 - Missing TeX packages install from the problem panel: `extract_missing_pkg`
