@@ -1,15 +1,14 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pending: Array<{ resolve: (value: unknown) => void }> = [];
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke }));
 
 beforeEach(() => {
   pending.length = 0;
-  (globalThis as unknown as { window: unknown }).window = {
-    __TAURI__: {
-      invoke: vi.fn(() => new Promise(resolve => pending.push({ resolve }))),
-      event: { listen: vi.fn(), emit: vi.fn() },
-    },
-  };
+  invoke.mockReset();
+  invoke.mockImplementation(() => new Promise(resolve => pending.push({ resolve })));
+  (globalThis as unknown as { window: unknown }).window = {};
 });
 
 describe('references store', () => {
@@ -30,7 +29,6 @@ describe('references store', () => {
     const run = useReferencesStore.getState().refresh('C:/paper', [{
       id: 't', title: 'main.typ', filePath: 'C:/paper/main.typ', lang: 'typst', content: '@x', isDirty: true,
     }]);
-    const invoke = (window as unknown as { __TAURI__: { invoke: ReturnType<typeof vi.fn> } }).__TAURI__.invoke;
     expect(invoke).toHaveBeenCalledWith('index_references', {
       options: { root: 'C:/paper', documents: [{ path: 'C:/paper/main.typ', language: 'typst', text: '@x', isDirty: true }] },
     });

@@ -1,6 +1,6 @@
 # Releasing Clavis (with auto-update)
 
-Clavis ships Tauri's built-in updater: an installed app checks GitHub Releases
+Clavis ships Tauri's updater plugin: an installed app checks GitHub Releases
 for a newer **signed** build and can install it in-app (command palette →
 "Check for Updates…", plus a quiet check at startup).
 
@@ -31,7 +31,7 @@ It prompts for a password and writes:
 ### Put the public key in the app
 
 Copy the **entire contents** of `clavis.key.pub` into `tauri.conf.json` →
-`tauri.updater.pubkey`, replacing the `REPLACE_WITH_CLAVIS_KEY_PUB_CONTENTS`
+`plugins.updater.pubkey`, replacing the `REPLACE_WITH_CLAVIS_KEY_PUB_CONTENTS`
 placeholder. Commit that change.
 
 ### Put the private key in GitHub Secrets
@@ -40,9 +40,12 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 - `TAURI_PRIVATE_KEY`  = full contents of `~/.tauri/clavis.key`
 - `TAURI_KEY_PASSWORD` = the password you chose
 
+The release workflow passes them to Tauri as `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, the names Tauri 2 reads.
+
 ## 2. Confirm the endpoint
 
-`tauri.conf.json` → `tauri.updater.endpoints` points at:
+`tauri.conf.json` → `plugins.updater.endpoints` points at:
 
 ```
 https://github.com/ziwangprincex/Clavis/releases/latest/download/latest.json
@@ -70,7 +73,7 @@ commands it prints.
 ### Manual equivalent
 
 1. Set the same SemVer in `Cargo.toml`, the Clavis entry in `Cargo.lock`, and
-   `tauri.conf.json` -> `package.version` (`python3 tools/set_version.py 1.0.2`).
+   `tauri.conf.json` -> `version` (`python3 tools/set_version.py 1.0.2`).
 2. Validate it:
    ```bash
    python3 tools/check_release.py --tag v1.0.2
@@ -122,18 +125,26 @@ A normal push to `main` only runs CI; it does not create or update a Release.
   we do not do Apple notarization / Windows Authenticode. First-time installers
   may trigger a Gatekeeper / SmartScreen warning; auto-update itself is unaffected.
   Revisit if distributing widely.
-- The updater ships **full-package** updates (Tauri v1 has no delta updates).
+- The updater ships **full-package** updates (Tauri has no delta updates).
+- `bundle.createUpdaterArtifacts` is `"v1Compatible"`: Clavis is built on
+  Tauri 2, and this keeps the update packages in the format Clavis 1.10 and
+  earlier (built on Tauri 1) can install. Keep it until few 1.x installs remain;
+  switching to `true` strands them on 1.x.
+- `plugins.updater.requireSignedVersion` is on: an update is installed only if
+  its signature records the same version `latest.json` announces, so a tampered
+  `latest.json` cannot pass off an older release as new. The Tauri 2 CLI records
+  the version when it signs; never sign releases with an older CLI.
 - `deb` is built for convenience but the Linux updater uses the **AppImage**.
 - Keep the private key safe. If it's lost, existing installs can no longer verify
   updates signed with a new key — you'd have to ship a manual reinstall.
 
 ## Troubleshooting
 
-### `Warn The updater secret key from TAURI_PRIVATE_KEY does not match the public key`
+### The updater secret key does not match the public key
 
-The private key used at build time (env var `TAURI_PRIVATE_KEY`, or a local
-`~/.tauri/clavis.key`) is **not the mate** of the `tauri.updater.pubkey` currently
-in `tauri.conf.json`. Updates signed by this build will be rejected at runtime.
+The private key used at build time (env var `TAURI_SIGNING_PRIVATE_KEY`, set from
+the `TAURI_PRIVATE_KEY` secret in CI) is **not the mate** of the
+`plugins.updater.pubkey` currently in `tauri.conf.json`. Updates signed by this build will be rejected at runtime.
 
 This happens when the public key and signing secret are not a matching pair.
 First restore the private key matching the public key deployed in existing apps,
@@ -145,8 +156,8 @@ For an approved formal signing build, provide the existing matching key through
 the environment (local app-only candidates do not need it):
 
 ```bash
-export TAURI_PRIVATE_KEY="$(cat "$HOME/.tauri/clavis.key")"
-export TAURI_KEY_PASSWORD="<your-password>"
+export TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/clavis.key")"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<your-password>"
 ```
 
 Note: this warning only affects **auto-update signature verification**, not

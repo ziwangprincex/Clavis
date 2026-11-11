@@ -1,0 +1,3 @@
+# The frontend is served and hot-reloaded by Vite; changes under web/ (including
+# Vite's dependency cache in web/node_modules/.vite) must not restart the app.
+web/

@@ -1,5 +1,6 @@
 //! Engine resolution, PATH enrichment, and streaming process execution.
 
+use tauri::Emitter as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -103,12 +104,12 @@ fn discover_texlive_dirs(arch: &str) -> Vec<PathBuf> {
     years
 }
 
-pub(crate) async fn run_streaming(
+pub(crate) async fn run_streaming<R: tauri::Runtime>(
     program: &Path,
     args: &[&str],
     cwd: &Path,
     font_dirs: &[PathBuf],
-    window: &tauri::Window,
+    window: &tauri::Window<R>,
     run_idx: u32,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(i32, String), String> {

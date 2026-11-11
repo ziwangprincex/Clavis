@@ -8,6 +8,10 @@ pub struct CompileOptions {
     pub source: String,
     #[serde(default)]
     pub source_identity: Option<String>,
+    /// Absolute path of the saved main `.tex` file. When set, a successful
+    /// build also writes `<stem>.pdf` beside it, as other TeX editors do.
+    #[serde(default)]
+    pub source_path: Option<String>,
     #[serde(default)]
     pub cache_token: Option<String>,
     #[serde(default)]
@@ -61,6 +65,10 @@ pub struct CompileResult {
     pub engine: String,
     /// `bibtex` or `biber` when the bibliography was processed during this build.
     pub bib_tool: Option<String>,
+    /// Where the PDF was saved beside the source, when it was.
+    pub saved_pdf: Option<String>,
+    /// Why the PDF could not be saved beside the source. The build still succeeded.
+    pub pdf_save_error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

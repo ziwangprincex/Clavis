@@ -37,9 +37,9 @@ def lock_version() -> str:
 
 def tauri_version() -> str:
     data = json.loads((ROOT / "tauri.conf.json").read_text(encoding="utf-8"))
-    version = data.get("package", {}).get("version")
+    version = data.get("version")
     if not isinstance(version, str):
-        raise ValueError("tauri.conf.json package.version is missing")
+        raise ValueError("tauri.conf.json version is missing")
     return version
 
 
@@ -112,9 +112,9 @@ def main() -> int:
     try:
         main_config = json.loads((ROOT / "tauri.conf.json").read_text(encoding="utf-8"))
         windows_config = json.loads((ROOT / "tauri.windows.conf.json").read_text(encoding="utf-8"))
-        main_window = main_config["tauri"]["windows"][0]
-        windows_window = windows_config["tauri"]["windows"][0]
-        for key in ("title", "width", "height", "minWidth", "minHeight"):
+        main_window = main_config["app"]["windows"][0]
+        windows_window = windows_config["app"]["windows"][0]
+        for key in ("label", "title", "width", "height", "minWidth", "minHeight"):
             if windows_window.get(key) != main_window.get(key):
                 errors.append(
                     f"tauri.windows.conf.json replaces the windows array but does not preserve {key}"

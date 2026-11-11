@@ -34,8 +34,10 @@ run('npm', ['run', 'typecheck']);
 run('npm', ['test']);
 run('npm', ['run', 'build']);
 run('cargo', ['test', '--locked']);
-// Local candidates do not require updater secrets and must not rotate any keys.
-// Tauri 1 rewrites Cargo.toml features and Cargo.lock when updater is disabled.
+// Local candidates do not require updater secrets and must not rotate any keys:
+// the bundle gets no signed update artifacts and no update endpoint, so it can
+// neither be published as an update nor replace itself with a release.
+// The Tauri CLI can rewrite Cargo.toml features and Cargo.lock during a build.
 // Preserve exact pre-build contents (including local changes), even on failure.
 // Disk copies also support recovery after a forced kill, when finally cannot run.
 const backupDir = path.join(root, 'target/local-builds', `build-inputs-${Date.now()}`);
@@ -47,7 +49,7 @@ const inputs = ['Cargo.toml', 'Cargo.lock'].map(name => {
   return { file, content };
 });
 try {
-  run(process.execPath, [cli, 'build', '--bundles', args.has('--app-only') ? 'app' : 'app,dmg', '--config', JSON.stringify({ tauri: { updater: { active: false } } })]);
+  run(process.execPath, [cli, 'build', '--bundles', args.has('--app-only') ? 'app' : 'app,dmg', '--config', JSON.stringify({ bundle: { createUpdaterArtifacts: false }, plugins: { updater: { endpoints: [] } } })]);
 } finally {
   for (const { file, content } of inputs) writeFileSync(file, content);
 }

@@ -1,54 +1,21 @@
-// Centralised, type-checked wrapper around Tauri's window.__TAURI__ API.
+// Centralised, type-checked wrapper around the Tauri 2 API.
 //
-// The app is built with `withGlobalTauri: true` (see tauri.conf.json), so the
-// runtime is reached through `window.__TAURI__` rather than @tauri-apps/api.
-// Import the named functions from this module instead of touching
-// `window.__TAURI__` directly — that way the entire IPC surface is
-// type-checked in one place.
+// Import the named functions from this module instead of the @tauri-apps
+// packages directly, so the entire IPC surface is type-checked in one place
+// and the browser preview (no Tauri) fails in one place too.
+
+import { invoke as tauriInvoke, isTauri } from '@tauri-apps/api/core';
+import { listen as tauriListen, emit as tauriEmit } from '@tauri-apps/api/event';
+import { getVersion } from '@tauri-apps/api/app';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import * as dialog from '@tauri-apps/plugin-dialog';
+import { check, type Update } from '@tauri-apps/plugin-updater';
+import { relaunch as processRelaunch } from '@tauri-apps/plugin-process';
 
 type InvokeArgs = Record<string, unknown> | undefined;
 
-interface TauriGlobal {
-  invoke: <T = unknown>(cmd: string, args?: InvokeArgs) => Promise<T>;
-  event: {
-    listen: <T = unknown>(
-      event: string,
-      handler: (payload: { event: string; payload: T }) => void,
-    ) => Promise<() => void>;
-    emit: (event: string, payload?: unknown) => Promise<void>;
-  };
-  app: {
-    getVersion: () => Promise<string>;
-  };
-  dialog: {
-    open: (opts?: unknown) => Promise<string | string[] | null>;
-    save: (opts?: unknown) => Promise<string | null>;
-    message: (msg: string, opts?: unknown) => Promise<void>;
-    confirm: (msg: string, opts?: unknown) => Promise<boolean>;
-  };
-  updater: {
-    checkUpdate: () => Promise<UpdateStatus>;
-    installUpdate: () => Promise<void>;
-  };
-  process: {
-    relaunch: () => Promise<void>;
-  };
-  window: {
-    appWindow: {
-      minimize: () => Promise<void>;
-      maximize: () => Promise<void>;
-      unmaximize: () => Promise<void>;
-      toggleMaximize: () => Promise<void>;
-      close: () => Promise<void>;
-      isMaximized: () => Promise<boolean>;
-      onResized: (
-        handler: (e: { event: string; payload: unknown }) => void,
-      ) => Promise<() => void>;
-    };
-  };
-}
-
-/** Result of updater.checkUpdate() (mirrors @tauri-apps/api/updater). */
+/** Result of checkUpdate(). */
 export interface UpdateManifest {
   version: string;
   date?: string;
@@ -59,59 +26,65 @@ export interface UpdateStatus {
   manifest?: UpdateManifest;
 }
 
-declare global {
-  interface Window {
-    __TAURI__?: TauriGlobal;
-  }
-}
-
 export function hasTauri(): boolean {
-  return typeof window !== 'undefined' && !!window.__TAURI__;
+  return typeof window !== 'undefined' && isTauri();
 }
 
-function tauri(): TauriGlobal {
-  const t = window.__TAURI__;
-  if (!t) throw new Error('Tauri runtime not available (running outside the app shell?)');
-  return t;
+function requireTauri(): void {
+  if (!hasTauri()) throw new Error('Tauri runtime not available (running outside the app shell?)');
 }
 
 // ---------- Generic helpers ----------
 
 export function invoke<T = unknown>(cmd: string, args?: InvokeArgs): Promise<T> {
-  return tauri().invoke<T>(cmd, args);
+  requireTauri();
+  return tauriInvoke<T>(cmd, args);
 }
 
 export function listen<T = unknown>(
   event: string,
   handler: (payload: T) => void,
 ): Promise<() => void> {
-  return tauri().event.listen<T>(event, e => handler(e.payload));
+  requireTauri();
+  return tauriListen<T>(event, e => handler(e.payload));
 }
 
 /** Broadcasts an event to every window of the app. */
 export function emit(event: string, payload?: unknown): Promise<void> {
-  return tauri().event.emit(event, payload);
+  requireTauri();
+  return tauriEmit(event, payload);
 }
 
 export function getAppVersion(): Promise<string> {
-  return tauri().app.getVersion();
+  requireTauri();
+  return getVersion();
 }
 
 // ---------- Updater ----------
 
-/** Ask the Tauri updater whether a newer signed release is available. */
-export function checkUpdate(): Promise<UpdateStatus> {
-  return tauri().updater.checkUpdate();
+// The update found by the last check; installUpdate() installs exactly that one.
+let pendingUpdate: Update | null = null;
+
+/** Ask the updater whether a newer signed release is available. */
+export async function checkUpdate(): Promise<UpdateStatus> {
+  requireTauri();
+  const update = await check();
+  if (pendingUpdate && pendingUpdate !== update) void pendingUpdate.close().catch(() => {});
+  pendingUpdate = update;
+  if (!update) return { shouldUpdate: false };
+  return { shouldUpdate: true, manifest: { version: update.version, date: update.date, body: update.body } };
 }
 
 /** Download + verify + install the pending update (call after checkUpdate). */
-export function installUpdate(): Promise<void> {
-  return tauri().updater.installUpdate();
+export async function installUpdate(): Promise<void> {
+  if (!pendingUpdate) throw new Error('No update to install; check for updates first.');
+  await pendingUpdate.downloadAndInstall();
 }
 
 /** Relaunch the app (used after installUpdate to boot into the new version). */
 export function relaunch(): Promise<void> {
-  return tauri().process.relaunch();
+  requireTauri();
+  return processRelaunch();
 }
 
 // ---------- Window controls ----------
@@ -122,13 +95,12 @@ export function relaunch(): Promise<void> {
 // SettingsDialog).
 
 export const appWindow = {
-  minimize: () => tauri().window.appWindow.minimize(),
-  toggleMaximize: () => tauri().window.appWindow.toggleMaximize(),
-  close: () => tauri().window.appWindow.close(),
-  isMaximized: () => tauri().window.appWindow.isMaximized(),
+  minimize: () => { requireTauri(); return getCurrentWindow().minimize(); },
+  toggleMaximize: () => { requireTauri(); return getCurrentWindow().toggleMaximize(); },
+  close: () => { requireTauri(); return getCurrentWindow().close(); },
+  isMaximized: () => { requireTauri(); return getCurrentWindow().isMaximized(); },
   /** Subscribe to native window-resize events. Returns an unlisten fn. */
-  onResized: (handler: () => void) =>
-    tauri().window.appWindow.onResized(() => handler()),
+  onResized: (handler: () => void) => { requireTauri(); return getCurrentWindow().onResized(() => handler()); },
 };
 
 // ---------- Dialog helpers ----------
@@ -148,21 +120,25 @@ export interface SaveDialogOptions {
 }
 
 export function dialogOpen(opts?: OpenDialogOptions): Promise<string | string[] | null> {
-  return tauri().dialog.open(opts);
+  requireTauri();
+  return dialog.open(opts);
 }
 
 export function dialogSave(opts?: SaveDialogOptions): Promise<string | null> {
-  return tauri().dialog.save(opts);
+  requireTauri();
+  return dialog.save(opts);
 }
 
 /** Native yes/no confirmation dialog. Returns true if the user confirmed. */
 export function dialogConfirm(message: string, opts?: { title?: string; okLabel?: string; cancelLabel?: string }): Promise<boolean> {
-  return tauri().dialog.confirm(message, opts);
+  requireTauri();
+  return dialog.confirm(message, opts);
 }
 
 /** Native informational dialog (single OK button). */
-export function dialogMessage(message: string, opts?: { title?: string }): Promise<void> {
-  return tauri().dialog.message(message, opts);
+export async function dialogMessage(message: string, opts?: { title?: string }): Promise<void> {
+  requireTauri();
+  await dialog.message(message, opts);
 }
 
 // ---------- FS helpers ----------
@@ -211,6 +187,8 @@ export interface ProjectFile {
 export interface CompileOptions {
   source: string;
   sourceIdentity?: string | null;
+  /** Saved main `.tex` file; a successful build writes `<stem>.pdf` beside it. */
+  sourcePath?: string | null;
   cacheToken?: string | null;
   requestId?: string;
   fullBuild?: boolean;
@@ -245,6 +223,10 @@ export interface CompileResult {
   engine?: string;
   /** `bibtex` or `biber` when the bibliography was processed during the build. */
   bibTool?: string | null;
+  /** Where the PDF was saved beside the source, when it was. */
+  savedPdf?: string | null;
+  /** Why the PDF could not be saved beside the source; the build still succeeded. */
+  pdfSaveError?: string | null;
 }
 
 export interface BibEntry {
@@ -614,8 +596,13 @@ export interface LatexRunStartPayload {
 }
 
 export const events = {
-  onFileDrop: (handler: (paths: string[]) => void) =>
-    listen<string[]>('tauri://file-drop', handler),
+  /** Files dropped on this window (not on another window of the app). */
+  onFileDrop: (handler: (paths: string[]) => void) => {
+    requireTauri();
+    return getCurrentWebview().onDragDropEvent(event => {
+      if (event.payload.type === 'drop') handler(event.payload.paths);
+    });
+  },
   onLatexLog: (handler: (p: LatexLogPayload) => void) =>
     listen<LatexLogPayload>('latex-log', handler),
   onLatexRunStart: (handler: (p: LatexRunStartPayload) => void) =>

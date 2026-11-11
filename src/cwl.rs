@@ -12,7 +12,7 @@
 //! rule that the frontend holds no filesystem capability.
 
 use std::path::PathBuf;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// Longest package name we will look up. TeX package names are short; this only
 /// exists to bound the work done on hostile input.
@@ -47,7 +47,7 @@ fn user_cwl_dir() -> Option<PathBuf> {
 /// The bundled corpus, resolved through Tauri so it works both in `dev` (where
 /// it sits in the repo) and in a packaged app (where it is a bundled resource).
 fn bundled_cwl_dir(app: &AppHandle) -> Option<PathBuf> {
-    app.path_resolver().resolve_resource("resources/cwl")
+    app.path().resolve("resources/cwl", tauri::path::BaseDirectory::Resource).ok()
 }
 
 /// Read one `.cwl` file's text, preferring a user override over the bundle.

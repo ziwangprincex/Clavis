@@ -470,6 +470,7 @@
   "Save paused: review the disk changes before saving": "保存已暂停：请先检查磁盘上的修改",
   "Save paused: the file changed on disk. The draft is preserved.": "保存已暂停：磁盘上的文件已变化，草稿已保留。",
   "PDF exported": "PDF 已导出",
+  "PDF not saved: {detail}": "PDF 未保存：{detail}",
   "No compiled PDF yet": "尚未编译出 PDF",
   "Export failed": "导出失败",
   "Compiling PDF…": "正在编译 PDF…",

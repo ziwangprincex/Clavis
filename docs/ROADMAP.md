@@ -94,18 +94,6 @@ visible.
 
 ---
 
-## P2 — Tauri v2 migration
-
-Tauri v1 is in maintenance mode. Plan as a dedicated milestone: `src/main.rs`
-handler registration, `web/src/api/tauri.ts`, `tauri.conf.json` v2 schema,
-updater/dialog/window allowlist → plugins, CSP differences, the PDF window
-(`open_pdf_window` and its cross-window events). Freeze v1-only features during
-the migration. Afterwards switch to the `@tauri-apps/api` npm
-package with `withGlobalTauri: false` and drop `'unsafe-inline'` from
-`script-src`.
-
----
-
 ## P3 — Native macOS shell (assessed 2026-10-15, not planned)
 
 A SwiftUI/AppKit rewrite would keep the Rust core (through FFI) but replace the

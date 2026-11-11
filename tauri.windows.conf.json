@@ -1,7 +1,8 @@
 {
-  "tauri": {
+  "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Clavis — Markdown · LaTeX · Typst",
         "width": 1400,
         "height": 900,
@@ -12,7 +13,8 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "decorations": false,
-        "transparent": false
+        "transparent": false,
+        "useHttpsScheme": true
       }
     ]
   }

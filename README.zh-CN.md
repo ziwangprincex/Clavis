@@ -68,7 +68,7 @@ Typst 已内置。LaTeX 需要 TeX Live 或 MacTeX；中文与自定义字体建
 ## 开发
 
 需要 Rust 1.92+、Node.js 22 LTS（22.13+）和
-[Tauri 1 系统依赖](https://v1.tauri.app/v1/guides/getting-started/prerequisites)。
+[Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)。
 在仓库根目录运行：
 
 ```bash

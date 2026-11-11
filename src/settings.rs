@@ -94,7 +94,7 @@ fn settings_path(app: &AppHandle) -> Option<PathBuf> {
     // One-shot migration from the previous "tritypeset" name. If our file doesn't
     // exist yet but the legacy one does, copy it across silently.
     if !new_path.exists() {
-        if let Some(base) = tauri::api::path::config_dir() {
+        if let Some(base) = dirs::config_dir() {
             let legacy = base.join("tritypeset").join("settings.json");
             if legacy.exists() {
                 let _ = std::fs::copy(&legacy, &new_path);
@@ -108,7 +108,7 @@ fn settings_path(app: &AppHandle) -> Option<PathBuf> {
 /// The `<config_dir>/clavis` directory, created if missing. Shared by settings
 /// and session persistence so they live side by side.
 pub fn clavis_config_dir() -> Option<PathBuf> {
-    let base = tauri::api::path::config_dir()?;
+    let base = dirs::config_dir()?;
     let dir = base.join("clavis");
     let _ = std::fs::create_dir_all(&dir);
     Some(dir)

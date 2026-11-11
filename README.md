@@ -93,7 +93,7 @@ Updates are checked in Settings → Updates.
 ## Development
 
 Requires Rust 1.92+, Node.js 22 LTS (22.13+), and
-[Tauri 1 system dependencies](https://v1.tauri.app/v1/guides/getting-started/prerequisites).
+[Tauri 2 system dependencies](https://v2.tauri.app/start/prerequisites/).
 Run from the repository root:
 
 ```bash

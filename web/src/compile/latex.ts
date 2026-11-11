@@ -107,6 +107,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       source,
       ...resolvedOptions,
       sourceIdentity: sourceRoot ?? tab.id,
+      sourcePath: sourceRoot,
       cacheToken: mode === 'clean' ? null : token,
       requestId: activeRequest!,
       fullBuild: mode === 'full',
@@ -158,7 +159,8 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       stale: !result.ok || buffersChanged,
       workdirToken: result.ok && ownerStillOpen && !buffersChanged ? result.workdirToken : null,
     });
-    setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · details under Problems', result.ok ? 'ok' : 'error');
+    if (result.ok && result.pdfSaveError) setStatus(`PDF not saved: ${result.pdfSaveError}`, 'error');
+    else setStatus(result.ok ? `Rendered (${result.runs} run${result.runs === 1 ? '' : 's'})` : 'Compile failed · details under Problems', result.ok ? 'ok' : 'error');
     return result;
   } catch (error) {
     // A late failure belongs to the document that started it, not the new tab.

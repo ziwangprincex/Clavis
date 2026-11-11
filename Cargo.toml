@@ -8,10 +8,10 @@ edition = "2021"
 rust-version = "1.92"
 
 [build-dependencies]
-tauri-build = { version = "1.5", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "1.6", features = ["dialog-ask", "dialog-confirm", "dialog-message", "dialog-open", "dialog-save", "process-relaunch", "updater", "window-start-dragging", "window-minimize", "window-maximize", "window-unmaximize", "window-close", "icon-ico"] }
+tauri = { version = "2.12.5", features = ["image-ico"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -39,9 +39,13 @@ memmap2 = "0.9.10"
 ttf-parser = "0.25.1"
 unicode-normalization = "0.1"
 sha2 = "0.10.9"
+dirs = "7"
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-updater = "2.14.1"
 
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_Controls"] }
+[dev-dependencies]
+tauri = { version = "2.12.5", features = ["image-ico", "test"] }
 
 [features]
 default = ["custom-protocol"]
