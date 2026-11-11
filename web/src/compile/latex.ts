@@ -1,12 +1,13 @@
-import { ipc, events, dialogConfirm, type CompileResult } from '../api/tauri';
-import { useCompileStore, usePdfStore, useTabsStore, useSettingsStore, useProjectStore } from '../store';
+import { ipc, events, fs, dialogConfirm, type CompileResult, type LatexDiag } from '../api/tauri';
+import { useCompileStore, usePdfStore, useTabsStore, useSettingsStore, useProjectStore, type Tab } from '../store';
 import { setStatus } from '../store/status';
 import { pathsEqual } from '../files/projectPaths';
 import { belongsToPdf, latexRoot } from './target';
 import { latexOptions, workspaceFor } from './project';
 
-function base64ToBytes(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), char => char.charCodeAt(0));
+/** The main file's text, for its magic comments: its open buffer, else the file. */
+async function mainText(root: string, tabs: Tab[]): Promise<string> {
+  return tabs.find(t => pathsEqual(t.filePath, root))?.content ?? await fs.readTextFile(root);
 }
 
 useTabsStore.subscribe(state => {
@@ -82,47 +83,56 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
       await ipc.setWorkspaceTrust(workspace.root, true);
     }
     if (cancelled) throw new Error('Compilation cancelled');
-    const collected = root ? await ipc.collectLatexSnapshot(root, state.tabs
-      .filter(t => t.filePath)
-      .map(t => ({ path: t.filePath!, content: t.content }))) : null;
-    const rootFile = collected?.files.find(file => pathsEqual(file.absPath, root));
-    if (root && !rootFile) throw new Error('Project main document was not found in the compile snapshot.');
-    const source = rootFile?.content ?? tab.content;
-    const files = collected?.files ?? [];
-    const sourceRoot = rootFile?.absPath ?? root;
-    context = { sourceRoot, sourceFiles: files, ownerTabId: tab.id };
     const owner = state.tabs.find(t => root && pathsEqual(t.filePath, root)) ?? tab;
-    // Workdirs are owned by the main document, not whichever chapter is active.
+    // Build folders are owned by the main document, not whichever chapter is active.
     const token = owner.latexWorkdirToken;
-    if (collected && sourceRoot && latexRoot(tab, useProjectStore.getState()) === root) {
-      useProjectStore.getState().setProject({
-        rootAbs: sourceRoot, rootBasename: collected.rootRel, activeAbs: tab.filePath,
-        files, warnings: collected.warnings,
-      });
-    }
+    const resolvedOptions = latexOptions(tab, root ? await mainText(root, state.tabs) : tab.content);
     if (cancelled) throw new Error('Compilation cancelled');
-    const resolvedOptions = latexOptions(tab, source);
     nativeStarted = true;
-    const result = await ipc.compileLatex({
-      source,
+    // The backend reads the project from disk itself. It gets the open buffers
+    // to compile in place of their files, without saving them.
+    const built = await ipc.compileLatex({
+      source: tab.content,
+      rootPath: root,
+      documents: root ? state.tabs.filter(t => t.filePath).map(t => ({ path: t.filePath!, content: t.content })) : [],
+      sourceIdentity: tab.id,
+      clean: mode === 'clean',
       ...resolvedOptions,
-      sourceIdentity: sourceRoot ?? tab.id,
-      sourcePath: sourceRoot,
-      cacheToken: mode === 'clean' ? null : token,
       requestId: activeRequest!,
       fullBuild: mode === 'full',
       workspaceRoot: workspace?.root,
       autoRerun: mode === 'quick' ? false : settings.auto_rerun,
       maxRuns: mode === 'quick' ? 1 : settings.max_runs,
       synctex: true,
-      // Compile each source snapshot in a fresh directory. A removed include
-      // must never be satisfied by an older project's materialized source.
-      workdirToken: null,
-      projectFiles: files.filter(file => !pathsEqual(file.absPath, sourceRoot)).map(file => ({
-        relPath: file.relPath, content: file.content, binaryBase64: file.binaryBase64 ?? null,
-      })),
     });
-    if (cancelled) result.ok = false;
+    const snapshot = built.snapshot ?? null;
+    const files = snapshot?.files ?? [];
+    const rootFile = files.find(file => pathsEqual(file.absPath, root));
+    const source = rootFile?.content ?? tab.content;
+    const sourceRoot = rootFile?.absPath ?? root;
+    context = { sourceRoot, sourceFiles: files, ownerTabId: tab.id };
+    if (snapshot && sourceRoot && latexRoot(tab, useProjectStore.getState()) === root) {
+      useProjectStore.getState().setProject({
+        rootAbs: sourceRoot, rootBasename: snapshot.rootRel, activeAbs: tab.filePath,
+        files, warnings: snapshot.warnings,
+      });
+    }
+    // The PDF comes separately, as raw bytes rather than base64 text.
+    let pdfBytes: Uint8Array | null = null;
+    let pdfError: LatexDiag | null = null;
+    if (built.ok && !cancelled && built.workdirToken) {
+      try {
+        pdfBytes = await ipc.readBuildPdf(built.workdirToken);
+      } catch (error) {
+        pdfError = { line: null, message: `Could not read the PDF: ${error}`, kind: 'error' };
+      }
+    }
+    // What the build amounts to here; the backend's answer is left as it came.
+    const result: CompileResult = {
+      ...built,
+      ok: built.ok && !cancelled && pdfBytes !== null,
+      errors: pdfError ? [...built.errors ?? [], pdfError] : built.errors ?? [],
+    };
     if (token && token !== result.workdirToken) void ipc.cleanupWorkdir(token).catch(() => {});
     const ownerStillOpen = useTabsStore.getState().tabs.some(t => t.id === owner.id);
     if (result.workdirToken) {
@@ -155,7 +165,7 @@ export async function runLatexCompile(mode: BuildMode = 'normal'): Promise<Compi
     usePdfStore.setState({
       ...context,
       sourceContent: source,
-      bytes: result.ok && result.pdfBase64 ? base64ToBytes(result.pdfBase64) : previousBytes,
+      bytes: result.ok ? pdfBytes : previousBytes,
       stale: !result.ok || buffersChanged,
       workdirToken: result.ok && ownerStillOpen && !buffersChanged ? result.workdirToken : null,
     });

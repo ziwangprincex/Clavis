@@ -24,20 +24,11 @@ mod typst_world;
 mod workspace_search;
 mod user_stylesheet;
 
-use base64::Engine as _;
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 
 type AppState = typst_service::TypstCompiler;
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TypstPdfResult {
-    ok: bool,
-    pdf_base64: Option<String>,
-    error: Option<String>,
-}
 
 #[tauri::command]
 async fn compile_typst(
@@ -53,20 +44,16 @@ async fn render_formula(state: tauri::State<'_, Arc<AppState>>, source: String) 
     state.inner().clone().formula(source).await
 }
 
+/// The document as a PDF, as raw bytes (an `ArrayBuffer` in the frontend).
 #[tauri::command]
 async fn compile_typst_pdf(
     state: tauri::State<'_, Arc<AppState>>,
     source: String,
     doc_path: Option<String>,
     snapshot: Option<typst_preview::TypstSnapshot>,
-) -> Result<TypstPdfResult, String> {
-    Ok(match state.inner().clone().export(source, doc_path, snapshot.unwrap_or_default()).await {
-        Ok(bytes) => {
-            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-            TypstPdfResult { ok: true, pdf_base64: Some(b64), error: None }
-        }
-        Err(msg) => TypstPdfResult { ok: false, pdf_base64: None, error: Some(msg) },
-    })
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = state.inner().clone().export(source, doc_path, snapshot.unwrap_or_default()).await?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 /// One node in the folder-tree returned by `scan_folder_shallow`.
@@ -81,15 +68,42 @@ struct TreeNode {
     children: Vec<TreeNode>,
 }
 
-/// Write base64-encoded bytes to an arbitrary path the user picked in a save
-/// dialog. Used by the Typst "Export PDF" flow, which gets its bytes from
-/// `compile_typst_pdf` rather than a workdir on disk.
+/// Header naming the file `save_binary_file` writes, percent-encoded because
+/// header values are ASCII and paths are not.
+const PATH_HEADER: &str = "clavis-path";
+
+/// Write the request's raw body to a path the user picked in a save dialog
+/// (Typst PDF export, Markdown HTML export). The bytes travel unencoded.
 #[tauri::command]
-fn save_binary_file(path: String, base64: String) -> Result<(), String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(base64.as_bytes())
-        .map_err(|e| e.to_string())?;
-    std::fs::write(&path, bytes).map_err(|e| e.to_string())
+fn save_binary_file(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected the file's bytes as the request body".into());
+    };
+    let path = request.headers().get(PATH_HEADER).and_then(|value| value.to_str().ok()).ok_or("missing target path")?;
+    let path = percent_encoding::percent_decode_str(path).decode_utf8().map_err(|_| "target path is not UTF-8")?;
+    std::fs::write(path.as_ref(), bytes).map_err(|e| format!("{path}: {e}"))
+}
+
+/// The PDF the main window shows, kept for the PDF window: windows exchange
+/// events as JSON, so the bytes go through here rather than in an event.
+#[derive(Default)]
+struct SharedPdf(parking_lot::Mutex<Option<Arc<Vec<u8>>>>);
+
+/// The main window hands over its PDF (an empty body clears it).
+#[tauri::command]
+fn share_pdf(request: tauri::ipc::Request<'_>, shared: tauri::State<'_, SharedPdf>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected the PDF's bytes as the request body".into());
+    };
+    *shared.0.lock() = (!bytes.is_empty()).then(|| Arc::new(bytes.clone()));
+    Ok(())
+}
+
+/// The PDF window reads the main window's PDF (empty when there is none).
+#[tauri::command]
+fn shared_pdf(shared: tauri::State<'_, SharedPdf>) -> tauri::ipc::Response {
+    let bytes = shared.0.lock().clone();
+    tauri::ipc::Response::new(bytes.map(|bytes| bytes.as_ref().clone()).unwrap_or_default())
 }
 
 /// Read a UTF-8 text file the user opened via the file dialog / recent list.
@@ -327,6 +341,7 @@ fn main() {
     builder
         .manage(state)
         .manage(latex_state)
+        .manage(SharedPdf::default())
         .setup(|app| {
             // The frameless Windows window keeps its drop shadow: Tauri 2 draws
             // one for undecorated windows (`shadow` defaults to true).
@@ -358,6 +373,8 @@ fn main() {
             user_stylesheet::read_user_stylesheet,
             user_stylesheet::write_user_stylesheet,
             save_binary_file,
+            share_pdf,
+            shared_pdf,
             read_text_file,
             document_io::read_document,
             document_io::probe_documents,
@@ -372,8 +389,8 @@ fn main() {
             latex::synctex::synctex_backward,
             latex::workdir::cleanup_workdir,
             latex::workdir::export_latex_pdf,
+            latex::workdir::read_build_pdf,
             latex::project::collect_project_files,
-            latex::project::collect_latex_snapshot,
             latex::distro::detect_distro,
             latex::distro::install_package,
             latex::parse_bib,

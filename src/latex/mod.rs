@@ -5,7 +5,8 @@
 //! - Auto rerun for cross references and BibTeX/biber
 //! - Configurable engine + custom path
 //! - SyncTeX forward / backward via the `synctex` CLI
-//! - Workdir registry keyed by token so SyncTeX can find the .synctex.gz later
+//! - One reusable build folder per document, keyed by token so SyncTeX can find
+//!   the .synctex.gz later
 //!
 //! Split into focused submodules. Tauri commands are registered in `main.rs`
 //! by their canonical path (e.g. `latex::compile::compile_latex`) because the
@@ -13,8 +14,8 @@
 //! `pub use` re-export would not carry. Only the handful of items used by other
 //! crates modules are re-exported below.
 
+pub(crate) mod build_dir;
 pub(crate) mod compile;
-pub(crate) mod cache;
 pub(crate) mod diagnostics;
 pub(crate) mod distro;
 pub(crate) mod engine;

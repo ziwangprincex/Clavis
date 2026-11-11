@@ -4,7 +4,7 @@
 // packages directly, so the entire IPC surface is type-checked in one place
 // and the browser preview (no Tauri) fails in one place too.
 
-import { invoke as tauriInvoke, isTauri } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke, isTauri, type InvokeArgs, type InvokeOptions } from '@tauri-apps/api/core';
 import { listen as tauriListen, emit as tauriEmit } from '@tauri-apps/api/event';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -12,8 +12,6 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch as processRelaunch } from '@tauri-apps/plugin-process';
-
-type InvokeArgs = Record<string, unknown> | undefined;
 
 /** Result of checkUpdate(). */
 export interface UpdateManifest {
@@ -36,9 +34,14 @@ function requireTauri(): void {
 
 // ---------- Generic helpers ----------
 
-export function invoke<T = unknown>(cmd: string, args?: InvokeArgs): Promise<T> {
+export function invoke<T = unknown>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
   requireTauri();
-  return tauriInvoke<T>(cmd, args);
+  return options ? tauriInvoke<T>(cmd, args, options) : tauriInvoke<T>(cmd, args);
+}
+
+/** A command that answers with raw bytes (an ArrayBuffer), not JSON. */
+async function invokeBytes(cmd: string, args?: InvokeArgs): Promise<Uint8Array> {
+  return new Uint8Array(await invoke<ArrayBuffer>(cmd, args));
 }
 
 export function listen<T = unknown>(
@@ -178,18 +181,20 @@ export const fs = {
 // Kept loose on purpose — fields are added as panels are migrated and need
 // the precision. The Rust side serialises with serde rename_all = "camelCase".
 
-export interface ProjectFile {
-  relPath: string;
-  content: string;
-  binaryBase64?: string | null;
-}
-
 export interface CompileOptions {
+  /** Text of a document without a saved main file; ignored with `rootPath`. */
   source: string;
+  /**
+   * Saved main `.tex` file. The backend reads the project from disk, with
+   * `documents` laid over it, and writes `<stem>.pdf` beside it on success.
+   */
+  rootPath?: string | null;
+  /** Open editor buffers to compile instead of the files on disk. */
+  documents?: Array<{ path: string; content: string }>;
+  /** Names the build folder of a document without a main file. */
   sourceIdentity?: string | null;
-  /** Saved main `.tex` file; a successful build writes `<stem>.pdf` beside it. */
-  sourcePath?: string | null;
-  cacheToken?: string | null;
+  /** Start without the previous build's auxiliary files. */
+  clean?: boolean;
   requestId?: string;
   fullBuild?: boolean;
   workspaceRoot?: string | null;
@@ -199,8 +204,6 @@ export interface CompileOptions {
   autoRerun?: boolean;
   maxRuns?: number;
   synctex?: boolean;
-  workdirToken?: string | null;
-  projectFiles?: ProjectFile[];
 }
 
 export interface LatexDiag {
@@ -213,8 +216,8 @@ export interface LatexDiag {
 }
 
 export interface CompileResult {
+  /** The build produced a PDF; read it with `readBuildPdf`. */
   ok: boolean;
-  pdfBase64?: string | null;
   errors: LatexDiag[];
   logTail: string;
   runs: number;
@@ -227,6 +230,8 @@ export interface CompileResult {
   savedPdf?: string | null;
   /** Why the PDF could not be saved beside the source; the build still succeeded. */
   pdfSaveError?: string | null;
+  /** The project as compiled; null for a document without a main file. */
+  snapshot?: CollectResult | null;
 }
 
 export interface BibEntry {
@@ -281,7 +286,8 @@ export interface CollectedFile {
   absPath: string;
   content: string;
   isBib: boolean;
-  binaryBase64?: string | null;
+  /** An image or font: listed only, its bytes stay on disk. */
+  isBinary: boolean;
 }
 
 export interface CollectResult {
@@ -524,12 +530,12 @@ export const ipc = {
   // --- LaTeX ---
   cancelLatexCompile: (requestId: string) => invoke<void>('cancel_latex_compile', { requestId }),
   compileLatex: (opts: CompileOptions) => invoke<CompileResult>('compile_latex', { opts }),
+  /** The PDF of a document's last build. */
+  readBuildPdf: (workdirToken: string) => invokeBytes('read_build_pdf', { workdirToken }),
   exportLatexPdf: (workdirToken: string, targetPath: string) =>
     invoke<void>('export_latex_pdf', { workdirToken, targetPath }),
   collectProjectFiles: (root: string) =>
     invoke<CollectResult>('collect_project_files', { root }),
-  collectLatexSnapshot: (root: string, documents: Array<{ path: string; content: string }>) =>
-    invoke<CollectResult>('collect_latex_snapshot', { root, documents }),
   detectDistro: (enginePath?: string) =>
     invoke<DistroInfo>('detect_distro', { enginePath }),
   installPackage: (manager: string, name: string) =>
@@ -556,8 +562,9 @@ export const ipc = {
   renderFormula: (source: string) => invoke<string | null>('render_formula', { source }),
   compileTypst: (source: string, docPath?: string | null, snapshot?: TypstSnapshot) =>
     invoke<TypstResult>('compile_typst', { source, docPath, snapshot }),
+  /** Rejects with the compiler's message when the document does not compile. */
   compileTypstPdf: (source: string, docPath?: string | null, snapshot?: TypstSnapshot) =>
-    invoke<{ ok: boolean; pdfBase64?: string; error?: string }>('compile_typst_pdf', { source, docPath, snapshot }),
+    invokeBytes('compile_typst_pdf', { source, docPath, snapshot }),
   downloadTypstPackage: (spec: string, confirmed: boolean) => invoke<void>('download_typst_package', { spec, confirmed }),
   // Builtin function signatures for the parameter tooltip. Fetched once and
   // cached client-side: the tooltip refreshes on every cursor move, and the data
@@ -578,8 +585,16 @@ export const ipc = {
   closeWindow: () => invoke<void>('close_this_window'),
   /** Folder modification stamps (null for a missing folder), to notice added, removed or renamed entries. */
   folderStamps: (paths: string[]) => invoke<(string | null)[]>('folder_stamps', { paths }),
-  saveBinaryFile: (path: string, base64: string) =>
-    invoke<void>('save_binary_file', { path, base64 }),
+  /** Writes bytes to a path the user chose; the bytes travel unencoded. */
+  saveBinaryFile: (path: string, bytes: Uint8Array) =>
+    invoke<void>('save_binary_file', bytes, { headers: { 'clavis-path': encodeURIComponent(path) } }),
+  /** Main window: hand the shown PDF to the PDF window (null clears it). */
+  sharePdf: (bytes: Uint8Array | null) => invoke<void>('share_pdf', bytes ?? new Uint8Array()),
+  /** PDF window: the main window's PDF, or null. */
+  sharedPdf: async () => {
+    const bytes = await invokeBytes('shared_pdf');
+    return bytes.length ? bytes : null;
+  },
 };
 
 // ---------- Event helpers ----------

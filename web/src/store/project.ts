@@ -8,10 +8,10 @@ export interface ProjectFile {
   /** relative path inside the project (with forward slashes) */
   relPath: string;
   absPath: string;
-  /** text content for editable files; null for binary */
+  /** text content for editable files; empty for binary */
   content: string;
-  /** base64 of binary content if applicable */
-  binaryBase64?: string | null;
+  /** An image or font: listed only, its bytes stay on disk. */
+  isBinary?: boolean;
   /** convenience flag set by collect_project_files */
   isBib?: boolean;
 }

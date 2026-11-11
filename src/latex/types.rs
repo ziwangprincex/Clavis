@@ -2,18 +2,29 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::project::{CollectResult, SourceOverlay};
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileOptions {
+    /// Text of a document that has no saved main file. Ignored when
+    /// `root_path` is set: the main file's text then comes from the snapshot.
+    #[serde(default)]
     pub source: String,
+    /// Absolute path of the saved main `.tex`. The backend reads the project
+    /// from disk itself, with `documents` laid over it, and a successful build
+    /// also writes `<stem>.pdf` beside it, as other TeX editors do.
+    #[serde(default)]
+    pub root_path: Option<String>,
+    /// Open editor buffers (path and text) to use instead of the files on disk.
+    #[serde(default)]
+    pub documents: Vec<SourceOverlay>,
+    /// Names the build folder of a document without a main file (a tab id).
     #[serde(default)]
     pub source_identity: Option<String>,
-    /// Absolute path of the saved main `.tex` file. When set, a successful
-    /// build also writes `<stem>.pdf` beside it, as other TeX editors do.
+    /// Start from an empty build folder, without the previous auxiliary files.
     #[serde(default)]
-    pub source_path: Option<String>,
-    #[serde(default)]
-    pub cache_token: Option<String>,
+    pub clean: bool,
     #[serde(default)]
     pub request_id: Option<String>,
     #[serde(default)]
@@ -31,22 +42,6 @@ pub struct CompileOptions {
     pub max_runs: u32,
     #[serde(default = "default_true")]
     pub synctex: bool,
-    #[serde(default)]
-    pub workdir_token: Option<String>,
-    /// Multi-file project: relative paths + content for every auxiliary file.
-    /// `main.tex` is overwritten by `source`; do not include it here.
-    #[serde(default)]
-    pub project_files: Vec<ProjectFile>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectFile {
-    /// Relative path inside the workdir (e.g. "chapters/intro.tex"). Must not escape root.
-    pub rel_path: String,
-    pub content: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub binary_base64: Option<String>,
 }
 
 fn default_true() -> bool { true }
@@ -55,8 +50,8 @@ fn default_max_runs() -> u32 { 4 }
 #[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileResult {
+    /// The build produced a PDF; read it with `read_build_pdf`.
     pub ok: bool,
-    pub pdf_base64: Option<String>,
     pub errors: Vec<LatexDiag>,
     pub log_tail: String,
     pub runs: u32,
@@ -69,6 +64,8 @@ pub struct CompileResult {
     pub saved_pdf: Option<String>,
     /// Why the PDF could not be saved beside the source. The build still succeeded.
     pub pdf_save_error: Option<String>,
+    /// The project as it was compiled (none for a document without a main file).
+    pub snapshot: Option<CollectResult>,
 }
 
 #[derive(Debug, Serialize)]

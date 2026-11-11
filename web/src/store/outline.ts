@@ -83,7 +83,7 @@ export function parseProjectOutline(
   for (const f of files) {
     // Skip bibliographies and binary assets (images/fonts have empty content).
     if (f.isBib) continue;
-    if (f.binaryBase64) continue;
+    if (f.isBinary) continue;
     const isActive = activeAbs != null && pathsEqual(f.absPath, activeAbs);
     const text = isActive ? (activeContent ?? f.content) : f.content;
     if (!text) continue;
@@ -156,7 +156,7 @@ export function parseLatexLists(content: string, files?: ProjectFile[], activeAb
     return lists;
   }
   for (const f of files) {
-    if (f.isBib || f.binaryBase64) continue;
+    if (f.isBib || f.isBinary) continue;
     const text = activeAbs != null && pathsEqual(f.absPath, activeAbs) ? content : f.content;
     if (text) latexLists(text, f.absPath, cited, lists);
   }

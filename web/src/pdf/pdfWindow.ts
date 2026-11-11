@@ -1,12 +1,13 @@
 // The PDF in a window of its own, which can sit on another display, as
 // Texifier's external-display viewer does. The main window stays in charge of
 // compiling and SyncTeX: it sends the PDF and scroll requests to the PDF
-// window, which sends back the place a reader clicks.
+// window, which sends back the place a reader clicks. Events carry JSON, so
+// the PDF's bytes go through the backend (`sharePdf` / `sharedPdf`) and the
+// event only says that a new one is there.
 
 import { useEffect } from 'react';
 import { emit, hasTauri, ipc, listen } from '../api/tauri';
 import { usePdfStore } from '../store';
-import { base64 } from '../render/markdownView';
 
 const READY = 'pdf-window-ready';
 const CLOSED = 'pdf-window-closed';
@@ -29,7 +30,7 @@ export function usePdfWindowFeed(onSyncTex: (page: number, x: number, y: number)
       const { bytes } = usePdfStore.getState();
       if (!open || (!force && bytes === sent)) return;
       sent = bytes;
-      void emit(DOCUMENT, { data: bytes ? base64(bytes) : null });
+      void ipc.sharePdf(bytes).then(() => emit(DOCUMENT)).catch(error => console.error('could not send the PDF to its window', error));
     };
     const offs = [
       listen(READY, () => { open = true; send(true); }),
@@ -55,9 +56,14 @@ export function usePdfWindowFeed(onSyncTex: (page: number, x: number, y: number)
 export function usePdfWindowFollow(): void {
   useEffect(() => {
     if (!hasTauri()) return;
+    // Only the newest read counts, should two answers arrive out of order.
+    let latest = 0;
     const offs = [
-      listen<{ data: string | null }>(DOCUMENT, ({ data }) => {
-        usePdfStore.setState({ bytes: data ? Uint8Array.from(atob(data), ch => ch.charCodeAt(0)) : null, stale: false });
+      listen(DOCUMENT, () => {
+        const read = ++latest;
+        void ipc.sharedPdf()
+          .then(bytes => { if (read === latest) usePdfStore.setState({ bytes, stale: false }); })
+          .catch(error => console.error('could not read the PDF', error));
       }),
       listen<{ page: number; y: number | null }>(SCROLL, ({ page, y }) => usePdfStore.getState().requestScroll(page, y)),
     ];

@@ -1,16 +1,18 @@
-//! The `compile_latex` command: orchestrates workdir setup, project-file
-//! materialization, engine invocation with auto-rerun + bib passes, and result
-//! assembly.
+//! The `compile_latex` command: reads the project (with the open editor
+//! buffers laid over it), syncs it into the document's build folder, runs the
+//! engine with auto-rerun and bibliography passes, and assembles the result.
+//! The PDF stays in the build folder (`read_build_pdf`) and is also saved
+//! beside the main file.
 
 use tauri::Emitter as _;
-use base64::Engine as _;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tempfile::TempDir;
 
+use super::build_dir::{self, Content, Input};
 use super::diagnostics::{detect_bib_kind, log_tail, merge_diags, parse_diags, rerun_signal};
 use super::engine::{resolve_engine, run_streaming};
-use super::project::{is_font_like_ext, is_safe_relpath, write_local_cjk_font_shim};
+use super::project::{collect_with_overlays, write_local_cjk_font_shim, CollectResult};
 use super::types::{CompileOptions, CompileResult, LatexDiag};
 use super::workdir::LatexState;
 use super::{MAIN_PDF, MAIN_TEX};
@@ -20,111 +22,88 @@ const TOTAL_COMPILE_TIMEOUT: Duration = Duration::from_secs(180);
 /// Generic over the runtime so a test can call it through Tauri's IPC layer.
 #[tauri::command]
 pub async fn compile_latex<R: tauri::Runtime>(
-    opts: CompileOptions,
+    mut opts: CompileOptions,
     window: tauri::Window<R>,
     state: tauri::State<'_, LatexState>,
 ) -> Result<CompileResult, String> {
     let request_id = opts.request_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let cancel = state.cancellations.lock().entry(request_id.clone()).or_default().clone();
-    let _guard = super::workdir::CompileGuard { id: request_id, state: &state };
-    if cancel.load(std::sync::atomic::Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
+    let _guard = super::workdir::CompileGuard { id: request_id.clone(), state: &state };
+    if cancel.load(Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
     let trusted_root = if opts.full_build {
         Some(crate::project_config::trusted_workspace_root(opts.workspace_root.as_deref().ok_or("Full build requires a trusted workspace")?)?)
     } else { None };
-    let previous = opts.cache_token.as_deref().or(opts.workdir_token.as_deref()).and_then(|token| state.get(token));
-    let dir = TempDir::new().map_err(|e| format!("tempdir: {e}"))?;
-    let token = uuid::Uuid::new_v4().to_string();
-    state.insert(token.clone(), dir);
-    let workdir_arc = state.get(&token).ok_or("workdir vanished")?;
-    let workdir = workdir_arc.path().to_path_buf();
-    let cleanup_token = token.clone();
-    let result = async {
-    // A reused directory can contain a PDF from a previous invocation.
-    // Invalidate it before any operation that can fail (including resolution).
-    clear_pdf(&workdir)?;
-    super::cache::prepare(&opts, previous.as_ref().map(|p| p.path()), &workdir)?;
 
-    // Write project files first (auxiliary files). Skip any whose rel_path equals MAIN_TEX
-    // (main.tex is always written from `source`).
-    for pf in &opts.project_files {
-        if !is_safe_relpath(&pf.rel_path) {
-            return Ok(CompileResult {
-                ok: false,
-                errors: vec![LatexDiag {
-                    line: None,
-                    file: None,
-                    message: format!("rejected unsafe relative path: {}", pf.rel_path),
-                    kind: "error",
-                    package: None,
-                }],
-                workdir_token: Some(token),
-                ..Default::default()
-            });
+    // What to build: the saved project read from disk with the open buffers
+    // laid over it (without saving them), or a document without a main file.
+    let snapshot = match opts.root_path.clone() {
+        Some(root) => {
+            let documents = std::mem::take(&mut opts.documents);
+            Some(tauri::async_runtime::spawn_blocking(move || collect_with_overlays(root, documents))
+                .await
+                .map_err(|e| format!("project reader failed: {e}"))??)
         }
-        if pf.rel_path == MAIN_TEX { continue; }
-        let dst = workdir.join(&pf.rel_path);
-        if let Some(parent) = dst.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        if let Some(b64) = &pf.binary_base64 {
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(b64.as_bytes())
-                .map_err(|e| format!("decode {}: {e}", pf.rel_path))?;
-            std::fs::write(&dst, &bytes)
-                .map_err(|e| format!("write {}: {e}", pf.rel_path))?;
-
-            let ext = Path::new(&pf.rel_path)
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            if is_font_like_ext(&ext) {
-                if let Some(name) = Path::new(&pf.rel_path).file_name().and_then(|n| n.to_str()) {
-                    let alias = workdir.join(name);
-                    if alias != dst {
-                        let _ = std::fs::write(alias, &bytes);
-                    }
-                }
-            }
-        } else {
-            std::fs::write(&dst, pf.content.as_bytes())
-                .map_err(|e| format!("write {}: {e}", pf.rel_path))?;
-        }
+        None => None,
+    };
+    // The first collected file is the main file, at its canonical path.
+    let identity = match &snapshot {
+        Some(snapshot) => format!("main:{}", snapshot.files[0].source.display()),
+        None => format!("scratch:{}", opts.source_identity.as_deref().unwrap_or(&request_id)),
+    };
+    let (token, build) = state.build_for(&identity)?;
+    let busy = build.busy.lock().await;
+    let mut result = build_in(&opts, snapshot.as_ref(), build.path(), &token, trusted_root.as_deref(), &window, &cancel).await;
+    drop(busy);
+    match &mut result {
+        Ok(result) => result.snapshot = snapshot,
+        // A cancelled or broken run can leave half-written auxiliary files.
+        Err(_) => state.remove(&token),
     }
+    result
+}
 
-    let has_local_fonts = opts.project_files.iter().any(|pf| {
-        if pf.binary_base64.is_none() { return false; }
-        let ext = Path::new(&pf.rel_path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        is_font_like_ext(&ext)
-    });
-    if let Err(e) = write_local_cjk_font_shim(&workdir, &opts.source, has_local_fonts) {
-        return Ok(CompileResult {
-            ok: false,
-            errors: vec![LatexDiag { line: None, file: None, message: format!("write cjk shim: {e}"), kind: "error", package: None }],
-            workdir_token: Some(token),
-            ..Default::default()
-        });
+/// Syncs the sources into `workdir` and runs the engine there.
+async fn build_in<R: tauri::Runtime>(
+    opts: &CompileOptions,
+    snapshot: Option<&CollectResult>,
+    workdir: &Path,
+    token: &str,
+    trusted_root: Option<&Path>,
+    window: &tauri::Window<R>,
+    cancel: &AtomicBool,
+) -> Result<CompileResult, String> {
+    let fail = |message: String| CompileResult {
+        ok: false,
+        errors: vec![LatexDiag { line: None, file: None, message, kind: "error", package: None }],
+        workdir_token: Some(token.to_string()),
+        ..Default::default()
+    };
+    // The folder holds the previous build's PDF. Invalidate it before anything
+    // that can fail.
+    clear_pdf(workdir)?;
+
+    let main_source = snapshot.map_or(opts.source.as_str(), |snapshot| snapshot.files[0].content.as_str());
+    let inputs: Vec<Input> = snapshot
+        .map(|snapshot| {
+            snapshot.files[1..]
+                .iter()
+                .map(|file| Input {
+                    rel_path: &file.rel_path,
+                    content: if file.is_binary { Content::File(&file.source) } else { Content::Text(&file.content) },
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Err(e) = build_dir::sync(workdir, &build_dir::signature(opts, &inputs), opts.clean, main_source, &inputs) {
+        return Ok(fail(e));
     }
-
-    // Write main.tex (always from `source`).
-    let tex_path = workdir.join(MAIN_TEX);
-    std::fs::write(&tex_path, opts.source.as_bytes())
-        .map_err(|e| format!("write main.tex: {e}"))?;
+    if let Err(e) = write_local_cjk_font_shim(workdir, main_source, inputs.iter().any(Input::is_font)) {
+        return Ok(fail(format!("write cjk shim: {e}")));
+    }
 
     let engine_path = match resolve_engine(if opts.full_build { "latexmk" } else { &opts.engine }, if opts.full_build { None } else { opts.custom_path.as_deref() }) {
         Ok(p) => p,
-        Err(e) => {
-            return Ok(CompileResult {
-                ok: false,
-                errors: vec![LatexDiag { line: None, file: None, message: e, kind: "error", package: None }],
-                workdir_token: Some(token),
-                ..Default::default()
-            });
-        }
+        Err(e) => return Ok(fail(e)),
     };
 
     // Build arg vector (tex filename last; Path-based outputs)
@@ -143,17 +122,10 @@ pub async fn compile_latex<R: tauri::Runtime>(
     let mut bib_tool: Option<String> = None;
     let max_runs = if opts.full_build { 1 } else { opts.max_runs.clamp(1, 8) };
     let mut font_dirs: Vec<PathBuf> = Vec::new();
-    for pf in &opts.project_files {
-        if !pf.binary_base64.is_some() { continue; }
-        let ext = Path::new(&pf.rel_path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if !is_font_like_ext(&ext) { continue; }
-        if let Some(parent) = Path::new(&pf.rel_path).parent() {
+    for input in inputs.iter().filter(|input| input.is_font()) {
+        if let Some(parent) = Path::new(input.rel_path).parent() {
             let dir = workdir.join(parent);
-            if !font_dirs.iter().any(|d| d == &dir) {
+            if !font_dirs.contains(&dir) {
                 font_dirs.push(dir);
             }
         }
@@ -164,16 +136,12 @@ pub async fn compile_latex<R: tauri::Runtime>(
         "none" => None,
         "bibtex" => Some("bibtex"),
         "biber" => Some("biber"),
-        _ => {
-            let mut detected = detect_bib_kind(&opts.source);
-            if detected.is_none() {
-                for pf in &opts.project_files {
-                    detected = detect_bib_kind(&pf.content);
-                    if detected.is_some() { break; }
-                }
-            }
-            detected
-        }
+        _ => detect_bib_kind(main_source).or_else(|| {
+            inputs.iter().find_map(|input| match input.content {
+                Content::Text(text) => detect_bib_kind(text),
+                Content::File(_) => None,
+            })
+        }),
     };
 
     let started = std::time::Instant::now();
@@ -181,13 +149,13 @@ pub async fn compile_latex<R: tauri::Runtime>(
     let mut success = false;
 
     while runs < max_runs {
-        if cancel.load(std::sync::atomic::Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
+        if cancel.load(Ordering::SeqCst) { return Err("Compilation cancelled".into()); }
         if started.elapsed() > TOTAL_COMPILE_TIMEOUT {
             log_full.push_str("\n[clavis] total compile timeout exceeded\n");
             success = false;
             break;
         }
-        clear_pdf(&workdir)?;
+        clear_pdf(workdir)?;
         runs += 1;
         let mut args: Vec<&str> = vec![
             "-interaction=nonstopmode",
@@ -205,13 +173,13 @@ pub async fn compile_latex<R: tauri::Runtime>(
         ];
         let full_args;
         if opts.full_build {
-            full_args = full_build_args(&opts, trusted_root.as_deref())?;
+            full_args = full_build_args(opts, trusted_root)?;
             args = full_args.iter().map(String::as_str).collect();
         }
-        let (code, out) = match run_streaming(&engine_path, &args, &workdir, &font_dirs, &window, runs, &cancel).await {
+        let (code, out) = match run_streaming(&engine_path, &args, workdir, &font_dirs, window, runs, cancel).await {
             Ok(r) => r,
             Err(e) => {
-                clear_pdf(&workdir)?;
+                clear_pdf(workdir)?;
                 log_full.push_str(&format!("\n[clavis] {}\n", e));
                 let _ = window.emit("latex-done", serde_json::json!({ "ok": false, "runs": runs }));
                 return Ok(CompileResult {
@@ -219,7 +187,7 @@ pub async fn compile_latex<R: tauri::Runtime>(
                     errors: vec![LatexDiag { line: None, file: None, message: e, kind: "error", package: None }],
                     log_tail: log_tail(&log_full),
                     runs,
-                    workdir_token: Some(token),
+                    workdir_token: Some(token.to_string()),
                     ..Default::default()
                 });
             }
@@ -227,7 +195,7 @@ pub async fn compile_latex<R: tauri::Runtime>(
         log_full.push_str(&out);
         last_latex_out = out.clone();
 
-        success = run_succeeded(code, &workdir);
+        success = run_succeeded(code, workdir);
         if !success { break; }
 
         // After first run, optionally invoke bibtex/biber once.
@@ -242,7 +210,7 @@ pub async fn compile_latex<R: tauri::Runtime>(
                             vec!["main".to_string()]
                         };
                         let bib_args_ref: Vec<&str> = bib_args.iter().map(|s| s.as_str()).collect();
-                        match run_streaming(&bib_path, &bib_args_ref, &workdir, &font_dirs, &window, runs, &cancel).await {
+                        match run_streaming(&bib_path, &bib_args_ref, workdir, &font_dirs, window, runs, cancel).await {
                             Ok((bib_code, bo)) => {
                                 bib_tool = Some(bib_name.to_string());
                                 // Harvest persistent diagnostics from bib runner output
@@ -291,15 +259,15 @@ pub async fn compile_latex<R: tauri::Runtime>(
     }
 
     success = success && !bib_diags.iter().any(|diag| diag.kind == "error");
-    if !success { clear_pdf(&workdir)?; }
+    if !success { clear_pdf(workdir)?; }
     let _ = window.emit("latex-done", serde_json::json!({ "ok": success, "runs": runs }));
 
     let mut errors = merge_diags(parse_diags(&last_latex_out), &bib_diags);
     if !success && !errors.iter().any(|diag| diag.kind == "error") {
         errors.push(LatexDiag { line: None, file: None, message: "LaTeX did not finish successfully with a new PDF. See the compile log.".to_string(), kind: "error", package: None });
     }
-    let pdf = if success { read_pdf(&workdir) } else { None };
-    let (saved_pdf, pdf_save_error) = match (&pdf, opts.source_path.as_deref()) {
+    let pdf = if success { read_pdf(workdir) } else { None };
+    let (saved_pdf, pdf_save_error) = match (&pdf, opts.root_path.as_deref()) {
         (Some(bytes), Some(source)) => match save_beside_source(Path::new(source), bytes) {
             Ok(path) => (Some(path.to_string_lossy().into_owned()), None),
             Err(e) => (None, Some(e)),
@@ -308,19 +276,16 @@ pub async fn compile_latex<R: tauri::Runtime>(
     };
     Ok(CompileResult {
         ok: success && pdf.is_some(),
-        pdf_base64: pdf.map(|bytes| base64::engine::general_purpose::STANDARD.encode(bytes)),
         errors,
         log_tail: log_tail(&log_full),
         runs,
-        workdir_token: Some(token),
+        workdir_token: Some(token.to_string()),
         engine: if opts.full_build { "latexmk".to_string() } else { opts.engine.clone() },
         bib_tool,
         saved_pdf,
         pdf_save_error,
+        snapshot: None,
     })
-    }.await;
-    if result.is_err() { state.remove(&cleanup_token); }
-    result
 }
 
 fn full_build_args(opts: &CompileOptions, root: Option<&Path>) -> Result<Vec<String>, String> {
@@ -481,46 +446,65 @@ mod tests {
     }
 
     /// The whole path a compile takes in the app: the frontend's camelCase
-    /// options through Tauri's IPC layer, a real pdflatex run, and the PDF
-    /// written beside the source.
+    /// options through Tauri's IPC layer, the project read from disk with an
+    /// unsaved buffer laid over it, a real pdflatex run, the PDF saved beside
+    /// the source and read back as raw bytes, and the build folder reused.
     #[test]
     #[ignore = "requires an installed pdflatex"]
-    fn the_compile_command_saves_the_pdf_beside_the_source() {
+    fn the_compile_command_builds_a_project_from_disk_and_unsaved_buffers() {
         use tauri::ipc::{CallbackFn, InvokeBody};
         let app = tauri::test::mock_builder()
             .manage(LatexState::default())
-            .invoke_handler(tauri::generate_handler![compile_latex])
+            .invoke_handler(tauri::generate_handler![compile_latex, super::super::workdir::read_build_pdf])
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();
         let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        let invoke = |cmd: &str, body: serde_json::Value| {
+            tauri::test::get_ipc_response(&webview, tauri::webview::InvokeRequest {
+                cmd: cmd.into(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                // The app's own origin; anything else counts as a remote page.
+                url: if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" }.parse().unwrap(),
+                body: InvokeBody::Json(body),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.to_string(),
+            })
+        };
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("Paper.tex");
-        let text = "\\documentclass{article}\\begin{document}Hello\\end{document}";
-        std::fs::write(&source, text).unwrap();
-        let request = tauri::webview::InvokeRequest {
-            cmd: "compile_latex".into(),
-            callback: CallbackFn(0),
-            error: CallbackFn(1),
-            // The app's own origin; anything else counts as a remote page.
-            url: if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" }.parse().unwrap(),
-            body: InvokeBody::Json(serde_json::json!({ "opts": {
-                "source": text,
-                "sourcePath": source.to_string_lossy(),
+        let chapter = dir.path().join("chapter.tex");
+        std::fs::write(&source, "\\documentclass{article}\\begin{document}\\input{chapter}\\end{document}").unwrap();
+        std::fs::write(&chapter, "saved text").unwrap();
+        let compile = || -> serde_json::Value {
+            invoke("compile_latex", serde_json::json!({ "opts": {
+                "rootPath": source.to_string_lossy(),
+                "documents": [{ "path": chapter.to_string_lossy(), "content": "unsaved text" }],
                 "engine": "pdflatex",
                 "bibEngine": "none",
-                "projectFiles": [],
-            }})),
-            headers: Default::default(),
-            invoke_key: tauri::test::INVOKE_KEY.to_string(),
-        };
-        let result: serde_json::Value = tauri::test::get_ipc_response(&webview, request)
+            }}))
             .expect("compile_latex failed")
             .deserialize()
-            .unwrap();
-        assert_eq!(result["ok"], true, "{result:#}");
+            .unwrap()
+        };
+
+        let first = compile();
+        assert_eq!(first["ok"], true, "{first:#}");
         let saved = dir.path().join("Paper.pdf");
-        assert_eq!(result["savedPdf"], saved.to_string_lossy().as_ref(), "{result:#}");
-        assert!(std::fs::read(&saved).unwrap().starts_with(b"%PDF-"));
+        assert_eq!(first["savedPdf"], saved.to_string_lossy().as_ref(), "{first:#}");
+        let files = first["snapshot"]["files"].as_array().unwrap();
+        assert!(files.iter().any(|f| f["relPath"] == "chapter.tex" && f["content"] == "unsaved text"), "{first:#}");
+        assert_eq!(std::fs::read_to_string(&chapter).unwrap(), "saved text", "the buffer is compiled, not saved");
+
+        let token = first["workdirToken"].as_str().unwrap();
+        let pdf = invoke("read_build_pdf", serde_json::json!({ "workdirToken": token })).expect("read_build_pdf failed");
+        let tauri::ipc::InvokeResponseBody::Raw(bytes) = pdf else { panic!("the PDF should come back as raw bytes") };
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert_eq!(bytes, std::fs::read(&saved).unwrap());
+
+        let second = compile();
+        assert_eq!(second["ok"], true, "{second:#}");
+        assert_eq!(second["workdirToken"], first["workdirToken"], "the project keeps its build folder");
     }
 
     #[test]

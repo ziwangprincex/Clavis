@@ -4,7 +4,7 @@
 
 import { dialogSave, hasTauri, ipc } from '../api/tauri';
 import { escapeAttr, markdownDocument } from '../render/markdown';
-import { base64, imageReadRoot, localImagePath } from '../render/markdownView';
+import { imageReadRoot, localImagePath } from '../render/markdownView';
 import { drawDiagram } from '../editor/mermaidDiagram';
 import { setStatus } from '../store/status';
 import type { Tab } from '../store';
@@ -84,7 +84,7 @@ export async function exportMarkdownHtml(tab: Tab, language: string): Promise<vo
     const name = title || tab.title.replace(/\.[^.]+$/, '');
     const file = `<!doctype html>\n<html lang="${escapeAttr(language)}">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n`
       + `<title>${escapeAttr(name)}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n<article>\n${body}\n</article>\n</body>\n</html>\n`;
-    await ipc.saveBinaryFile(target, base64(new TextEncoder().encode(file)));
+    await ipc.saveBinaryFile(target, new TextEncoder().encode(file));
     setStatus('HTML exported', 'ok');
   } catch (error) {
     console.error('export HTML failed', error);
