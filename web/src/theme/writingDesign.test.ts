@@ -5,7 +5,7 @@ import { ipc } from '../api/tauri';
 
 vi.mock('../api/tauri', () => ({ ipc: { getSettings: vi.fn() } }));
 const sources = import.meta.glob<string>([
-  '../components/*.module.css', '../App.module.css', '../editor/controller.ts',
+  '../components/*.module.css', '../App.module.css', '../styles/tokens.css', '../editor/controller.ts',
   '../editor/livePreviewTheme.ts', '../components/EditorPane.tsx',
 ], { query: '?raw', import: 'default', eager: true });
 const read = (path: string) => sources[path];
@@ -97,17 +97,62 @@ describe('editorial writing surfaces', () => {
     expect(offScale).toEqual([]);
   });
 
-  it('lines the toolbar up with the titlebar and clears the macOS window buttons', () => {
-    const rule = (name: string, selector: string) => {
-      let found: Record<string, string> | undefined;
-      sheet(name).walkRules(item => {
-        if (item.parent?.type === 'root' && item.selector === selector) found = { ...found, ...declarations(item) };
+  const rule = (name: string, selector: string) => {
+    let found: Record<string, string> | undefined;
+    sheet(name).walkRules(item => {
+      if (item.parent?.type === 'root' && item.selector === selector) found = { ...found, ...declarations(item) };
+    });
+    return found;
+  };
+
+  it('lines the top bars up and clears the macOS window buttons', () => {
+    // The sidebar runs the window's full height, so its view tabs share the
+    // top row with the toolbar.
+    for (const bar of [rule('Toolbar', '.toolbar'), rule('TitleBar', '.titlebar'), rule('Sidebar', '.views')]) {
+      expect(bar?.height).toBe('var(--bar-h)');
+    }
+    // Overlay title bar: the traffic lights sit over the first ~70px of
+    // whichever bar is at the window's left edge.
+    expect(parseInt(/--window-buttons: (\d+)px/.exec(read('../styles/tokens.css'))?.[1] ?? '0')).toBeGreaterThanOrEqual(70);
+    expect(rule('Sidebar', '.views.mac')?.['padding-left']).toBe('var(--window-buttons)');
+    expect(rule('TitleBar', '.titlebar.mac')?.['padding-left']).toBe('var(--window-buttons)');
+  });
+
+  it('sets the bars on the frame and the open document on the page', () => {
+    for (const [name, selector] of [['Sidebar', '.sidebar'], ['TitleBar', '.titlebar'], ['Toolbar', '.toolbar'],
+      ['StartActions', '.root'], ['Tabs', '.bar'], ['StatusBar', '.bar']]) {
+      expect(rule(name, selector)?.background, `${name} ${selector}`).toBe('var(--panel-solid)');
+    }
+    expect(rule('Tabs', '.tab.active')?.background).toBe('var(--bg)');
+  });
+
+  it('starts every bar of the work area on one left edge', () => {
+    for (const [name, selector] of [['Toolbar', '.toolbar'], ['StartActions', '.root'], ['StatusBar', '.bar']]) {
+      expect(rule(name, selector)?.padding, `${name} ${selector}`).toMatch(/^\S+ var\(--bar-inset\)( \S+)?$/);
+    }
+    // The open tab is the page, so the strip starts on the page's own left
+    // edge, with no step between the two; the label of the first tab is what
+    // sits on the bars' edge.
+    expect(rule('Tabs', '.bar')?.padding).toBe('0 var(--bar-inset) 0 0');
+    expect(rule('Tabs', '.tab')?.padding).toMatch(/ var\(--bar-inset\)$/);
+    // Narrow windows tighten the token, never one bar on its own.
+    for (const name of ['Toolbar', 'StartActions', 'Tabs', 'StatusBar']) {
+      sheet(name).walkAtRules('media', media => {
+        media.walkDecls(/^padding(-inline|-left)?$/, decl => {
+          expect(`${name} ${(decl.parent as Rule).selector} { ${decl.prop}: ${decl.value} }`).toMatch(/\.(layoutSwitch button|primaryBtn) \{/);
+        });
       });
-      return found;
-    };
-    expect(rule('Toolbar', '.toolbar')?.height).toBe(rule('TitleBar', '.titlebar')?.height);
-    // Overlay title bar: the traffic lights sit over the first ~70px.
-    expect(parseInt(rule('TitleBar', '.titlebar.mac')?.['padding-left'] ?? '0')).toBeGreaterThanOrEqual(70);
+    }
+  });
+
+  it('sets chrome text in two sizes', () => {
+    const sizes = new Set(['1em', '1rem', 'inherit', 'var(--font-size-small)']);
+    const offScale = decls(/^font-size$/).filter(({ value }) => !sizes.has(value)).map(({ where, value }) => `${where}: ${value}`);
+    // The `font` shorthand carries a size too.
+    const shorthand = decls(/^font$/)
+      .filter(({ value }) => (value.match(/[\d.]+(?:px|r?em)\b/g) ?? []).some(size => !sizes.has(size)))
+      .map(({ where, value }) => `${where}: ${value}`);
+    expect([...offScale, ...shorthand]).toEqual([]);
   });
 
   it('keeps Markdown page widths ordered and proportional to the body font size', () => {

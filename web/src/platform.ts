@@ -1,5 +1,7 @@
+// From the user agent, as main.tsx sets `is-mac` from it: this module is
+// evaluated before that class is added, so the class cannot be read here.
 export const isMac =
-  typeof document !== 'undefined' && document.body.classList.contains('is-mac');
+  typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac');
 
 export function fmtShortcut(shortcut: string): string {
   if (!isMac) return shortcut;

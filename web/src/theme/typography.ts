@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { defaultSettings, type Settings } from '../store/settings';
 
-export const headingSizes: Record<string, number> = { h1: 2.35, h2: 1.65, h3: 1.18, h4: 1, h5: 1, h6: 1 };
+export const headingSizes: Record<string, number> = { h1: 2, h2: 1.5, h3: 1.22, h4: 1.06, h5: 1, h6: 1 };
 export function previewTypography(settings: Settings): CSSProperties {
   const style: Record<string, string | number> = {
     fontFamily: settings.preview_font_family || 'var(--font-sans)',
@@ -22,10 +22,15 @@ export function previewTypography(settings: Settings): CSSProperties {
 export function fontStack(family: string): string {
   return `"${family.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
+const GENERIC = /^(?:serif|sans-serif|monospace|system-ui|ui-.+|cursive|fantasy|math|emoji|fangsong|-apple-system|BlinkMacSystemFont)$/i;
+const families = (stack: string) => (stack.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^,]+/g) ?? [])
+  .map(name => name.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 export function missingFonts(stack: string, installed: string[]): string[] {
   const available = new Set(installed.map(name => name.toLowerCase()));
-  const generic = /^(?:serif|sans-serif|monospace|system-ui|ui-.+|cursive|fantasy|math|emoji|fangsong|-apple-system|BlinkMacSystemFont)$/i;
-  return (stack.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^,]+/g) ?? [])
-    .map(name => name.trim().replace(/^["']|["']$/g, ''))
-    .filter(name => name && !generic.test(name) && !available.has(name.toLowerCase()));
+  return families(stack).filter(name => !GENERIC.test(name) && !available.has(name.toLowerCase()));
+}
+/** The font a stack asks for first, or null when that is the system's own. */
+export function primaryFamily(stack: string): string | null {
+  const first = families(stack)[0];
+  return first && !GENERIC.test(first) ? first : null;
 }

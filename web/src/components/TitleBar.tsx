@@ -7,8 +7,9 @@ import { t } from '../i18n';
 // (min / max-restore / close) call into `appWindow` wrappers.
 //
 // On macOS the traffic lights stay (we keep `decorations: true` there), so this
-// component renders only the brand + drag region with no buttons — the existing
-// `.is-mac { padding-left: 84px }` in Toolbar.module.css moved here.
+// component renders only the brand + drag region with no buttons. It clears the
+// traffic lights only while it is the bar at the window's left edge; with the
+// sidebar shown, the sidebar's own top row does.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { hasTauri, appWindow } from '../api/tauri';
@@ -22,6 +23,8 @@ import styles from './TitleBar.module.css';
 
 export interface TitleBarProps {
   title?: string;
+  /** Whether the bar starts at the window's left edge, with no sidebar beside it. */
+  leading?: boolean;
   children?: ReactNode;
 }
 
@@ -29,7 +32,7 @@ function isMac(): boolean {
   return typeof document !== 'undefined' && document.body.classList.contains('is-mac');
 }
 
-export function TitleBar({ title = 'Clavis', children }: TitleBarProps) {
+export function TitleBar({ title = 'Clavis', leading = true, children }: TitleBarProps) {
   const [maximized, setMaximized] = useState(false);
   const mac = isMac() && hasTauri();
 
@@ -68,7 +71,7 @@ export function TitleBar({ title = 'Clavis', children }: TitleBarProps) {
 
   return (
     <div
-      className={`${styles.titlebar} ${mac ? styles.mac : ''}`}
+      className={`${styles.titlebar} ${mac && leading ? styles.mac : ''}`}
       data-tauri-drag-region
     >
       {children ?? <span className={styles.brand} data-tauri-drag-region>{title}</span>}

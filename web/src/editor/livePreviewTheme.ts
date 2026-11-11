@@ -6,9 +6,14 @@ import { EditorView } from '@codemirror/view';
 export const livePreviewTheme = EditorView.baseTheme({
   // Text, quote bars, code backgrounds, rules and tables share one left edge.
   '.cm-line': { paddingInline: '0' },
+  // A heading sits closer to what it introduces than to what came before, and
+  // its tracking and leading tighten as it grows.
   '.cm-line.cm-md-h1, .cm-line.cm-md-h2, .cm-line.cm-md-h3, .cm-line.cm-md-h4, .cm-line.cm-md-h5, .cm-line.cm-md-h6': {
-    lineHeight: '1.35', paddingTop: '0.65em', paddingBottom: '0.15em',
+    lineHeight: '1.3', paddingTop: '0.8em', paddingBottom: '0.2em',
   },
+  '.cm-line.cm-md-h1': { lineHeight: '1.2', letterSpacing: '-0.022em', paddingTop: '0.4em', paddingBottom: '0.3em' },
+  '.cm-line.cm-md-h2': { lineHeight: '1.25', letterSpacing: '-0.017em', paddingTop: '1em' },
+  '.cm-line.cm-md-h3': { letterSpacing: '-0.01em' },
   '.cm-md-h1': { fontSize: 'var(--h1-size, 2em)', fontWeight: 'var(--h1-weight, 600)', fontFamily: 'var(--h1-font, inherit)' },
   '.cm-md-h2': { fontSize: 'var(--h2-size, 1.5em)', fontWeight: 'var(--h2-weight, 600)', fontFamily: 'var(--h2-font, inherit)' },
   '.cm-md-h3': { fontSize: 'var(--h3-size, 1.2em)', fontWeight: 'var(--h3-weight, 600)', fontFamily: 'var(--h3-font, inherit)' },

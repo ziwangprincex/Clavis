@@ -592,6 +592,8 @@ export const ipc = {
   userStylesheetPath: () => invoke<string>('user_stylesheet_path'),
   /** Shows the PDF in a window of its own (focuses it when already open). */
   openPdfWindow: () => invoke<void>('open_pdf_window'),
+  /** Closes this window as its close button does; on macOS that hides the app. */
+  closeWindow: () => invoke<void>('close_this_window'),
   /** Folder modification stamps (null for a missing folder), to notice added, removed or renamed entries. */
   folderStamps: (paths: string[]) => invoke<(string | null)[]>('folder_stamps', { paths }),
   saveBinaryFile: (path: string, base64: string) =>

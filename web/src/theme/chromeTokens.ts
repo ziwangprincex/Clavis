@@ -23,13 +23,17 @@ export function overrideTokens(overrides: Record<string, string> | undefined): R
   );
 }
 
-/** Flat document, recessed workspace, lifted popovers. No translucent chrome. */
+/** Three tonal levels, no translucent chrome. The page (`--bg`) is the
+ *  document. The frame (`--panel`: sidebar and bars) steps from it toward the
+ *  text colour, as macOS chrome does in both appearances. What floats
+ *  (`--bg-elevated`: menus, the palette) is lighter than both. */
 export function chromeTokens(spec: ThemeSpec): Record<string, string> {
   const { bg, fg, dark } = spec;
-  const panel = mix(bg, fg, dark ? 0.035 : 0.030);
-  const elevated = dark ? mix(bg, fg, 0.065) : mix(bg, '#ffffff', 0.72);
+  const panel = mix(bg, fg, dark ? 0.05 : 0.06);
+  const elevated = dark ? mix(bg, fg, 0.10) : mix(bg, '#ffffff', 0.72);
   const desk = mix(bg, fg, dark ? 0.018 : 0.050);
-  const textSurface = dark ? elevated : desk;
+  // Secondary text must stay readable on the surface that leaves it least contrast.
+  const textSurface = dark ? elevated : panel;
   const error = dark ? '#e5a09a' : '#a33d39';
   const warning = dark ? '#d9b77c' : '#8d621f';
   const ok = dark ? '#a5beac' : '#466d58';
@@ -52,8 +56,11 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
     '--ok': ok,
     '--tint-error': withAlpha(error, 0.10),
     '--tint-warning': withAlpha(warning, 0.10),
-    '--shadow-sm': dark ? '0 1px 2px rgba(0, 0, 0, 0.24)' : '0 1px 2px rgba(48, 40, 28, 0.05)',
-    '--shadow-md': dark ? '0 12px 40px rgba(0, 0, 0, 0.32)' : '0 12px 40px rgba(48, 40, 28, 0.10)',
+    '--shadow-sm': dark ? '0 1px 2px rgba(0, 0, 0, 0.28)' : '0 1px 2px rgba(0, 0, 0, 0.06)',
+    // A tight contact shadow under a wide ambient one, for everything that floats.
+    '--shadow-md': dark
+      ? '0 2px 6px rgba(0, 0, 0, 0.28), 0 16px 44px rgba(0, 0, 0, 0.42)'
+      : '0 2px 6px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.14)',
     ...accentTokens(spec.accent, dark),
   };
 }

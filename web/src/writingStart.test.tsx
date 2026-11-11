@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { StartActions } from './components/StartActions';
 import { Sidebar } from './components/Sidebar';
+import { TitleBar } from './components/TitleBar';
 import { StatusBar } from './components/StatusBar';
 import { PdfViewer } from './components/PdfViewer';
 import { WriterDialog } from './components/WriterDialog';
@@ -73,6 +74,19 @@ it('starts with an editable empty note and direct actions, not a modal', async (
   expect(useTabsStore.getState().tabs[0]).toMatchObject({ content: '', lang: 'markdown', isDirty: false });
   expect(starter()).toHaveLength(1);
   expect(tree.root.findAllByType(WriterDialog)).toHaveLength(0);
+});
+it('runs the sidebar the full height of the window, beside the title bar and the status bar', async () => {
+  await mount();
+  const row = tree.root.findByType(Sidebar).parent!;
+  expect(row.findAllByType(TitleBar)).toHaveLength(1);
+  expect(row.findAllByType(StatusBar)).toHaveLength(1);
+});
+it('leaves the window buttons to the sidebar while it is shown', async () => {
+  await mount();
+  const leading = () => tree.root.findByType(TitleBar).props.leading as boolean;
+  expect(leading()).toBe(true);
+  act(() => useSettingsStore.getState().patch({ sidebar_visible: true }));
+  expect(leading()).toBe(false);
 });
 it('never shows first-run actions over a restored document or restored empty buffer', async () => {
   vi.mocked(restoreSession).mockImplementation(async () => {

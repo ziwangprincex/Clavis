@@ -49,6 +49,13 @@ code {
   outline-offset: 2px;
   border-radius: 3px;
 }
+/* A dialog takes the focus when it opens so that Tab starts inside it. It is
+ * not itself a control: no ring around the whole window, and it keeps the
+ * corners every floating surface has. */
+[role='dialog']:focus-visible {
+  outline: none;
+  border-radius: var(--radius-lg);
+}
 
 /* Native-looking scrollbars (mac-style overlay).
  * On macOS Tauri WebView these mostly fall back to system styling already,

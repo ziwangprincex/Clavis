@@ -1,5 +1,6 @@
 import { t as tr } from '../i18n';
-import { useTabsStore, type Tab, type Lang } from '../store';
+import { useTabsStore, type Lang } from '../store';
+import { confirmCloseTab, tabDisplayName } from '../files/closeTab';
 import { IconClose, IconDot } from './icons';
 import styles from './Tabs.module.css';
 
@@ -13,14 +14,6 @@ const LANG_LABEL: Record<Lang, string> = {
   typst: 'TYP',
 };
 
-function tabDisplayName(t: Tab): string {
-  if (t.filePath) {
-    const parts = t.filePath.split(/[\\/]/);
-    return parts[parts.length - 1] || t.filePath;
-  }
-  return tr('Untitled');
-}
-
 export function Tabs({ onCloseTab }: TabsProps) {
   const tabs = useTabsStore(s => s.tabs);
   const activeTabId = useTabsStore(s => s.activeTabId);
@@ -30,15 +23,10 @@ export function Tabs({ onCloseTab }: TabsProps) {
   // The unified toolbar already names the sole document.
   if (tabs.length < 2) return null;
 
-  function onClose(e: React.MouseEvent, id: string) {
+  async function onClose(e: React.MouseEvent, id: string) {
     e.stopPropagation();
     const tab = useTabsStore.getState().tabs.find(t => t.id === id);
-    if (tab?.isDirty) {
-      const ok = window.confirm(
-        tr('"{name}" has unsaved changes. Close without saving?', { name: tabDisplayName(tab) }),
-      );
-      if (!ok) return;
-    }
+    if (tab && !(await confirmCloseTab(tab))) return;
     if (onCloseTab) onCloseTab(id);
     else closeTab(id);
   }
@@ -59,7 +47,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
               setActive(t.id);
             } else if (e.key === 'Delete' || (e.key === 'w' && (e.ctrlKey || e.metaKey))) {
               e.preventDefault();
-              onClose(e as unknown as React.MouseEvent, t.id);
+              void onClose(e as unknown as React.MouseEvent, t.id);
             }
           }}
           title={t.filePath ?? tr('Unsaved')}
@@ -69,7 +57,7 @@ export function Tabs({ onCloseTab }: TabsProps) {
           {t.isDirty && <IconDot size={8} className={styles.dirty} aria-label={tr("unsaved")} />}
           <button
             className={styles.close}
-            onClick={e => onClose(e, t.id)}
+            onClick={e => void onClose(e, t.id)}
             aria-label={tr('Close {name}', { name: tabDisplayName(t) })}
           >
             <IconClose size={11} />

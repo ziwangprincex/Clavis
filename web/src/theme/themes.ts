@@ -22,13 +22,13 @@ export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
   paper: {
     label: 'Clavis Paper', dark: false,
     bg: '#fafafa', fg: '#292929', gutterBg: '#fafafa', gutterFg: '#777777',
-    activeBg: '#f0f0f0', cursor: '#486581', selection: '#cbd9e5', accent: '#486581',
+    activeBg: '#f0f0f0', cursor: '#2f66a8', selection: '#c7d5e6', accent: '#2f66a8',
     syntax: { keyword: '#405c78', name: '#526477', literal: '#675948', comment: '#696969' },
   },
   ink: {
     label: 'Clavis Ink', dark: true,
     bg: '#242424', fg: '#e4e4e4', gutterBg: '#242424', gutterFg: '#909090',
-    activeBg: '#2d2d2d', cursor: '#a8bfd6', selection: '#455666', accent: '#a8bfd6',
+    activeBg: '#2d2d2d', cursor: '#8ab4e8', selection: '#434f5f', accent: '#8ab4e8',
     syntax: { keyword: '#aac0d6', name: '#b5c3cf', literal: '#c8bca9', comment: '#a0a0a0' },
   },
   mist: {

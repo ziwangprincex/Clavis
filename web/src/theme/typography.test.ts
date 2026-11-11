@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../store/settings';
-import { fontStack, missingFonts, previewTypography } from './typography';
+import { fontStack, missingFonts, previewTypography, primaryFamily } from './typography';
 import { selectionFill } from '../editor/controller';
 import { resolveThemeSpec } from './appTheme';
 import { chromeTokens } from './chromeTokens';
@@ -30,6 +30,14 @@ describe('complete font inheritance', () => {
   it('quotes a selected family and lists only missing explicit font names', () => {
     expect(fontStack('Font "Name"')).toBe('"Font \\"Name\\""');
     expect(missingFonts('"PingFang SC", "Missing Font", sans-serif, -apple-system', ['pingfang sc'])).toEqual(['Missing Font']);
+  });
+  it('names the font a stack asks for first, and no font for the system one', () => {
+    expect(primaryFamily('"PingFang SC", "Missing Font", sans-serif')).toBe('PingFang SC');
+    expect(primaryFamily("'Songti SC'")).toBe('Songti SC');
+    expect(primaryFamily('Palatino, serif')).toBe('Palatino');
+    expect(primaryFamily(defaultSettings.ui_font_family)).toBeNull();
+    expect(primaryFamily('ui-monospace, monospace')).toBeNull();
+    expect(primaryFamily('')).toBeNull();
   });
 });
 

@@ -4,15 +4,16 @@
   height: var(--bar-h);
   flex: 0 0 var(--bar-h);
   min-width: 0;
-  background: var(--bg);
-  border-bottom: 1px solid transparent;
+  background: var(--panel-solid);
+  /* Follows the sidebar sliding away from, or back over, the window buttons. */
+  transition: padding-left var(--dur-slow) var(--ease);
   user-select: none;
   -webkit-user-select: none;
   position: relative;
   z-index: 20;
 }
 
-.titlebar.mac { padding-left: 76px; }
+.titlebar.mac { padding-left: var(--window-buttons); }
 .brand { flex: 1; padding: 0 20px; font: 600 1em var(--font-sans); }
 .controls { display: flex; align-items: stretch; align-self: flex-start; height: 32px; flex: none; }
 .ctrlBtn {

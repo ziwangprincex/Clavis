@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_THEMES, SIGNATURE_THEMES, syntaxPalette } from './themes';
 import { accentTokens, chromeTokens } from './chromeTokens';
-import { contrast, hexToRgb, mix, withAlpha } from './colors';
+import { contrast, hexToRgb, luminance, mix, withAlpha } from './colors';
 import { resolveThemeId, resolveThemeSpec } from './appTheme';
 
 describe('quiet writing palettes', () => {
@@ -46,6 +46,13 @@ describe('quiet writing palettes', () => {
       expect(tokens['--panel']).not.toBe(tokens['--bg']);
       expect(tokens['--bg-elevated']).not.toBe(tokens['--panel']);
       expect(tokens['--tint-accent']).toBe(withAlpha(spec.accent, spec.dark ? 0.14 : 0.09));
+    });
+    // Three levels: the frame (sidebar and bars) recedes from the page, and
+    // what floats is lighter than both. A step under 1.1 reads as one plane.
+    it(`${id}: the frame, the page and floating surfaces are told apart by tone`, () => {
+      expect(contrast(tokens['--panel'], tokens['--bg'])).toBeGreaterThanOrEqual(1.1);
+      expect(luminance(tokens['--bg-elevated'])).toBeGreaterThan(luminance(tokens['--bg']));
+      if (spec.dark) expect(contrast(tokens['--bg-elevated'], tokens['--panel'])).toBeGreaterThanOrEqual(1.1);
     });
   }
 

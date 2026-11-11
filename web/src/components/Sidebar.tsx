@@ -1,6 +1,8 @@
 import { t } from '../i18n';
 import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { IconAlert, IconBook, IconChevronDown, IconDoc, IconFolder } from './icons';
+import { hasTauri } from '../api/tauri';
+import { isMac } from '../platform';
 import styles from './Sidebar.module.css';
 
 export type SidebarView = 'documents' | 'research' | 'problems';
@@ -44,7 +46,8 @@ export function Sidebar(props: SidebarProps) {
     : undefined;
   return (
     <aside className={styles.sidebar} aria-label={t('Workspace')} hidden={props.hidden} style={widthStyle}>
-      <div className={styles.views} role="tablist" aria-label={t('Workspace views')}>
+      {/* The window's top-left corner: a drag region, and on macOS the traffic lights. */}
+      <div className={`${styles.views} ${isMac && hasTauri() ? styles.mac : ''}`} role="tablist" aria-label={t('Workspace views')} data-tauri-drag-region>
         {views.map((item, index) => (
           <button type="button" key={item.id} ref={element => { buttons.current[index] = element; }} role="tab"
             id={`${id}-${item.id}-tab`} aria-controls={`${id}-${item.id}`} aria-selected={selected === item.id}

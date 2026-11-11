@@ -106,6 +106,32 @@ fn read_text_file(path: String) -> Result<String, String> {
 /// Label of the window that shows only the PDF (it can sit on another display).
 const PDF_WINDOW: &str = "pdf";
 
+/// Menu items the backend acts on. Close Tab is also a command of the main
+/// window, which runs it unless the PDF window is the one in front.
+const CLOSE_TAB: &str = "tab.close";
+const CLOSE_WINDOW: &str = "window.close";
+
+/// Closes a window as its close button does. On macOS the main window stays
+/// and Clavis is hidden instead, so it keeps running as Mac apps do. The app
+/// is hidden rather than the window alone: Tauri 1 has no event for a click
+/// on the Dock icon, and macOS itself brings a hidden app's windows back on
+/// that click.
+fn close_window(window: &tauri::Window) {
+    #[cfg(target_os = "macos")]
+    if window.label() != PDF_WINDOW {
+        let _ = window.app_handle().hide();
+        return;
+    }
+    let _ = window.close();
+}
+
+/// ⌘W with no tab left. Not the JS `appWindow.close()`: a close asked for
+/// from code skips `CloseRequested`, destroys the last window and so quits.
+#[tauri::command]
+fn close_this_window(window: tauri::Window) {
+    close_window(&window);
+}
+
 /// The standard macOS menu, with Check for Updates and Settings in the app
 /// menu where Mac apps keep them. Each item's id is a command-palette command
 /// that the main window runs on `menu-command`.
@@ -121,6 +147,20 @@ fn app_menu() -> tauri::Menu {
             1..1,
             [updates.into(), MenuEntry::NativeItem(MenuItem::Separator), settings.into()],
         );
+    }
+    // The standard Close Window item binds ⌘W to the whole window. Documents
+    // are tabs, so ⌘W closes the tab and ⇧⌘W the window, as in Safari.
+    for entry in &mut menu.items {
+        let MenuEntry::Submenu(submenu) = entry else { continue };
+        let items = &mut submenu.inner.items;
+        items.retain(|item| !matches!(item, MenuEntry::NativeItem(MenuItem::CloseWindow)));
+        while matches!(items.last(), Some(MenuEntry::NativeItem(MenuItem::Separator))) {
+            items.pop();
+        }
+        if submenu.title == "File" {
+            items.push(CustomMenuItem::new(CLOSE_TAB, "Close Tab").accelerator("CmdOrCtrl+W").into());
+            items.push(CustomMenuItem::new(CLOSE_WINDOW, "Close Window").accelerator("CmdOrCtrl+Shift+W").into());
+        }
     }
     menu
 }
@@ -243,10 +283,10 @@ fn main() {
     let state = Arc::new(AppState::default());
     let latex_state = latex::LatexState::default();
 
-    // macOS gets the standard system menu (provides ⌘Q, ⌘W, ⌘M, ⌘H, Edit menu
-    // with Cut/Copy/Paste/Undo bindings, etc.) plus Settings and Check for
-    // Updates. Other platforms use no menu — we expose actions via the in-app
-    // toolbar / command palette.
+    // macOS gets the standard system menu (provides ⌘Q, ⌘M, ⌘H, Edit menu
+    // with Cut/Copy/Paste/Undo bindings, etc.) plus Settings, Check for
+    // Updates and Close Tab. Other platforms use no menu — we expose actions
+    // via the in-app toolbar / command palette.
     #[cfg(target_os = "macos")]
     let menu = app_menu();
     #[cfg(not(target_os = "macos"))]
@@ -286,6 +326,7 @@ fn main() {
             scan_folder_shallow,
             folder_stamps,
             open_pdf_window,
+            close_this_window,
             user_stylesheet::user_stylesheet_path,
             user_stylesheet::read_user_stylesheet,
             user_stylesheet::write_user_stylesheet,
@@ -333,13 +374,29 @@ fn main() {
             settings::detect_bib_engines,
         ])
         .on_menu_event(|event| {
+            let window = event.window();
+            // Close Window acts on the window it was chosen in, and the PDF
+            // window has no tabs for Close Tab to close.
+            let id = event.menu_item_id();
+            if id == CLOSE_WINDOW || (id == CLOSE_TAB && window.label() == PDF_WINDOW) {
+                close_window(window);
+                return;
+            }
             // The PDF window shares the app menu; commands belong to the main window.
-            if let Some(main) = event.window().get_window("main") {
+            if let Some(main) = window.get_window("main") {
                 let _ = main.set_focus();
-                let _ = main.emit("menu-command", event.menu_item_id());
+                let _ = main.emit("menu-command", id);
             }
         })
         .on_window_event(|event| {
+            // The red button on the main window: see `close_window`.
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
+                if event.window().label() != PDF_WINDOW {
+                    api.prevent_close();
+                    close_window(event.window());
+                }
+            }
             // Only the main window owns the compile workdirs; the PDF window
             // closing must not discard what SyncTeX still needs.
             if let tauri::WindowEvent::Destroyed = event.event() {
@@ -372,5 +429,32 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(20));
         std::fs::write(dir.path().join("new.tex"), "x").unwrap();
         assert_ne!(folder_stamps(vec![path])[0], before[0]);
+    }
+
+    /// The standard Close Window item owns ⌘W and closes the whole window, so
+    /// the menu must not contain it once ⌘W is Close Tab.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cmd_w_closes_the_tab_and_shift_cmd_w_the_window() {
+        use tauri::{Menu, MenuEntry, MenuItem};
+        fn walk(menu: &Menu, shortcuts: &mut Vec<(String, String)>, native_close: &mut bool) {
+            for entry in &menu.items {
+                match entry {
+                    MenuEntry::Submenu(submenu) => walk(&submenu.inner, shortcuts, native_close),
+                    MenuEntry::NativeItem(MenuItem::CloseWindow) => *native_close = true,
+                    MenuEntry::CustomItem(item) => {
+                        if let Some(keys) = &item.keyboard_accelerator {
+                            shortcuts.push((item.id_str.clone(), keys.clone()));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let (mut shortcuts, mut native_close) = (Vec::new(), false);
+        walk(&super::app_menu(), &mut shortcuts, &mut native_close);
+        assert!(!native_close, "the standard Close Window item also binds ⌘W");
+        assert!(shortcuts.contains(&("tab.close".into(), "CmdOrCtrl+W".into())), "{shortcuts:?}");
+        assert!(shortcuts.contains(&("window.close".into(), "CmdOrCtrl+Shift+W".into())), "{shortcuts:?}");
     }
 }

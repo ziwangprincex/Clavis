@@ -12,7 +12,7 @@
   max-height: 88vh;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--bg);
   color: var(--text);
   box-shadow: var(--shadow-md);

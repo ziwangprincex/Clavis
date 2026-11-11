@@ -20,12 +20,12 @@
 
 :root:not([data-theme]) {
   --bg: #242424;
-  --bg-elevated: #303030;
+  --bg-elevated: #373737;
   --bg-overlay: rgba(0, 0, 0, 0.55);
 
-  /* Toolbar / titlebar / status-bar surface — flat and opaque. */
-  --panel: #2b2b2b;
-  --panel-solid: #2b2b2b;
+  /* The frame: sidebar, toolbar, tab strip and status bar. Flat and opaque. */
+  --panel: #2e2e2e;
+  --panel-solid: #2e2e2e;
   --panel-soft: rgba(255, 255, 255, 0.05);
 
   /* Subtle separators (NSColor.separator equivalent) */
@@ -38,26 +38,26 @@
   --text-dim: rgba(235, 235, 245, 0.30);
 
   /* Writing palette fallback; the runtime rule derives matching controls. */
-  --accent: #a8bfd6;
+  --accent: #8ab4e8;
   --on-accent: #17191c;
   --on-accent-hover: #17191c;
   --preview-desk: #272727;
-  --accent-hover: #b2c7db;
+  --accent-hover: #98bdeb;
   --error: #ff453a;
   --warning: #ffd60a;
   --ok: #30d158;
 
   /* Selection */
-  --selection: #455666;
+  --selection: #434f5f;
 
   /* Shadows (subtle, like Apple) */
-  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.28), 0 16px 44px rgba(0, 0, 0, 0.42);
 
   /* Tinted row backgrounds for diagnostic severity (dark). */
   --tint-error: rgba(255, 69, 58, 0.10);
   --tint-warning: rgba(255, 214, 10, 0.09);
-  --tint-accent: rgba(10, 132, 255, 0.10);
+  --tint-accent: rgba(138, 180, 232, 0.14);
 
   color-scheme: dark;
 }
@@ -89,6 +89,16 @@
   --bar-h: 40px;
   --control-h: 28px;
   --row-h: 26px;
+  /* macOS draws the window buttons over the first ~70px of whichever bar is
+   * at the window's top-left: the sidebar's, or the toolbar's without one. */
+  --window-buttons: 76px;
+  /* The one left and right edge of every bar in the work area: toolbar,
+   * start actions, tab strip and status bar begin and end on it. */
+  --bar-inset: 12px;
+
+  /* Type — chrome text comes in two sizes: the UI size (1em) and this one,
+   * 12px at the default 13px. Nothing in the chrome is set smaller. */
+  --font-size-small: 0.9231rem;
 
   /* Motion — one standard easing/duration for snappy, consistent feedback. */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);

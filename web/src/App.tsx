@@ -35,6 +35,7 @@ import { useTypstPreviewStore } from './store/typstPreview';
 import { syncTexBackwardFromPdf, syncTexForwardFromEditor } from './compile/synctex';
 import { openPdfWindow, usePdfWindowFeed } from './pdf/pdfWindow';
 import { openFileDialog, openFileByPath, saveActiveTab, openFileAndScrollToLine, pushRecentFolder } from './files/files';
+import { closeActiveTab } from './files/closeTab';
 import { pathsEqual, resolveIncludeTarget, resolveSyncTexFile, resolveTypstTarget } from './files/projectPaths';
 import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
@@ -434,6 +435,8 @@ export function App() {
       reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
       reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
       reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
+      // ⌘W arrives from the macOS menu (File ▸ Close Tab), not from a key handler here.
+      reg({ id: 'tab.close', name: 'Close tab', shortcut: isMac ? '⌘W' : undefined, when: () => !!useTabsStore.getState().activeTabId, run: closeActiveTab }),
       reg({ id: 'workspace.openFolder', name: 'Open folder…', shortcut: fmtShortcut('Ctrl+Shift+O'), run: openFolder }),
       reg({
         id: 'workspace.closeFolder',
@@ -639,55 +642,13 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, workspaceFolder, startTabId]);
 
+  // The sidebar runs the window's full height; the bars belong to the work area beside it.
+  const sidebarShown = !focusMode && settings.sidebar_visible;
   return (
     <div className={`${styles.app} ${focusMode ? styles.focusMode : ''}`} data-layout={layout}>
-      <TitleBar>
-      <Toolbar
-        focusMode={focusMode}
-        onToggleFocus={() => setFocusMode(value => !value)}
-        layout={layout}
-        onLayoutChange={setLayout}
-        sidebarVisible={!focusMode && settings.sidebar_visible}
-        onToggleSidebar={toggleSidebar}
-        lang={lang}
-        onLangChange={setLang}
-        latexEngine={latexEngine}
-        onLatexEngineChange={engine => {
-          const { tabs, activeTabId } = useTabsStore.getState();
-          const tab = tabs.find(t => t.id === activeTabId);
-          if (!tab) return;
-          const owner = tabs.find(t => pathsEqual(t.filePath, documentRoot(tab))) ?? tab;
-          useTabsStore.getState().patchTab(owner.id, { latexEngineOverride: engine });
-        }}
-        autoCompile={autoCompile}
-        onAutoCompileChange={setAutoCompile}
-        onCompile={compileNow}
-        onStopCompile={() => void stopLatexCompile()}
-        onQuickCompile={() => void runLatexCompile('quick')}
-        onCleanCompile={() => void runLatexCompile('clean')}
-        onFullCompile={() => void runLatexCompile('full')}
-        onSynctexForward={jumpToPreview}
-        onSetMain={setProjectMain}
-        onExportLatexPdf={exportLatexPdf}
-        onExportTypstPdf={exportTypstPdf}
-        onExportHtml={exportHtml}
-        onOpenFile={openFileDialog}
-        onOpenFolder={openFolder}
-        onSave={() => saveActiveTab()}
-        onToggleRecent={() => setRecentOpen(o => !o)}
-        onToggleSymbols={() => setSymbolsOpen(o => !o)}
-        onWriterTool={setWriterTool}
-        onNewDocument={newBlankNote}
-        inlineMath={settings.editor_inline_math}
-        onInlineMathChange={value => void patchAndSave({ editor_inline_math: value })}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenCommandPalette={() => setPaletteOpen(true)}
-      />
-      </TitleBar>
-
       <div className={styles.main} ref={mainRef}>
         <Sidebar
-          hidden={focusMode || !settings.sidebar_visible}
+          hidden={!sidebarShown}
           width={sidebarWidth || undefined}
           onOpenFolder={openFolder}
           view={sidebarView}
@@ -765,11 +726,54 @@ export function App() {
             />
           ) : null}
         />
-        {!focusMode && settings.sidebar_visible && (
+        {sidebarShown && (
           <Splitter onDragStart={startSidebarDrag} onDrag={dragSidebar} onDragEnd={endSidebarDrag} />
         )}
 
         <div className={styles.workArea}>
+          <TitleBar leading={!sidebarShown}>
+          <Toolbar
+            focusMode={focusMode}
+            onToggleFocus={() => setFocusMode(value => !value)}
+            layout={layout}
+            onLayoutChange={setLayout}
+            sidebarVisible={sidebarShown}
+            onToggleSidebar={toggleSidebar}
+            lang={lang}
+            onLangChange={setLang}
+            latexEngine={latexEngine}
+            onLatexEngineChange={engine => {
+              const { tabs, activeTabId } = useTabsStore.getState();
+              const tab = tabs.find(t => t.id === activeTabId);
+              if (!tab) return;
+              const owner = tabs.find(t => pathsEqual(t.filePath, documentRoot(tab))) ?? tab;
+              useTabsStore.getState().patchTab(owner.id, { latexEngineOverride: engine });
+            }}
+            autoCompile={autoCompile}
+            onAutoCompileChange={setAutoCompile}
+            onCompile={compileNow}
+            onStopCompile={() => void stopLatexCompile()}
+            onQuickCompile={() => void runLatexCompile('quick')}
+            onCleanCompile={() => void runLatexCompile('clean')}
+            onFullCompile={() => void runLatexCompile('full')}
+            onSynctexForward={jumpToPreview}
+            onSetMain={setProjectMain}
+            onExportLatexPdf={exportLatexPdf}
+            onExportTypstPdf={exportTypstPdf}
+            onExportHtml={exportHtml}
+            onOpenFile={openFileDialog}
+            onOpenFolder={openFolder}
+            onSave={() => saveActiveTab()}
+            onToggleRecent={() => setRecentOpen(o => !o)}
+            onToggleSymbols={() => setSymbolsOpen(o => !o)}
+            onWriterTool={setWriterTool}
+            onNewDocument={newBlankNote}
+            inlineMath={settings.editor_inline_math}
+            onInlineMathChange={value => void patchAndSave({ editor_inline_math: value })}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenCommandPalette={() => setPaletteOpen(true)}
+          />
+          </TitleBar>
           {bootReady && !focusMode && ((startTabId && activeTab?.id === startTabId && activeTab.empty && !activeTab.filePath && !activeTab.isDirty && tabCount === 1) || !tabCount) && <StartActions onOpen={openFileDialog} onFolder={openFolder} onNew={() => setWriterTool('templates')} onDismiss={() => { setStartTabId(null); if (!tabCount) newBlankNote(); }} />}
           <div className={styles.tabStrip} hidden={focusMode}><Tabs /></div>
           <div className={styles.editorRow} ref={editorRowRef}>
@@ -841,10 +845,10 @@ export function App() {
               </Suspense>
             </div>
           </div>
+          <StatusBar onToggleProblems={toggleProblems} />
         </div>
       </div>
 
-      <StatusBar onToggleProblems={toggleProblems} />
       <LatexAutoCompile enabled={autoCompile && layout !== 'editor'} />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
