@@ -44,9 +44,10 @@ bash build-macos.sh --app-only --skip-install
 ```
 
 The last command is a local app-only build. The standard script disables the
-updater **only in the generated local bundle**, leaving production configuration
-and public keys unchanged. Tauri may temporarily rewrite Cargo features/lock
-data; the script backs up and restores the exact inputs in finally. Do not
+updater **only in the generated local bundle** (no signed update artifacts, no
+update endpoint), leaving production configuration and public keys unchanged.
+Tauri may temporarily rewrite Cargo features/lock data; the script backs up and
+restores the exact inputs in finally. Do not
 edit Cargo inputs concurrently with a build. Local builds need no private keys and do not
 publish updates. Formal releases use the tag workflow described in RELEASING.md.
 

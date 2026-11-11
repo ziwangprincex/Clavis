@@ -1,78 +1,26 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Clavis",
+  "mainBinaryName": "Clavis",
+  "version": "1.10.0",
+  "identifier": "com.clavis.app",
   "build": {
-    "beforeBuildCommand": { "script": "npm run build", "cwd": "." },
-    "beforeDevCommand": { "script": "npm run dev", "cwd": "." },
-    "devPath": "http://localhost:5173",
-    "distDir": "web/dist",
-    "withGlobalTauri": true
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "."
+    },
+    "beforeDevCommand": {
+      "script": "npm run dev",
+      "cwd": "."
+    },
+    "frontendDist": "web/dist",
+    "devUrl": "http://localhost:5173"
   },
-  "package": {
-    "productName": "Clavis",
-    "version": "1.10.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": false,
-        "open": true,
-        "save": true,
-        "message": true,
-        "ask": true,
-        "confirm": true
-      },
-      "process": {
-        "all": false,
-        "relaunch": true
-      },
-      "window": {
-        "all": false,
-        "startDragging": true,
-        "minimize": true,
-        "maximize": true,
-        "unmaximize": true,
-        "close": true
-      }
-    },
-    "updater": {
-      "active": true,
-      "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDREQTNGQUMzRTUyRDYzNDAKUldSQVl5M2x3L3FqVGJxVGVqVHNpWkNlWU90dE1lM2FFQ1NHbjVvNjJudnRwTVhzUmlncTk3bk0K",
-      "endpoints": [
-        "https://github.com/ziwangprincex/Clavis/releases/latest/download/latest.json"
-      ]
-    },
-    "bundle": {
-      "active": true,
-      "identifier": "com.clavis.app",
-      "category": "Productivity",
-      "shortDescription": "Markdown / LaTeX / Typst editor with live preview",
-      "longDescription": "Native desktop editor with side-by-side preview for Markdown, LaTeX (real engine compilation via pdflatex/xelatex/lualatex), and Typst. Features include SyncTeX, BibTeX integration, project file sidebar, and PDF text search.",
-      "targets": ["nsis", "dmg", "app", "deb", "appimage", "updater"],
-      "resources": ["resources/cwl/*"],
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "windows": {
-        "wix": { "language": "en-US" }
-      },
-      "macOS": {
-        "minimumSystemVersion": "11.0",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": "-",
-        "entitlements": null
-      }
-    },
-    "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: https://ipc.localhost tauri://localhost"
-    },
+  "app": {
+    "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
         "title": "Clavis — Markdown · LaTeX · Typst",
         "width": 1400,
         "height": 900,
@@ -81,8 +29,57 @@
         "resizable": true,
         "fullscreen": false,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "useHttpsScheme": true
       }
-    ]
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": "-",
+      "entitlements": null
+    },
+    "category": "Productivity",
+    "shortDescription": "Markdown / LaTeX / Typst editor with live preview",
+    "longDescription": "Native desktop editor with side-by-side preview for Markdown, LaTeX (real engine compilation via pdflatex/xelatex/lualatex), and Typst. Features include SyncTeX, BibTeX integration, project file sidebar, and PDF text search.",
+    "targets": [
+      "nsis",
+      "dmg",
+      "app",
+      "deb",
+      "appimage"
+    ],
+    "resources": [
+      "resources/cwl/*"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "createUpdaterArtifacts": "v1Compatible"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDREQTNGQUMzRTUyRDYzNDAKUldSQVl5M2x3L3FqVGJxVGVqVHNpWkNlWU90dE1lM2FFQ1NHbjVvNjJudnRwTVhzUmlncTk3bk0K",
+      "endpoints": [
+        "https://github.com/ziwangprincex/Clavis/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }

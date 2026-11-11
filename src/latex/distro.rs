@@ -1,5 +1,6 @@
 //! TeX distribution detection and (user-confirmed) package installation.
 
+use tauri::Emitter as _;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::time::Duration;

@@ -2,6 +2,7 @@
 //! materialization, engine invocation with auto-rerun + bib passes, and result
 //! assembly.
 
+use tauri::Emitter as _;
 use base64::Engine as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -16,10 +17,11 @@ use super::{MAIN_PDF, MAIN_TEX};
 
 const TOTAL_COMPILE_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// Generic over the runtime so a test can call it through Tauri's IPC layer.
 #[tauri::command]
-pub async fn compile_latex(
+pub async fn compile_latex<R: tauri::Runtime>(
     opts: CompileOptions,
-    window: tauri::Window,
+    window: tauri::Window<R>,
     state: tauri::State<'_, LatexState>,
 ) -> Result<CompileResult, String> {
     let request_id = opts.request_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -297,15 +299,24 @@ pub async fn compile_latex(
         errors.push(LatexDiag { line: None, file: None, message: "LaTeX did not finish successfully with a new PDF. See the compile log.".to_string(), kind: "error", package: None });
     }
     let pdf = if success { read_pdf(&workdir) } else { None };
+    let (saved_pdf, pdf_save_error) = match (&pdf, opts.source_path.as_deref()) {
+        (Some(bytes), Some(source)) => match save_beside_source(Path::new(source), bytes) {
+            Ok(path) => (Some(path.to_string_lossy().into_owned()), None),
+            Err(e) => (None, Some(e)),
+        },
+        _ => (None, None),
+    };
     Ok(CompileResult {
         ok: success && pdf.is_some(),
-        pdf_base64: pdf,
+        pdf_base64: pdf.map(|bytes| base64::engine::general_purpose::STANDARD.encode(bytes)),
         errors,
         log_tail: log_tail(&log_full),
         runs,
         workdir_token: Some(token),
         engine: if opts.full_build { "latexmk".to_string() } else { opts.engine.clone() },
         bib_tool,
+        saved_pdf,
+        pdf_save_error,
     })
     }.await;
     if result.is_err() { state.remove(&cleanup_token); }
@@ -345,10 +356,50 @@ fn run_succeeded(code: i32, workdir: &Path) -> bool {
     code == 0 && read_pdf(workdir).is_some()
 }
 
-fn read_pdf(workdir: &Path) -> Option<String> {
+fn read_pdf(workdir: &Path) -> Option<Vec<u8>> {
     let bytes = std::fs::read(workdir.join(MAIN_PDF)).ok()?;
     if !bytes.starts_with(b"%PDF-") { return None; }
-    Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+    Some(bytes)
+}
+
+/// Write the PDF to `<stem>.pdf` beside the saved main `.tex` file.
+///
+/// The source must be an existing `.tex` file, so the frontend cannot use this
+/// to write anywhere else. The PDF is written to a temporary file in the same
+/// folder and renamed over the old one, so a viewer never sees half a file and
+/// a failed write leaves the previous PDF intact.
+fn save_beside_source(source: &Path, pdf: &[u8]) -> Result<PathBuf, String> {
+    use std::io::Write as _;
+    if !source.is_absolute() { return Err("source path is not absolute".into()); }
+    let is_tex = source.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("tex"));
+    if !is_tex { return Err("source is not a .tex file".into()); }
+    if !std::fs::metadata(source).is_ok_and(|m| m.is_file()) {
+        return Err("source file is not saved on disk".into());
+    }
+    let target = source.with_extension("pdf");
+    if let Ok(meta) = std::fs::symlink_metadata(&target) {
+        if !meta.file_type().is_file() {
+            return Err(format!("{} exists and is not a regular file", target.display()));
+        }
+    }
+    let parent = target.parent().ok_or("source has no folder")?;
+    let mut temp = tempfile::Builder::new()
+        .prefix(".clavis-")
+        .suffix(".pdf.tmp")
+        .tempfile_in(parent)
+        .map_err(|e| format!("cannot write in {}: {e}", parent.display()))?;
+    temp.write_all(pdf).and_then(|()| temp.as_file().sync_all()).map_err(|e| format!("write PDF: {e}"))?;
+    // A temporary file is private (0600); keep the old PDF's mode, or the usual 0644.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let permissions = std::fs::metadata(&target)
+            .map(|m| m.permissions())
+            .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o644));
+        temp.as_file().set_permissions(permissions).map_err(|e| format!("set PDF permissions: {e}"))?;
+    }
+    temp.persist(&target).map_err(|e| format!("replace {}: {}", target.display(), e.error))?;
+    Ok(target)
 }
 
 #[cfg(test)]
@@ -380,6 +431,98 @@ mod tests {
             assert!(!run_succeeded(0, dir.path()));
         }
     }
+    #[test]
+    fn a_built_pdf_replaces_the_one_beside_the_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("Thesis.tex");
+        std::fs::write(&source, "\\documentclass{article}").unwrap();
+        std::fs::write(dir.path().join("Thesis.pdf"), b"%PDF-1.4 old").unwrap();
+        let saved = save_beside_source(&source, b"%PDF-1.4 new").unwrap();
+        assert_eq!(saved, dir.path().join("Thesis.pdf"));
+        assert_eq!(std::fs::read(&saved).unwrap(), b"%PDF-1.4 new");
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path()).unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".clavis-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temporary files left behind: {leftovers:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_new_pdf_is_readable_by_others() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("main.tex");
+        std::fs::write(&source, "x").unwrap();
+        let saved = save_beside_source(&source, b"%PDF-1.4").unwrap();
+        assert_eq!(std::fs::metadata(saved).unwrap().permissions().mode() & 0o777, 0o644);
+    }
+
+    #[test]
+    fn only_a_saved_tex_file_gets_a_pdf_beside_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes.md");
+        std::fs::write(&notes, "x").unwrap();
+        assert!(save_beside_source(&notes, b"%PDF-1.4").is_err());
+        assert!(save_beside_source(&dir.path().join("unsaved.tex"), b"%PDF-1.4").is_err());
+        assert!(save_beside_source(Path::new("relative.tex"), b"%PDF-1.4").is_err());
+        assert!(!dir.path().join("notes.pdf").exists());
+        assert!(!dir.path().join("unsaved.pdf").exists());
+    }
+
+    #[test]
+    fn a_folder_named_like_the_pdf_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("main.tex");
+        std::fs::write(&source, "x").unwrap();
+        std::fs::create_dir(dir.path().join("main.pdf")).unwrap();
+        assert!(save_beside_source(&source, b"%PDF-1.4").is_err());
+        assert!(dir.path().join("main.pdf").is_dir());
+    }
+
+    /// The whole path a compile takes in the app: the frontend's camelCase
+    /// options through Tauri's IPC layer, a real pdflatex run, and the PDF
+    /// written beside the source.
+    #[test]
+    #[ignore = "requires an installed pdflatex"]
+    fn the_compile_command_saves_the_pdf_beside_the_source() {
+        use tauri::ipc::{CallbackFn, InvokeBody};
+        let app = tauri::test::mock_builder()
+            .manage(LatexState::default())
+            .invoke_handler(tauri::generate_handler![compile_latex])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("Paper.tex");
+        let text = "\\documentclass{article}\\begin{document}Hello\\end{document}";
+        std::fs::write(&source, text).unwrap();
+        let request = tauri::webview::InvokeRequest {
+            cmd: "compile_latex".into(),
+            callback: CallbackFn(0),
+            error: CallbackFn(1),
+            // The app's own origin; anything else counts as a remote page.
+            url: if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" }.parse().unwrap(),
+            body: InvokeBody::Json(serde_json::json!({ "opts": {
+                "source": text,
+                "sourcePath": source.to_string_lossy(),
+                "engine": "pdflatex",
+                "bibEngine": "none",
+                "projectFiles": [],
+            }})),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.to_string(),
+        };
+        let result: serde_json::Value = tauri::test::get_ipc_response(&webview, request)
+            .expect("compile_latex failed")
+            .deserialize()
+            .unwrap();
+        assert_eq!(result["ok"], true, "{result:#}");
+        let saved = dir.path().join("Paper.pdf");
+        assert_eq!(result["savedPdf"], saved.to_string_lossy().as_ref(), "{result:#}");
+        assert!(std::fs::read(&saved).unwrap().starts_with(b"%PDF-"));
+    }
+
     #[test]
     #[ignore = "requires installed latexmk and pdflatex"]
     fn real_latexmk_builds_document_and_index() {

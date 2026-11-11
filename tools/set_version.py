@@ -37,7 +37,7 @@ def main() -> int:
     )
     replace_once(
         ROOT / "tauri.conf.json",
-        r'("package"\s*:\s*\{.*?"version"\s*:\s*")[^"]+("\s*)',
+        r'(^  "version"\s*:\s*")[^"]+(")',
         rf"\g<1>{version}\g<2>",
     )
     print(f"updated Cargo.toml, Cargo.lock, and tauri.conf.json to {version}")

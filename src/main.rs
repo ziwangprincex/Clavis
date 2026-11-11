@@ -27,7 +27,7 @@ mod user_stylesheet;
 use base64::Engine as _;
 use serde::Serialize;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 type AppState = typst_service::TypstCompiler;
 
@@ -113,66 +113,124 @@ const CLOSE_WINDOW: &str = "window.close";
 
 /// Closes a window as its close button does. On macOS the main window stays
 /// and Clavis is hidden instead, so it keeps running as Mac apps do. The app
-/// is hidden rather than the window alone: Tauri 1 has no event for a click
-/// on the Dock icon, and macOS itself brings a hidden app's windows back on
-/// that click.
-fn close_window(window: &tauri::Window) {
+/// is hidden rather than the window alone, because macOS itself brings a
+/// hidden app's windows back on a click on the Dock icon.
+fn close_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>, label: &str) {
     #[cfg(target_os = "macos")]
-    if window.label() != PDF_WINDOW {
-        let _ = window.app_handle().hide();
+    if label != PDF_WINDOW {
+        let _ = app.hide();
         return;
     }
-    let _ = window.close();
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.close();
+    }
 }
 
 /// ⌘W with no tab left. Not the JS `appWindow.close()`: a close asked for
 /// from code skips `CloseRequested`, destroys the last window and so quits.
 #[tauri::command]
 fn close_this_window(window: tauri::Window) {
-    close_window(&window);
+    close_window(window.app_handle(), window.label());
+}
+
+/// One entry of the macOS menu bar. The menu is described as data so a test
+/// can check it without a running app.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum MenuEntry {
+    /// A Clavis command: its id is a command-palette command the main window
+    /// runs on `menu-command`, except Close Tab and Close Window.
+    Command { id: &'static str, title: &'static str, accelerator: Option<&'static str> },
+    About, Services, Hide, HideOthers, ShowAll, Quit,
+    Undo, Redo, Cut, Copy, Paste, SelectAll,
+    Fullscreen, Minimize, Zoom,
+    Separator,
 }
 
 /// The standard macOS menu, with Check for Updates and Settings in the app
-/// menu where Mac apps keep them. Each item's id is a command-palette command
-/// that the main window runs on `menu-command`.
+/// menu where Mac apps keep them. There is no standard Close Window item: it
+/// binds ⌘W to the whole window, but documents are tabs, so ⌘W closes the tab
+/// and ⇧⌘W the window, as in Safari.
 #[cfg(target_os = "macos")]
-fn app_menu() -> tauri::Menu {
-    use tauri::{CustomMenuItem, MenuEntry, MenuItem};
-    let mut menu = tauri::Menu::os_default("Clavis");
-    if let Some(MenuEntry::Submenu(app)) = menu.items.first_mut() {
-        let updates = CustomMenuItem::new("app.checkUpdates", "Check for Updates…");
-        let settings = CustomMenuItem::new("app.settings", "Settings…").accelerator("CmdOrCtrl+,");
-        // After "About Clavis"; the default's own separator then precedes Services.
-        app.inner.items.splice(
-            1..1,
-            [updates.into(), MenuEntry::NativeItem(MenuItem::Separator), settings.into()],
-        );
+fn menu_layout() -> Vec<(&'static str, Vec<MenuEntry>)> {
+    use MenuEntry::*;
+    vec![
+        ("Clavis", vec![
+            About,
+            Command { id: "app.checkUpdates", title: "Check for Updates…", accelerator: None },
+            Separator,
+            Command { id: "app.settings", title: "Settings…", accelerator: Some("CmdOrCtrl+,") },
+            Separator, Services, Separator, Hide, HideOthers, ShowAll, Separator, Quit,
+        ]),
+        ("File", vec![
+            Command { id: CLOSE_TAB, title: "Close Tab", accelerator: Some("CmdOrCtrl+W") },
+            Command { id: CLOSE_WINDOW, title: "Close Window", accelerator: Some("CmdOrCtrl+Shift+W") },
+        ]),
+        ("Edit", vec![Undo, Redo, Separator, Cut, Copy, Paste, SelectAll]),
+        ("View", vec![Fullscreen]),
+        ("Window", vec![Minimize, Zoom]),
+    ]
+}
+
+#[cfg(target_os = "macos")]
+fn app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
+    use tauri::menu::{AboutMetadata, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu, WINDOW_SUBMENU_ID};
+    let menu = Menu::new(app)?;
+    for (title, entries) in menu_layout() {
+        let items = entries
+            .into_iter()
+            .map(|entry| -> tauri::Result<Box<dyn IsMenuItem<R>>> {
+                Ok(match entry {
+                    MenuEntry::Command { id, title, accelerator } => {
+                        Box::new(MenuItem::with_id(app, id, title, true, accelerator)?)
+                    }
+                    MenuEntry::About => {
+                        let info = app.package_info();
+                        let about = AboutMetadata {
+                            name: Some(info.name.clone()),
+                            version: Some(info.version.to_string()),
+                            ..Default::default()
+                        };
+                        Box::new(PredefinedMenuItem::about(app, None, Some(about))?)
+                    }
+                    MenuEntry::Services => Box::new(PredefinedMenuItem::services(app, None)?),
+                    MenuEntry::Hide => Box::new(PredefinedMenuItem::hide(app, None)?),
+                    MenuEntry::HideOthers => Box::new(PredefinedMenuItem::hide_others(app, None)?),
+                    MenuEntry::ShowAll => Box::new(PredefinedMenuItem::show_all(app, None)?),
+                    MenuEntry::Quit => Box::new(PredefinedMenuItem::quit(app, None)?),
+                    MenuEntry::Undo => Box::new(PredefinedMenuItem::undo(app, None)?),
+                    MenuEntry::Redo => Box::new(PredefinedMenuItem::redo(app, None)?),
+                    MenuEntry::Cut => Box::new(PredefinedMenuItem::cut(app, None)?),
+                    MenuEntry::Copy => Box::new(PredefinedMenuItem::copy(app, None)?),
+                    MenuEntry::Paste => Box::new(PredefinedMenuItem::paste(app, None)?),
+                    MenuEntry::SelectAll => Box::new(PredefinedMenuItem::select_all(app, None)?),
+                    MenuEntry::Fullscreen => Box::new(PredefinedMenuItem::fullscreen(app, None)?),
+                    MenuEntry::Minimize => Box::new(PredefinedMenuItem::minimize(app, None)?),
+                    MenuEntry::Zoom => Box::new(PredefinedMenuItem::maximize(app, None)?),
+                    MenuEntry::Separator => Box::new(PredefinedMenuItem::separator(app)?),
+                })
+            })
+            .collect::<tauri::Result<Vec<_>>>()?;
+        let items: Vec<&dyn IsMenuItem<R>> = items.iter().map(|item| item.as_ref()).collect();
+        // The Window menu gets this id so macOS lists the open windows in it.
+        let submenu = if title == "Window" {
+            Submenu::with_id_and_items(app, WINDOW_SUBMENU_ID, title, true, &items)?
+        } else {
+            Submenu::with_items(app, title, true, &items)?
+        };
+        menu.append(&submenu)?;
     }
-    // The standard Close Window item binds ⌘W to the whole window. Documents
-    // are tabs, so ⌘W closes the tab and ⇧⌘W the window, as in Safari.
-    for entry in &mut menu.items {
-        let MenuEntry::Submenu(submenu) = entry else { continue };
-        let items = &mut submenu.inner.items;
-        items.retain(|item| !matches!(item, MenuEntry::NativeItem(MenuItem::CloseWindow)));
-        while matches!(items.last(), Some(MenuEntry::NativeItem(MenuItem::Separator))) {
-            items.pop();
-        }
-        if submenu.title == "File" {
-            items.push(CustomMenuItem::new(CLOSE_TAB, "Close Tab").accelerator("CmdOrCtrl+W").into());
-            items.push(CustomMenuItem::new(CLOSE_WINDOW, "Close Window").accelerator("CmdOrCtrl+Shift+W").into());
-        }
-    }
-    menu
+    Ok(menu)
 }
 
 /// Shows the compiled PDF in a window of its own, which can be moved to an
 /// external display, as Texifier's viewer can. The main window keeps it updated.
 #[tauri::command]
 async fn open_pdf_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_window(PDF_WINDOW) {
+    if let Some(window) = app.get_webview_window(PDF_WINDOW) {
         return window.set_focus().map_err(|e| format!("cannot show the PDF window: {e}"));
     }
-    tauri::WindowBuilder::new(&app, PDF_WINDOW, tauri::WindowUrl::App("index.html?window=pdf".into()))
+    tauri::WebviewWindowBuilder::new(&app, PDF_WINDOW, tauri::WebviewUrl::App("index.html?window=pdf".into()))
         .title("Clavis — PDF")
         .inner_size(900.0, 1100.0)
         .min_inner_size(420.0, 360.0)
@@ -245,34 +303,6 @@ fn scan_folder_shallow(root: String) -> Result<TreeNode, String> {
     Ok(node)
 }
 
-/// Restore the native drop shadow on a frameless Windows window.
-///
-/// When `decorations: false` removes the WM_CAPTION-driven shadow, DWM will still
-/// composite a shadow if the extended frame reaches into the client area. A 1px
-/// margin is enough and doesn't reserve any pixel of the client rect for us to
-/// avoid. This is the same trick `tauri-plugin-window-shadows` uses.
-#[cfg(windows)]
-fn restore_undecorated_shadow(window: &tauri::Window) -> Result<(), Box<dyn std::error::Error>> {
-    use windows_sys::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
-    use windows_sys::Win32::UI::Controls::MARGINS;
-
-    // Tauri exposes HWND via the `windows` crate (tuple struct on isize); the
-    // Dwm API here comes from `windows-sys` where HWND is `*mut c_void`. Cast.
-    let hwnd_tauri = window.hwnd()?;
-    let hwnd: windows_sys::Win32::Foundation::HWND = hwnd_tauri.0 as _;
-    let margins = MARGINS {
-        cxLeftWidth: 0,
-        cxRightWidth: 0,
-        cyTopHeight: 1,
-        cyBottomHeight: 0,
-    };
-    // Safety: HWND is a valid, live window handle from Tauri.
-    unsafe {
-        DwmExtendFrameIntoClientArea(hwnd, &margins);
-    }
-    Ok(())
-}
-
 fn main() {
     // Eagerly initialize Typst fonts in a background thread so it doesn't block the UI
     // or the first render call from freezing the app on startup.
@@ -283,34 +313,31 @@ fn main() {
     let state = Arc::new(AppState::default());
     let latex_state = latex::LatexState::default();
 
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
     // macOS gets the standard system menu (provides ⌘Q, ⌘M, ⌘H, Edit menu
     // with Cut/Copy/Paste/Undo bindings, etc.) plus Settings, Check for
     // Updates and Close Tab. Other platforms use no menu — we expose actions
     // via the in-app toolbar / command palette.
     #[cfg(target_os = "macos")]
-    let menu = app_menu();
-    #[cfg(not(target_os = "macos"))]
-    let menu = tauri::Menu::new();
+    let builder = builder.menu(app_menu);
 
-    tauri::Builder::default()
-        .menu(menu)
+    builder
         .manage(state)
         .manage(latex_state)
         .setup(|app| {
+            // The frameless Windows window keeps its drop shadow: Tauri 2 draws
+            // one for undecorated windows (`shadow` defaults to true).
             #[cfg(windows)]
-            if let Some(window) = app.get_window("main") {
-                // Frameless on Windows drops the native drop shadow. Restore it by
-                // extending the DWM frame 1px into the client area — the standard
-                // technique (same visual result as tao's private undecorated_shadow
-                // path, which Tauri v1 does not expose). Failures are cosmetic and
-                // must never block startup.
-                let _ = restore_undecorated_shadow(&window);
+            if let Some(window) = app.get_webview_window("main") {
                 // Set the live HWND icon explicitly. Windows can otherwise keep
                 // showing a cached class/taskbar icon even after the executable's
                 // embedded ICO changes during development or an update.
-                let _ = window.set_icon(tauri::Icon::Raw(
-                    include_bytes!("../icons/icon.ico").to_vec(),
-                ));
+                if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.ico")) {
+                    let _ = window.set_icon(icon);
+                }
             }
             #[cfg(not(windows))]
             let _ = app;
@@ -373,38 +400,44 @@ fn main() {
             settings::detect_latex_engines,
             settings::detect_bib_engines,
         ])
-        .on_menu_event(|event| {
-            let window = event.window();
+        .on_menu_event(|app, event| {
             // Close Window acts on the window it was chosen in, and the PDF
             // window has no tabs for Close Tab to close.
-            let id = event.menu_item_id();
-            if id == CLOSE_WINDOW || (id == CLOSE_TAB && window.label() == PDF_WINDOW) {
-                close_window(window);
+            let id = event.id().as_ref();
+            let focused = app
+                .webview_windows()
+                .into_values()
+                .find(|w| w.is_focused().unwrap_or(false))
+                .map(|w| w.label().to_string());
+            if id == CLOSE_WINDOW || (id == CLOSE_TAB && focused.as_deref() == Some(PDF_WINDOW)) {
+                if let Some(label) = focused {
+                    close_window(app, &label);
+                }
                 return;
             }
             // The PDF window shares the app menu; commands belong to the main window.
-            if let Some(main) = window.get_window("main") {
+            if let Some(main) = app.get_webview_window("main") {
                 let _ = main.set_focus();
-                let _ = main.emit("menu-command", id);
+                let _ = main.emit_to("main", "menu-command", id);
             }
         })
-        .on_window_event(|event| {
+        .on_window_event(|window, event| {
             // The red button on the main window: see `close_window`.
             #[cfg(target_os = "macos")]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
-                if event.window().label() != PDF_WINDOW {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != PDF_WINDOW {
                     api.prevent_close();
-                    close_window(event.window());
+                    close_window(window.app_handle(), window.label());
                 }
             }
             // Only the main window owns the compile workdirs; the PDF window
             // closing must not discard what SyncTeX still needs.
-            if let tauri::WindowEvent::Destroyed = event.event() {
-                if event.window().label() != PDF_WINDOW {
-                    if let Some(s) = event.window().try_state::<latex::LatexState>() {
+            if let tauri::WindowEvent::Destroyed = event {
+                if window.label() != PDF_WINDOW {
+                    if let Some(s) = window.try_state::<latex::LatexState>() {
                         s.clear();
                     }
-                    if let Some(pdf) = event.window().get_window(PDF_WINDOW) {
+                    if let Some(pdf) = window.get_webview_window(PDF_WINDOW) {
                         let _ = pdf.close();
                     }
                 }
@@ -436,25 +469,33 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn cmd_w_closes_the_tab_and_shift_cmd_w_the_window() {
-        use tauri::{Menu, MenuEntry, MenuItem};
-        fn walk(menu: &Menu, shortcuts: &mut Vec<(String, String)>, native_close: &mut bool) {
-            for entry in &menu.items {
-                match entry {
-                    MenuEntry::Submenu(submenu) => walk(&submenu.inner, shortcuts, native_close),
-                    MenuEntry::NativeItem(MenuItem::CloseWindow) => *native_close = true,
-                    MenuEntry::CustomItem(item) => {
-                        if let Some(keys) = &item.keyboard_accelerator {
-                            shortcuts.push((item.id_str.clone(), keys.clone()));
-                        }
-                    }
-                    _ => {}
+        use super::MenuEntry;
+        let mut shortcuts = Vec::new();
+        for (_, entries) in super::menu_layout() {
+            for entry in entries {
+                if let MenuEntry::Command { id, accelerator: Some(keys), .. } = entry {
+                    shortcuts.push((id, keys));
                 }
             }
         }
-        let (mut shortcuts, mut native_close) = (Vec::new(), false);
-        walk(&super::app_menu(), &mut shortcuts, &mut native_close);
-        assert!(!native_close, "the standard Close Window item also binds ⌘W");
-        assert!(shortcuts.contains(&("tab.close".into(), "CmdOrCtrl+W".into())), "{shortcuts:?}");
-        assert!(shortcuts.contains(&("window.close".into(), "CmdOrCtrl+Shift+W".into())), "{shortcuts:?}");
+        assert!(shortcuts.contains(&("tab.close", "CmdOrCtrl+W")), "{shortcuts:?}");
+        assert!(shortcuts.contains(&("window.close", "CmdOrCtrl+Shift+W")), "{shortcuts:?}");
+        let mut keys: Vec<_> = shortcuts.iter().map(|(_, keys)| *keys).collect();
+        keys.sort();
+        let before = keys.len();
+        keys.dedup();
+        assert_eq!(before, keys.len(), "two menu items share a shortcut: {shortcuts:?}");
+    }
+
+    /// No submenu starts or ends with a separator, or has two in a row.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn menu_separators_only_sit_between_items() {
+        use super::MenuEntry::Separator;
+        for (title, entries) in super::menu_layout() {
+            assert_ne!(entries.first(), Some(&Separator), "{title}");
+            assert_ne!(entries.last(), Some(&Separator), "{title}");
+            assert!(!entries.windows(2).any(|pair| pair == [Separator, Separator]), "{title}");
+        }
     }
 }

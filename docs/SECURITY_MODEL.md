@@ -18,9 +18,10 @@ are stated here rather than left to defaults.
 
 ## 1. Webview → Rust (IPC)
 
-The React frontend has no direct filesystem or process capability. The Tauri
-allowlist (`tauri.conf.json`) enables only `dialog` and window dragging; the
-`fs` allowlist is removed. File access goes through explicit Rust commands
+The React frontend has no direct filesystem or process capability. Its Tauri
+permissions (`capabilities/default.json`) cover only dialogs, window controls
+and dragging, checking for and installing updates, and relaunching after an
+update; no `fs` or `shell` permission is granted. File access goes through explicit Rust commands
 (`read_text_file`, `save_binary_file`, `scan_folder_shallow`,
 the version-checked writes in `src/document_io.rs`), so the filesystem surface
 is auditable in one place.
@@ -122,13 +123,11 @@ diagnostics.
 
 ## 4. Content Security Policy
 
-`default-src 'self'`; `connect-src` limited to `'self'` and the Tauri IPC
-origins; `img-src` / `font-src` limited to `'self'`, `data:` and `blob:`.
+`default-src 'self'`; `script-src` limited to `'self'` and `blob:` (no inline
+scripts); `connect-src` limited to `'self'` and the Tauri IPC origins; `img-src` / `font-src` limited to `'self'`, `data:` and `blob:`.
 Remote images therefore do not load, in the editor or anywhere else.
 
 ## Known gaps
 
 - **Path policy.** Read/write commands trust the supplied path. A shared policy
   could confine them to user-authorized roots.
-- **CSP.** `script-src` still allows `'unsafe-inline'` because the frontend uses
-  `window.__TAURI__`; see the Tauri v2 item in `docs/ROADMAP.md`.

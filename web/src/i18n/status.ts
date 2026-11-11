@@ -9,6 +9,7 @@ export function statusMessage(text: string): string {
     ['Compile failed: ', 'Compile failed: {detail}'],
     ['Project config: ', 'Project config: {detail}'],
     ['Image not added: ', 'Image not added: {detail}'],
+    ['PDF not saved: ', 'PDF not saved: {detail}'],
   ];
   for (const [prefix, key] of prefixes) if (text.startsWith(prefix)) return t(key, { detail: text.slice(prefix.length) });
   const rendered = /^Rendered \((\d+) runs?\)$/.exec(text);
