@@ -5,13 +5,19 @@
 // the palette function.
 
 import { create } from 'zustand';
+import { fmtShortcut } from '../platform';
 
 export interface Command {
   /** Unique stable id, e.g. "file.open" */
   id: string;
   /** Human-readable label shown in the palette */
   name: string;
-  /** Optional shortcut hint, e.g. "Ctrl+O" — display only, not bound */
+  /**
+   * The key that runs this command, e.g. "Ctrl+Shift+E" (Ctrl is ⌘ on macOS).
+   * The window's key handler binds it and the palette shows it.
+   */
+  keys?: string;
+  /** Display-only hint for a key bound elsewhere (the macOS menu, the editor). */
   shortcut?: string;
   /** When true, command is enabled and shown */
   when?: () => boolean;
@@ -43,3 +49,8 @@ export const useCommandsStore = create<CommandsStore>((set, get) => ({
     return Array.from(get().commands.values()).filter(c => !c.when || c.when());
   },
 }));
+
+/** The shortcut the palette shows for a command. */
+export function shortcutLabel(command: Command): string | undefined {
+  return command.keys ? fmtShortcut(command.keys) : command.shortcut;
+}

@@ -1,7 +1,7 @@
 import { t, useLocale } from '../i18n';
 import { useModal } from '../hooks/useModal';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useCommandsStore, type Command } from '../store/commands';
+import { shortcutLabel, useCommandsStore, type Command } from '../store/commands';
 import styles from './CommandPalette.module.css';
 
 export interface CommandPaletteProps {
@@ -96,7 +96,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 }}
               >
                 <span className={styles.name}>{t(cmd.name)}</span>
-                {cmd.shortcut && <span className={styles.shortcut}>{cmd.shortcut}</span>}
+                {shortcutLabel(cmd) && <span className={styles.shortcut}>{shortcutLabel(cmd)}</span>}
               </li>
             ))
           )}
