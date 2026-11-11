@@ -47,6 +47,7 @@ import { useDocumentSync } from './hooks/useDocumentSync';
 import { SaveConflictNotice } from './components/SaveConflictNotice';
 import { checkExternalDocuments } from './files/documentSync';
 import { useFileDrop } from './hooks/useFileDrop';
+import { useCommandKeys } from './hooks/useCommandKeys';
 import { usePaneLayout } from './hooks/usePaneLayout';
 import { ipc } from './api/tauri';
 import { SymbolsPanel } from './components/SymbolsPanel';
@@ -382,10 +383,10 @@ export function App() {
   useEffect(() => {
     const reg = useCommandsStore.getState().register;
     const offs = [
-      reg({ id: 'view.focus', name: 'Toggle focus mode', shortcut: fmtShortcut('Ctrl+Shift+Enter'), run: () => setFocusMode(value => !value) }),
-      reg({ id: 'view.sidebar', name: 'Toggle sidebar', shortcut: fmtShortcut('Ctrl+Shift+L'), run: toggleSidebar }),
+      reg({ id: 'view.focus', name: 'Toggle focus mode', keys: 'Ctrl+Shift+Enter', run: () => setFocusMode(value => !value) }),
+      reg({ id: 'view.sidebar', name: 'Toggle sidebar', keys: 'Ctrl+Shift+L', run: toggleSidebar }),
       reg({ id: 'view.typewriter', name: 'Toggle typewriter scrolling', run: () => void patchAndSave({ editor_typewriter: !useSettingsStore.getState().settings.editor_typewriter }) }),
-      ...LAYOUTS.map((layout, i) => reg({ id: `view.${layout}`, name: layout === 'editor' ? t("Editor only") : layout === 'preview' ? t("Preview only") : t("Split view"), shortcut: fmtShortcut(`Ctrl+${i + 2}`), when: () => lang !== 'markdown', run: () => setLayout(layout) })),
+      ...LAYOUTS.map((layout, i) => reg({ id: `view.${layout}`, name: layout === 'editor' ? t("Editor only") : layout === 'preview' ? t("Preview only") : t("Split view"), keys: `Ctrl+${i + 2}`, when: () => lang !== 'markdown', run: () => setLayout(layout) })),
       reg({
         id: 'markdown.source',
         name: 'Toggle Markdown source',
@@ -427,17 +428,17 @@ export function App() {
           else void navigator.clipboard.writeText(source).then(() => setStatus('Table copied', 'info'));
         },
       }),
-      reg({ id: 'file.quickOpen', name: 'Quick Open…', shortcut: fmtShortcut('Ctrl+P'), run: () => setQuickOpen(true) }),
-      reg({ id: 'file.new', name: 'New document', shortcut: fmtShortcut('Ctrl+N'), run: newBlankNote }),
+      reg({ id: 'file.quickOpen', name: 'Quick Open…', keys: 'Ctrl+P', run: () => setQuickOpen(true) }),
+      reg({ id: 'file.new', name: 'New document', keys: 'Ctrl+N', run: newBlankNote }),
       reg({ id: 'writer.templates', name: 'New from template…', run: () => setWriterTool('templates') }),
       reg({ id: 'writer.history', name: 'Local version timeline…', when: () => !!useTabsStore.getState().activeTabId, run: () => setWriterTool('history') }),
       reg({ id: 'writer.environment', name: 'Check environment…', run: () => setWriterTool('environment') }),
-      reg({ id: 'file.open', name: 'Open file…', shortcut: fmtShortcut('Ctrl+O'), run: () => openFileDialog() }),
-      reg({ id: 'file.save', name: 'Save', shortcut: fmtShortcut('Ctrl+S'), run: () => saveActiveTab() }),
-      reg({ id: 'file.saveAs', name: 'Save as…', shortcut: fmtShortcut('Ctrl+Shift+S'), run: () => saveActiveTab({ saveAs: true }) }),
+      reg({ id: 'file.open', name: 'Open file…', keys: 'Ctrl+O', run: () => openFileDialog() }),
+      reg({ id: 'file.save', name: 'Save', keys: 'Ctrl+S', run: () => saveActiveTab() }),
+      reg({ id: 'file.saveAs', name: 'Save as…', keys: 'Ctrl+Shift+S', run: () => saveActiveTab({ saveAs: true }) }),
       // ⌘W arrives from the macOS menu (File ▸ Close Tab), not from a key handler here.
       reg({ id: 'tab.close', name: 'Close tab', shortcut: isMac ? '⌘W' : undefined, when: () => !!useTabsStore.getState().activeTabId, run: closeActiveTab }),
-      reg({ id: 'workspace.openFolder', name: 'Open folder…', shortcut: fmtShortcut('Ctrl+Shift+O'), run: openFolder }),
+      reg({ id: 'workspace.openFolder', name: 'Open folder…', keys: 'Ctrl+Shift+O', run: openFolder }),
       reg({
         id: 'workspace.closeFolder',
         name: 'Close folder',
@@ -477,11 +478,11 @@ export function App() {
       reg({
         id: 'workspace.search',
         name: 'Search / Replace in Workspace',
-        shortcut: fmtShortcut('Ctrl+Shift+F'),
+        keys: 'Ctrl+Shift+F',
         when: () => workspaceFolder !== null,
         run: () => setWorkspaceSearchOpen(true),
       }),
-      reg({ id: 'app.settings', name: 'Open settings', shortcut: isMac ? '⌘,' : undefined, run: () => setSettingsOpen(true) }),
+      reg({ id: 'app.settings', name: 'Open settings', keys: isMac ? 'Ctrl+,' : undefined, run: () => setSettingsOpen(true) }),
       reg({ id: 'app.checkUpdates', name: 'Check for Updates…', run: () => checkForUpdates({ silent: false }) }),
       reg({
         id: 'table.convert',
@@ -508,14 +509,14 @@ export function App() {
       reg({
         id: 'latex.compile',
         name: 'Compile (LaTeX)',
-        shortcut: fmtShortcut('Ctrl+B'),
+        keys: 'Ctrl+B',
         when: () => lang === 'latex',
         run: () => compileNow(),
       }),
       reg({
         id: 'latex.synctexForward',
         name: 'SyncTeX: jump to PDF',
-        shortcut: fmtShortcut('Ctrl+Alt+J'),
+        keys: 'Ctrl+Alt+J',
         when: () => lang === 'latex',
         run: async () => {
           const line = editorApiRef.current?.cursorLine() ?? 1;
@@ -525,21 +526,21 @@ export function App() {
       reg({
         id: 'latex.exportPdf',
         name: 'Export PDF',
-        shortcut: fmtShortcut('Ctrl+Shift+E'),
+        keys: 'Ctrl+Shift+E',
         when: () => lang === 'latex',
         run: exportLatexPdf,
       }),
       reg({
         id: 'typst.exportPdf',
         name: 'Export PDF (Typst)',
-        shortcut: fmtShortcut('Ctrl+Shift+E'),
+        keys: 'Ctrl+Shift+E',
         when: () => lang === 'typst',
         run: exportTypstPdf,
       }),
       reg({
         id: 'markdown.exportHtml',
         name: 'Export HTML…',
-        shortcut: fmtShortcut('Ctrl+Shift+E'),
+        keys: 'Ctrl+Shift+E',
         when: () => lang === 'markdown',
         run: exportHtml,
       }),
@@ -566,81 +567,20 @@ export function App() {
     return () => { void off.then(unlisten => unlisten()); };
   }, []);
 
-  // Focus is temporary: leaving it restores the user's exact pane preferences.
+  // Focus is temporary: Escape leaves it and restores the user's exact pane
+  // preferences. Its shortcut (Ctrl+Shift+Enter) is the view.focus command's.
   useEffect(() => {
-    function onFocusKey(event: KeyboardEvent) {
+    function onEscape(event: KeyboardEvent) {
       if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"]'))) return;
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
-        event.preventDefault();
-        setFocusMode(value => !value);
-      } else if (event.key === 'Escape' && !event.defaultPrevented && !paletteOpen && !settingsOpen) {
-        setFocusMode(false);
-      }
+      if (event.key === 'Escape' && !paletteOpen && !settingsOpen) setFocusMode(false);
     }
-    window.addEventListener('keydown', onFocusKey);
-    return () => window.removeEventListener('keydown', onFocusKey);
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
   }, [paletteOpen, settingsOpen]);
 
-  // Global keyboard shortcuts.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('[role="dialog"]'))) return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        setPaletteOpen(true);
-      } else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        setQuickOpen(true);
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        if (workspaceFolder) setWorkspaceSearchOpen(true);
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
-        void openFolder();
-      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        newBlankNote();
-      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
-        void openFileDialog();
-      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void saveActiveTab();
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void saveActiveTab({ saveAs: true });
-      } else if (mod && e.shiftKey && e.code === 'KeyL') {
-        e.preventDefault();
-        toggleSidebar();
-      } else if (mod && !e.shiftKey && !e.altKey && /^Digit[234]$/.test(e.code) && lang !== 'markdown') {
-        // Texifier's Cmd+2/3/4; in Markdown these keys set heading levels.
-        e.preventDefault();
-        setLayout(LAYOUTS[Number(e.code.slice(5)) - 2]);
-      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'b' && lang === 'latex') {
-        e.preventDefault();
-        void compileNow();
-      } else if (mod && e.altKey && e.code === 'KeyJ' && lang === 'latex') {
-        e.preventDefault();
-        void syncTexForwardFromEditor(editorApiRef.current?.cursorLine() ?? 1);
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'e') {
-        e.preventDefault();
-        if (lang === 'latex') void exportLatexPdf();
-        else if (lang === 'typst') void exportTypstPdf();
-        else exportHtml();
-      } else if (isMac && e.metaKey && !e.shiftKey && !e.altKey && e.key === ',') {
-        e.preventDefault();
-        setSettingsOpen(true);
-      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'a'
-        && !(e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest('input, textarea')))) {
-        // Outside text, Select All would highlight every label in the window.
-        e.preventDefault();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, workspaceFolder, startTabId]);
+  // Every other shortcut runs the command that owns it (see `keys` above).
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  useCommandKeys(openPalette);
 
   // The sidebar runs the window's full height; the bars belong to the work area beside it.
   const sidebarShown = !focusMode && settings.sidebar_visible;

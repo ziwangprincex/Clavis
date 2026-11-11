@@ -8,7 +8,7 @@ import { StatusBar } from './components/StatusBar';
 import { PdfViewer } from './components/PdfViewer';
 import { WriterDialog } from './components/WriterDialog';
 import { useTabsStore, useSettingsStore, useProjectStore, defaultSettings } from './store';
-import { useCommandsStore } from './store/commands';
+import { shortcutLabel, useCommandsStore } from './store/commands';
 import { restoreSession } from './files/session';
 import { ipc, dialogConfirm } from './api/tauri';
 
@@ -197,7 +197,7 @@ it('keeps bibliography and references away from notes', async () => {
 it('keeps advanced writer tools discoverable in the command palette', async () => {
   await mount();
   const commands = useCommandsStore.getState().commands;
-  expect(commands.get('file.new')?.shortcut).toBeTruthy();
+  expect(shortcutLabel(commands.get('file.new')!)).toBeTruthy();
   for (const id of ['writer.templates', 'writer.history', 'writer.environment', 'markdown.source']) expect(commands.has(id)).toBe(true);
   await act(async () => { await commands.get('writer.environment')!.run(); });
   expect(tree.root.findByType(WriterDialog).props.tool).toBe('environment');
