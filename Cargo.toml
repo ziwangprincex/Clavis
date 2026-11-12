@@ -11,7 +11,7 @@ rust-version = "1.92"
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2.12.5", features = ["image-ico"] }
+tauri = { version = "2.12.5", features = ["image-ico", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -46,7 +46,7 @@ tauri-plugin-process = "2.4.0"
 tauri-plugin-updater = "2.14.1"
 
 [dev-dependencies]
-tauri = { version = "2.12.5", features = ["image-ico", "test"] }
+tauri = { version = "2.12.5", features = ["image-ico", "macos-private-api", "test"] }
 
 [features]
 default = ["custom-protocol"]

@@ -53,6 +53,7 @@
   /* Shadows (subtle, like Apple) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
   --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.28), 0 16px 44px rgba(0, 0, 0, 0.42);
+  --page-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 6px 24px rgba(0, 0, 0, 0.40);
 
   /* Tinted row backgrounds for diagnostic severity (dark). */
   --tint-error: rgba(255, 69, 58, 0.10);
@@ -69,6 +70,14 @@
     'Microsoft YaHei', sans-serif;
   --font-display: var(--font-sans);
   --font-literary: var(--font-sans);
+  /* The typeset text face for Markdown (styles/fonts.css): Libertinus Serif
+   * for Latin, then each system's own Song face for Chinese. */
+  --font-text: 'Libertinus Serif', 'Songti SC', 'Source Han Serif SC',
+    'Noto Serif CJK SC', 'SimSun', serif;
+  /* Chinese has no italic: emphasis and quotations are set in Kai, as Chinese
+   * books set them, while Latin text in them keeps Libertinus's true italic. */
+  --font-quote: 'Libertinus Serif', 'STKaiti', 'Kaiti SC', 'KaiTi',
+    'AR PL UKai CN', 'Songti SC', 'SimSun', serif;
   /* Mono stack. Maple Mono NF leads because it ships the Nerd Font glyph range
    * the status bar and log panel can draw on; the CN variant follows so a
    * machine with only that installed still gets the same metrics. 'SF Mono' and

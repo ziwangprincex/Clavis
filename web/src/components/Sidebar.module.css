@@ -1,4 +1,7 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
+/* macOS: the frame's tone over the system sidebar material, so it stays the
+ * same colour family as the page while the desktop shows faintly through. */
+.sidebar[data-vibrant] { background: color-mix(in srgb, var(--panel-solid) 58%, transparent); }
 /* Hiding slides the panel out to the left instead of removing it at once; the
  * work area grows into the space. It stays mounted, so state survives. */
 .sidebar { margin-left: 0; transition: margin-left var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease); }
@@ -13,9 +16,8 @@
 .views.mac { padding-left: var(--window-buttons); justify-content: flex-end; }
 .view { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--control-h); height: var(--control-h); padding: 0; border: none; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
 .view:hover { background: var(--panel-soft); color: var(--text); }
-/* The selected view reads at a glance, as Texifier's filled tab icon. */
-.view.selected { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
-.view.selected:hover { background: var(--accent-hover, var(--accent)); color: var(--on-accent-hover, var(--on-accent)); }
+/* The selected view is a page-coloured key on the frame, as a segmented control. */
+.view.selected, .view.selected:hover { background: var(--bg); color: var(--text); box-shadow: var(--shadow-sm); }
 .badge { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--error); }
 .content { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 8px 12px; }
 .content > [role="tabpanel"][hidden] { display: none; }
@@ -30,7 +32,7 @@
 .sectionActions { display: flex; align-items: center; gap: 1px; padding-right: 4px; }
 .caret { flex: none; transform: rotate(-90deg); transition: transform var(--dur) var(--ease); }
 .caretOpen { transform: rotate(0); }
-.sectionBody { margin: 2px 0 4px 13px; padding: 0 0 0 7px; border-left: 1px solid var(--border); }
+.sectionBody { margin: 2px 0 4px 13px; padding: 0 0 0 7px; }
 .empty { margin: 8px; color: var(--text-muted); font-size: var(--font-size-small); line-height: 1.6; }
 .empty p { margin: 0 0 8px; }
 .openFolder { display: inline-flex; align-items: center; gap: 6px; min-height: var(--row-h); padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text); font: inherit; cursor: pointer; }

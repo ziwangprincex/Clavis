@@ -1,19 +1,15 @@
+/* The document's status, at the right of the toolbar: word count, then a
+ * build's or a save's message while it is news, then the problems of a
+ * LaTeX build. No bar of its own. */
 .bar {
   display: flex;
   align-items: center;
-  height: var(--row-h);
-  flex: 0 0 var(--row-h);
-  padding: 0 var(--bar-inset);
-  background: var(--panel-solid);
-  /* Part of the frame, so its tone alone sets it off from the document. Text
-   * stays at --text-muted rather than --text-dim — dim is the disabled or
-   * placeholder level, and the bar carries real information (compile state,
-   * cursor position) that has to remain legible. */
+  min-width: 0;
   font-size: var(--font-size-small);
   color: var(--text-muted);
   -webkit-user-select: none;
   user-select: none;
-  gap: 12px;
+  gap: 4px;
 }
 
 .spacer {
@@ -25,8 +21,10 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  max-width: 40%;
+  max-width: 320px;
+  padding: 0 6px;
 }
+.status[hidden] { display: none; }
 
 .status.info .dot {
   background: var(--text-dim);
@@ -87,6 +85,7 @@
 
 button.cell {
   cursor: pointer;
+  padding-block: 4px;
   transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
@@ -120,8 +119,9 @@ button.cell:hover {
 .statsDisclosure summary { cursor: pointer; list-style: none; padding: 4px 8px; }
 .statsDisclosure summary::-webkit-details-marker { display: none; }
 .statsDisclosure summary:hover, .statsDisclosure[open] summary { background: var(--panel-soft); color: var(--text); }
-.statsPanel { position: absolute; right: 0; bottom: calc(100% + 10px); width: 300px; max-width: calc(100vw - 32px); padding: 18px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); color: var(--text); z-index: 50; font-size: 1rem; }
+.statsPanel { position: absolute; right: 0; top: calc(100% + 10px); width: 300px; max-width: calc(100vw - 32px); padding: 18px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); color: var(--text); z-index: 50; font-size: 1rem; }
 .statsPanel dl { display: grid; grid-template-columns: 1fr auto; gap: 10px 18px; margin: 16px 0 0; }
 .statsPanel dt { color: var(--text-muted); }
 .statsPanel dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-@media (max-width: 850px) { .message { display: none; } .bar { gap: 6px; } .status { max-width: 55%; } }
+@media (max-width: 850px) { .status { max-width: 180px; } }
+.build { display: inline-flex; align-items: center; gap: 6px; }

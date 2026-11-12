@@ -25,7 +25,14 @@
 /* Formatted Markdown is a centered page, like the reading view it replaces.
  * The bottom inset lets the last line scroll up to mid-window. */
 .host[data-live] :global(.cm-scroller) { padding-inline: max(24px, calc((100% - var(--writing-measure, 36em)) / 2)); }
-.host[data-live] :global(.cm-content) { padding-block: 56px 40vh; }
+.host[data-live] :global(.cm-content) {
+  padding-block: 64px 40vh;
+  /* A browser-made italic slants Chinese. Without one, Chinese in Kai stays
+   * upright, as Chinese emphasis is set, and Latin keeps its true italic. */
+  font-synthesis: weight;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
 
 @container writing-pane (max-width: 560px) {
   .host :global(.cm-scroller),

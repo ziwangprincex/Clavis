@@ -19,17 +19,20 @@ export interface ThemeSpec {
 }
 
 export const BUILTIN_THEMES: Record<string, ThemeSpec> = {
+  // Paper and Ink: an off-white page and a near-black one, one ink-blue accent.
+  // Syntax stays in the ink's family: commands in the accent, everything else
+  // close to the text, comments receding but still readable.
   paper: {
     label: 'Clavis Paper', dark: false,
-    bg: '#fafafa', fg: '#292929', gutterBg: '#fafafa', gutterFg: '#777777',
-    activeBg: '#f0f0f0', cursor: '#2f66a8', selection: '#c7d5e6', accent: '#2f66a8',
-    syntax: { keyword: '#405c78', name: '#526477', literal: '#675948', comment: '#696969' },
+    bg: '#fbfbf9', fg: '#1d2026', gutterBg: '#fbfbf9', gutterFg: '#8a8d93',
+    activeBg: '#f3f3f0', cursor: '#2f5d8a', selection: '#d3dfeb', accent: '#2f5d8a',
+    syntax: { keyword: '#3f5872', name: '#2f5d8a', literal: '#5f5747', comment: '#6b6f76' },
   },
   ink: {
     label: 'Clavis Ink', dark: true,
-    bg: '#242424', fg: '#e4e4e4', gutterBg: '#242424', gutterFg: '#909090',
-    activeBg: '#2d2d2d', cursor: '#8ab4e8', selection: '#434f5f', accent: '#8ab4e8',
-    syntax: { keyword: '#aac0d6', name: '#b5c3cf', literal: '#c8bca9', comment: '#a0a0a0' },
+    bg: '#1e1f22', fg: '#e6e4df', gutterBg: '#1e1f22', gutterFg: '#74777e',
+    activeBg: '#25262a', cursor: '#93b4d8', selection: '#34475b', accent: '#93b4d8',
+    syntax: { keyword: '#adbfd2', name: '#93b4d8', literal: '#cbc1aa', comment: '#9a9ca2' },
   },
   mist: {
     label: 'Clavis Mist', dark: false,

@@ -2,7 +2,7 @@ import { t } from '../i18n';
 import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { IconAlert, IconBook, IconChevronDown, IconDoc, IconFolder } from './icons';
 import { hasTauri } from '../api/tauri';
-import { isMac } from '../platform';
+import { isMac, vibrantWindow } from '../platform';
 import styles from './Sidebar.module.css';
 
 export type SidebarView = 'documents' | 'research' | 'problems';
@@ -45,7 +45,7 @@ export function Sidebar(props: SidebarProps) {
     ? { flex: `0 0 ${props.width}px`, width: `${props.width}px`, '--sidebar-width': `${props.width}px` } as CSSProperties
     : undefined;
   return (
-    <aside className={styles.sidebar} aria-label={t('Workspace')} hidden={props.hidden} style={widthStyle}>
+    <aside className={styles.sidebar} aria-label={t('Workspace')} hidden={props.hidden} style={widthStyle} data-vibrant={vibrantWindow() || undefined}>
       {/* The window's top-left corner: a drag region, and on macOS the traffic lights. */}
       <div className={`${styles.views} ${isMac && hasTauri() ? styles.mac : ''}`} role="tablist" aria-label={t('Workspace views')} data-tauri-drag-region>
         {views.map((item, index) => (

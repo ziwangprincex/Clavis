@@ -102,6 +102,13 @@ export interface Settings {
   pdf_scroll_lock: boolean;
 }
 
+/** The Markdown text face: Libertinus Serif (bundled) with the system's Song for Chinese. */
+export const TYPESET_TEXT_FONT =
+  '"Libertinus Serif", "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "SimSun", serif';
+/** The Markdown text default before 1.12, stored in many settings files as is. */
+const LEGACY_TEXT_FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+
 export const defaultSettings: Settings = {
   ui_language: 'auto',
   ui_mono_font_family: '',
@@ -143,9 +150,8 @@ export const defaultSettings: Settings = {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   ui_font_size: 13,
   ui_accent_color: '',
-  preview_font_family:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
-  preview_font_size: 17,
+  preview_font_family: TYPESET_TEXT_FONT,
+  preview_font_size: 18,
   ui_color_overrides: {},
   preview_reading_width: 'narrow',
   cwl_enabled: true,
@@ -208,6 +214,12 @@ export function migrateSettings(s: Settings): Settings {
     migrated = { ...migrated, sidebar_visible: true };
   }
   if (!['auto', 'en', 'zh-CN'].includes(migrated.ui_language)) migrated = { ...migrated, ui_language: 'auto' };
+  // Settings were saved whole, so the old system-font default reads as a
+  // choice. Move it, and the size that went with it, to the typeset default;
+  // a font or size the user picked stays.
+  if (migrated.preview_font_family === LEGACY_TEXT_FONT) {
+    migrated = { ...migrated, preview_font_family: TYPESET_TEXT_FONT, ...(migrated.preview_font_size === 17 && { preview_font_size: 18 }) };
+  }
   return migrated;
 }
 

@@ -1,13 +1,19 @@
 import type { CSSProperties } from 'react';
 import { defaultSettings, type Settings } from '../store/settings';
 
-export const headingSizes: Record<string, number> = { h1: 2, h2: 1.5, h3: 1.22, h4: 1.06, h5: 1, h6: 1 };
+/** Serif headings need less size than sans ones to stand out: 1.75 / 1.3 / 1.12. */
+export const headingSizes: Record<string, number> = { h1: 1.75, h2: 1.3, h3: 1.12, h4: 1.04, h5: 1, h6: 1 };
 export function previewTypography(settings: Settings): CSSProperties {
+  // Kai for quotations and emphasis belongs to the typeset face; with a font
+  // of the user's own, they stay in that font.
+  const typeset = !settings.preview_font_family || settings.preview_font_family === defaultSettings.preview_font_family;
   const style: Record<string, string | number> = {
-    fontFamily: settings.preview_font_family || 'var(--font-sans)',
+    fontFamily: settings.preview_font_family || defaultSettings.preview_font_family,
     fontSize: `${settings.preview_font_size}px`,
     lineHeight: settings.preview_line_height,
-    '--quote-font': settings.preview_quote_font_family || 'inherit',
+    '--quote-font': settings.preview_quote_font_family || (typeset ? 'var(--font-quote)' : 'inherit'),
+    '--emphasis-font': settings.preview_quote_font_family || (typeset ? 'var(--font-quote)' : 'inherit'),
+    '--quote-style': typeset ? 'italic' : 'normal',
     '--inline-code-font': settings.preview_inline_code_font_family || settings.editor_font_family || defaultSettings.editor_font_family,
     '--code-font': settings.preview_code_font_family || settings.editor_font_family || defaultSettings.editor_font_family,
   };
