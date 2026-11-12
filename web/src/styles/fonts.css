@@ -1,0 +1,35 @@
+/* The typeset text face. Markdown is written in it, as a printed article would
+ * be set; Typst's own default is the same family, so a Markdown note and a
+ * Typst document read alike. Libertinus Serif is under the SIL Open Font
+ * License 1.1 (../assets/fonts/OFL.txt) and comes from typst-assets, which
+ * Clavis already embeds for Typst. Chinese falls through to the system's
+ * Songti or Source Han Serif (see --font-text in tokens.css). */
+
+@font-face {
+  font-family: 'Libertinus Serif';
+  src: url('../assets/fonts/LibertinusSerif-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Libertinus Serif';
+  src: url('../assets/fonts/LibertinusSerif-Italic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Libertinus Serif';
+  src: url('../assets/fonts/LibertinusSerif-Semibold.otf') format('opentype');
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Libertinus Serif';
+  src: url('../assets/fonts/LibertinusSerif-SemiboldItalic.otf') format('opentype');
+  font-weight: 500 700;
+  font-style: italic;
+  font-display: swap;
+}

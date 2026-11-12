@@ -27,6 +27,14 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const abstractLimit = useSettingsStore(s => s.settings.writing_abstract_word_limit);
   const readingSpeed = useSettingsStore(s => s.settings.reading_speed ?? 300);
   const disclosure = useRef<HTMLDetailsElement>(null);
+  // A message stays a few seconds; an error stays until something replaces it.
+  const [fresh, setFresh] = useState(false);
+  useEffect(() => {
+    setFresh(rawText !== 'Ready');
+    if (rawText === 'Ready' || kind === 'error') return;
+    const timer = setTimeout(() => setFresh(false), 4000);
+    return () => clearTimeout(timer);
+  }, [rawText, kind]);
   const summary = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState(false);
   const content = useDebounced(activeTab?.content ?? '', 250, activeTab?.id);
@@ -62,18 +70,20 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const problemsLabel = shownProblemCount > 0 ? t('{count} issues', { count: shownProblemCount })
     : compiling ? t('Compiling…') : compileStatus === 'error' ? t('Compile failed')
     : compileStatus === 'ok' ? t('No issues') : t('Compile Log');
-  const saveText = !activeTab ? t("No document") : activeTab.isDirty ? t("Unsaved changes") : activeTab.filePath ? t("Saved") : t("Not saved to disk");
-  const statusText = settingsError ? t('Settings were not saved: {error}', { error: settingsError }) : compiling ? t("Compiling…") : kind === 'error' ? text : saveText;
-  const statusKind = settingsError || kind === 'error' ? 'error' : activeTab?.isDirty || !activeTab?.filePath ? 'info' : 'ok';
+  const statusText = settingsError ? t('Settings were not saved: {error}', { error: settingsError }) : text;
 
+  // Shown only when it says something: a build running, a fresh message, an
+  // error. The unsaved state is the dot beside the document name.
+  // A running build shows on the problems button, which opens its live log.
+  const notice = !!settingsError || (fresh && !compiling);
+  const noticeKind = settingsError || kind === 'error' ? 'error' : kind;
+  const problemsShown = isLatex && (compileStatus !== 'idle' || shownProblemCount > 0);
   return (
-    <footer className={styles.bar}>
-      <span className={`${styles.status} ${styles[statusKind]}`} role="status" aria-live="polite" title={statusText}>
-        <span className={`${styles.dot} ${compiling ? styles.pulse : ''}`} />
+    <div className={styles.bar}>
+      <span className={`${styles.status} ${styles[noticeKind]}`} role="status" aria-live="polite" title={statusText} hidden={!notice}>
+        <span className={styles.dot} />
         <span className={styles.statusText}>{statusText}</span>
       </span>
-      {rawText !== 'Ready' && kind !== 'error' && !compiling && <span className={styles.message} title={text}>{text}</span>}
-      <span className={styles.spacer} />
       <details className={styles.statsDisclosure} ref={disclosure} onToggle={event => setExpanded(event.currentTarget.open)} onBlur={event => {
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) event.currentTarget.open = false;
       }}>
@@ -92,15 +102,14 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
             {detail?.selectionWords != null && <><dt>{t("Selection")}</dt><dd>{detail.selectionWords.toLocaleString()}</dd></>}
             {detail?.sectionWords != null && <><dt>{t("Current section")}</dt><dd>{detail.sectionWords.toLocaleString()}</dd></>}
             {detail && <><dt>{t("Captions")}</dt><dd>{detail.captionWords.toLocaleString()}</dd><dt>{t("Footnotes")}</dt><dd>{detail.footnoteWords.toLocaleString()}</dd></>}
+            {isLatex && chain && <><dt>{t('Programs that ran in the last build')}</dt><dd>{describeChain(chain, count => t(count === 1 ? '{count} pass' : '{count} passes', { count }))}</dd></>}
           </dl>
         </div>
       </details>
-      {isLatex && chain && !compiling && <span className={styles.cell} title={t('Programs that ran in the last build')}>
-        {describeChain(chain, count => t(count === 1 ? '{count} pass' : '{count} passes', { count }))}
-      </span>}
-      {isLatex && <button type="button" className={`${styles.cell} ${shownProblemCount > 0 || compileStatus === 'error' ? styles.problems : ''}`} onClick={onToggleProblems} title={t("Toggle problems panel")}>
+      {problemsShown && <button type="button" className={`${styles.cell} ${styles.build} ${shownProblemCount > 0 || compileStatus === 'error' ? styles.problems : ''}`} onClick={onToggleProblems} title={t("Toggle problems panel")}>
+        {compiling && <span className={`${styles.dot} ${styles.pulse}`} aria-hidden="true" />}
         {problemsLabel}
       </button>}
-    </footer>
+    </div>
   );
 }

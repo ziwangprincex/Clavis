@@ -708,6 +708,7 @@ export function App() {
             onToggleSymbols={() => setSymbolsOpen(o => !o)}
             onWriterTool={setWriterTool}
             onNewDocument={newBlankNote}
+            status={<StatusBar onToggleProblems={toggleProblems} />}
             inlineMath={settings.editor_inline_math}
             onInlineMathChange={value => void patchAndSave({ editor_inline_math: value })}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -785,7 +786,6 @@ export function App() {
               </Suspense>
             </div>
           </div>
-          <StatusBar onToggleProblems={toggleProblems} />
         </div>
       </div>
 

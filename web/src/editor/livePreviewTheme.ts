@@ -11,9 +11,9 @@ export const livePreviewTheme = EditorView.baseTheme({
   '.cm-line.cm-md-h1, .cm-line.cm-md-h2, .cm-line.cm-md-h3, .cm-line.cm-md-h4, .cm-line.cm-md-h5, .cm-line.cm-md-h6': {
     lineHeight: '1.3', paddingTop: '0.8em', paddingBottom: '0.2em',
   },
-  '.cm-line.cm-md-h1': { lineHeight: '1.2', letterSpacing: '-0.022em', paddingTop: '0.4em', paddingBottom: '0.3em' },
-  '.cm-line.cm-md-h2': { lineHeight: '1.25', letterSpacing: '-0.017em', paddingTop: '1em' },
-  '.cm-line.cm-md-h3': { letterSpacing: '-0.01em' },
+  // Serif headings keep their natural spacing; negative tracking suits sans display type.
+  '.cm-line.cm-md-h1': { lineHeight: '1.25', paddingTop: '0.4em', paddingBottom: '0.45em' },
+  '.cm-line.cm-md-h2': { lineHeight: '1.3', paddingTop: '1.1em' },
   '.cm-md-h1': { fontSize: 'var(--h1-size, 2em)', fontWeight: 'var(--h1-weight, 600)', fontFamily: 'var(--h1-font, inherit)' },
   '.cm-md-h2': { fontSize: 'var(--h2-size, 1.5em)', fontWeight: 'var(--h2-weight, 600)', fontFamily: 'var(--h2-font, inherit)' },
   '.cm-md-h3': { fontSize: 'var(--h3-size, 1.2em)', fontWeight: 'var(--h3-weight, 600)', fontFamily: 'var(--h3-font, inherit)' },
@@ -22,8 +22,8 @@ export const livePreviewTheme = EditorView.baseTheme({
   '.cm-md-h6': { fontSize: 'var(--h6-size, 1em)', fontWeight: 'var(--h6-weight, 600)', fontFamily: 'var(--h6-font, inherit)' },
   '.cm-line.cm-md-setext': { fontSize: '0.5em', lineHeight: '1' },
   '.cm-line.cm-md-quote': {
-    borderLeft: '3px solid var(--border-strong)', paddingLeft: '1em',
-    color: 'var(--text-muted)', fontFamily: 'var(--quote-font, inherit)',
+    borderLeft: '2px solid var(--border-strong)', paddingLeft: '1.1em',
+    color: 'var(--text-muted)', fontFamily: 'var(--quote-font, inherit)', fontStyle: 'var(--quote-style, normal)',
   },
   '.cm-line.cm-md-code': {
     fontFamily: 'var(--code-font, var(--font-mono))', fontSize: '0.88em', lineHeight: '1.6',
@@ -127,11 +127,19 @@ export const livePreviewTheme = EditorView.baseTheme({
   },
   '.cm-md-table-menu button:hover': { background: 'var(--tint-accent)' },
   '.cm-md-table-menu kbd': { font: 'inherit', color: 'var(--text-muted)' },
-  '.cm-md-table table': { borderCollapse: 'collapse', fontSize: '0.94em', lineHeight: '1.5' },
-  '.cm-md-table th, .cm-md-table td': { padding: '0.35em 0.9em', borderBottom: '1px solid var(--border)', textAlign: 'left' },
-  // Rules only, no side borders: the outer cells sit on the text edges.
+  // Three rules, as booktabs sets a table: a heavier rule above and below,
+  // a light one under the header, none between rows.
+  '.cm-md-table table': {
+    borderCollapse: 'collapse', fontSize: '0.94em', lineHeight: '1.5',
+    fontVariantNumeric: 'lining-nums tabular-nums',
+    borderTop: '1.5px solid var(--text)', borderBottom: '1.5px solid var(--text)',
+  },
+  '.cm-md-table th, .cm-md-table td': { padding: '0.3em 1.1em', textAlign: 'left' },
+  // The outer cells sit on the text edges.
   '.cm-md-table th:first-child, .cm-md-table td:first-child': { paddingLeft: '0' },
   '.cm-md-table th:last-child, .cm-md-table td:last-child': { paddingRight: '0' },
-  '.cm-md-table th': { fontWeight: '600', borderBottomColor: 'var(--border-strong)' },
+  '.cm-md-table th': { fontWeight: '600', paddingTop: '0.45em', borderBottom: '0.75px solid var(--text)' },
+  '.cm-md-table tbody tr:first-child td': { paddingTop: '0.55em' },
+  '.cm-md-table tbody tr:last-child td': { paddingBottom: '0.55em' },
   '.cm-md-table code': { fontFamily: 'var(--inline-code-font, var(--font-mono))', fontSize: '0.9em' },
 });

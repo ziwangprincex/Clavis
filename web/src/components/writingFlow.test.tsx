@@ -63,72 +63,87 @@ describe('task-oriented toolbar', () => {
   });
   it('keeps New visible and TeX tools and layouts absent for Markdown', () => {
     toolbar('markdown');
+    // New stays on the bar: once a project is open, nothing else on screen creates a file.
     act(() => button('New document').props.onClick());
     expect(props.onNewDocument).toHaveBeenCalledOnce();
-    expect(button('Typesetting')).toBeUndefined();
+    // Export and the TeX tools live in the menu; Markdown has no layouts.
     expect(button('Export PDF')).toBeUndefined();
-    expect(button('Split')).toBeUndefined();
+    expect(button('Compile')).toBeUndefined();
+    expect(button('Split view')).toBeUndefined();
     act(() => button('Document tools').props.onClick());
     act(() => button('New from template…').props.onClick());
     expect(props.onWriterTool).toHaveBeenCalledWith('templates');
     act(() => button('Document tools').props.onClick());
     expect(rendered()).not.toContain('Check environment');
     expect(rendered()).not.toContain('Quick preview');
+    expect(button('Export PDF')).toBeUndefined();
+    expect(button('Export HTML…')).toBeDefined();
     expect(button('Local version timeline…')).toBeDefined();
     act(() => button('Open file').props.onClick());
     expect(props.onOpenFile).toHaveBeenCalledOnce();
     expect(button('Document tools').props['aria-expanded']).toBe(false);
   });
-  it('separates typesetting from file operations and folds advanced builds', () => {
+  it('heads typesetting separately from file operations and folds advanced builds', () => {
     toolbar('latex');
-    act(() => button('Typesetting').props.onClick());
+    expect(button('Compile')).toBeDefined();
+    expect(button('Split view').props['aria-pressed']).toBe(true);
+    act(() => button('Document tools').props.onClick());
+    const headings = tree.root.findAll(node => node.type === 'div' && String(node.props.className ?? '').includes('menuHeading')).map(text);
+    expect(headings.slice(0, 2)).toEqual(['Document', 'Typesetting']);
     expect(button('Check environment…')).toBeDefined();
-    expect(button('Open file')).toBeUndefined();
     expect(tree.root.findByType('details').props.open).toBeUndefined();
     expect(text(tree.root.findByType('summary'))).toBe('Build options');
     expect(button('Set as project main').props.disabled).toBe(true);
-    act(() => button('Document tools').props.onClick());
-    expect(button('Typesetting').props['aria-expanded']).toBe(false);
-    expect(button('Check environment…')).toBeUndefined();
   });
   it('only enables LaTeX export for the current fresh PDF', () => {
     toolbar('latex');
-    expect(button('Export PDF').props.disabled).toBe(true);
-    expect(button('Export PDF').props.title).toBe('Compile to export PDF');
+    const exportButton = () => {
+      if (!button('Export PDF')) act(() => button('Document tools').props.onClick());
+      return button('Export PDF');
+    };
+    expect(exportButton().props.disabled).toBe(true);
+    expect(exportButton().props.title).toBe('Compile to export PDF');
     act(() => usePdfStore.setState({ ownerTabId: 'one', bytes: new Uint8Array([1]), workdirToken: 'work', stale: false }));
-    expect(button('Export PDF').props.disabled).toBe(false);
-    act(() => button('Export PDF').props.onClick());
+    expect(exportButton().props.disabled).toBe(false);
+    act(() => exportButton().props.onClick());
     expect(props.onExportLatexPdf).toHaveBeenCalledOnce();
     act(() => usePdfStore.setState({ stale: true }));
-    expect(button('Export PDF').props.disabled).toBe(true);
+    expect(exportButton().props.disabled).toBe(true);
     act(() => usePdfStore.setState({ stale: false, ownerTabId: 'other' }));
-    expect(button('Export PDF').props.disabled).toBe(true);
+    expect(exportButton().props.disabled).toBe(true);
   });
   it('exports Typst directly without displaying TeX engine controls', () => {
     toolbar('typst');
+    expect(button('Compile')).toBeUndefined();
+    act(() => button('Document tools').props.onClick());
     expect(button('Export PDF').props.disabled).toBe(false);
+    expect(tree.root.findAllByType('select').map(node => node.props.value)).toEqual(['typst']);
+    expect(button('Jump to preview')).toBeDefined();
     act(() => button('Export PDF').props.onClick());
     expect(props.onExportTypstPdf).toHaveBeenCalledOnce();
-    act(() => button('Typesetting').props.onClick());
-    expect(tree.root.findAllByType('select')).toHaveLength(0);
-    expect(button('Compile')).toBeUndefined();
-    expect(button('Jump to preview')).toBeDefined();
   });
   it('Escape closes the open menu and consumes the key', () => {
     toolbar('latex');
-    act(() => button('Typesetting').props.onClick());
+    act(() => button('Document tools').props.onClick());
     const event = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
     act(() => listeners.get('keydown')!(event));
-    expect(button('Typesetting').props['aria-expanded']).toBe(false);
+    expect(button('Document tools').props['aria-expanded']).toBe(false);
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(event.stopPropagation).toHaveBeenCalledOnce();
   });
-  it('closes a typesetting menu when switching to a note', () => {
+  it('closes the menu when switching to a note', () => {
     toolbar('latex');
-    act(() => button('Typesetting').props.onClick());
+    act(() => button('Document tools').props.onClick());
     act(() => tree.update(<Toolbar {...props} />));
     expect(button('Document tools').props['aria-expanded']).toBe(false);
-    expect(button('Typesetting')).toBeUndefined();
+    expect(button('Compile')).toBeUndefined();
+  });
+  it('keeps focus mode in the menu, checked while on', () => {
+    toolbar('markdown');
+    act(() => tree.update(<Toolbar {...props} focusMode />));
+    act(() => button('Document tools').props.onClick());
+    const focus = tree.root.findAllByType('label').find(node => text(node).startsWith('Focus mode'))!;
+    expect(focus.findByType('input').props.checked).toBe(true);
   });
 });
 

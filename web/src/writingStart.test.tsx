@@ -4,7 +4,9 @@ import { App } from './App';
 import { StartActions } from './components/StartActions';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
-import { StatusBar } from './components/StatusBar';
+import { StatusBar, type StatusBarProps } from './components/StatusBar';
+import type { ToolbarProps } from './components/Toolbar';
+import type { ReactElement } from 'react';
 import { PdfViewer } from './components/PdfViewer';
 import { WriterDialog } from './components/WriterDialog';
 import { useTabsStore, useSettingsStore, useProjectStore, defaultSettings } from './store';
@@ -75,11 +77,13 @@ it('starts with an editable empty note and direct actions, not a modal', async (
   expect(starter()).toHaveLength(1);
   expect(tree.root.findAllByType(WriterDialog)).toHaveLength(0);
 });
-it('runs the sidebar the full height of the window, beside the title bar and the status bar', async () => {
+/** The document status, which the toolbar shows at its right end. */
+const statusBar = () => (tree.root.findByType(TitleBar).props.children as ReactElement<ToolbarProps>).props.status as ReactElement<StatusBarProps>;
+it('runs the sidebar the full height of the window, beside the title bar, whose toolbar holds the status', async () => {
   await mount();
   const row = tree.root.findByType(Sidebar).parent!;
   expect(row.findAllByType(TitleBar)).toHaveLength(1);
-  expect(row.findAllByType(StatusBar)).toHaveLength(1);
+  expect(statusBar().type).toBe(StatusBar);
 });
 it('leaves the window buttons to the sidebar while it is shown', async () => {
   await mount();
@@ -258,11 +262,11 @@ it('opens Problems instead of closing it when the sidebar is hidden or focused',
 });
 it('keeps the status toggle and PDF show action distinct', async () => {
   await mountLatex();
-  act(() => tree.root.findByType(StatusBar).props.onToggleProblems());
+  act(() => statusBar().props.onToggleProblems!());
   expect(sidebar().props.view).toBe('problems');
   act(() => tree.root.findByType(PdfViewer).props.onProblems());
   expect(sidebar().props.view).toBe('problems');
-  act(() => tree.root.findByType(StatusBar).props.onToggleProblems());
+  act(() => statusBar().props.onToggleProblems!());
   expect(sidebar().props.view).toBe('documents');
   expect(sidebar().props.hidden).toBe(false);
 });

@@ -1,35 +1,35 @@
 .bar {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   flex: none;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
-  /* The open tab is the page: the strip starts on the page's left edge, so
-   * the two are one shape with no step. Labels start on the bars' edge. */
+  /* Tabs are names on the page under the toolbar; the open one is underlined,
+   * as a running head marks the current chapter. Labels start on the bars' edge. */
   padding: 0 var(--bar-inset) 0 0;
-  gap: 2px;
-  background: var(--panel-solid);
+  gap: 4px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
 }
-/* A tab is a sheet standing in the frame; the open one is the page itself. */
 .tab {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: var(--control-h);
-  padding: 0 8px 0 var(--bar-inset);
-  border-top-left-radius: var(--radius-md);
-  border-top-right-radius: var(--radius-md);
+  padding: 0 4px 0 var(--bar-inset);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   color: var(--text-muted);
   font-size: 1em;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
   white-space: nowrap;
-  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.tab:hover { color: var(--text); background: var(--panel-soft); }
-.tab.active { color: var(--text); background: var(--bg); }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); background: var(--bg); border-bottom-color: var(--text); }
 .langTag { font-size: var(--font-size-small); color: var(--text-muted); }
 .title { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .dirty { color: var(--accent); flex: none; }

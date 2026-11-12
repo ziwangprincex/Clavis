@@ -31,7 +31,9 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
   const { bg, fg, dark } = spec;
   const panel = mix(bg, fg, dark ? 0.05 : 0.06);
   const elevated = dark ? mix(bg, fg, 0.10) : mix(bg, '#ffffff', 0.72);
-  const desk = mix(bg, fg, dark ? 0.018 : 0.050);
+  // The desk under PDF pages: darker than the page in both appearances, so a
+  // page reads as paper lying on it.
+  const desk = dark ? mix(bg, '#000000', 0.32) : mix(bg, fg, 0.06);
   // Secondary text must stay readable on the surface that leaves it least contrast.
   const textSurface = dark ? elevated : panel;
   const error = dark ? '#e5a09a' : '#a33d39';
@@ -57,6 +59,10 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
     '--tint-error': withAlpha(error, 0.10),
     '--tint-warning': withAlpha(warning, 0.10),
     '--shadow-sm': dark ? '0 1px 2px rgba(0, 0, 0, 0.28)' : '0 1px 2px rgba(0, 0, 0, 0.06)',
+    // A typeset page lying on the desk: an edge and a soft lift.
+    '--page-shadow': dark
+      ? '0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 6px 24px rgba(0, 0, 0, 0.40)'
+      : '0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 6px 24px rgba(0, 0, 0, 0.09)',
     // A tight contact shadow under a wide ambient one, for everything that floats.
     '--shadow-md': dark
       ? '0 2px 6px rgba(0, 0, 0, 0.28), 0 16px 44px rgba(0, 0, 0, 0.42)'

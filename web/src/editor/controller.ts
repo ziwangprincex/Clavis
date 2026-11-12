@@ -116,7 +116,8 @@ function buildThemeExt(spec: ThemeSpec) {
       '&': { backgroundColor: `var(--bg, ${spec.bg})`, color: `var(--text, ${spec.fg})`, height: '100%' },
       '.cm-gutters': { backgroundColor: spec.gutterBg, color: spec.gutterFg, border: 'none' },
       '.cm-activeLine': { backgroundColor: spec.activeBg },
-      '.cm-activeLineGutter': { backgroundColor: spec.activeBg, color: spec.fg },
+      // The current line number is a step darker than the rest, not the text's full ink.
+      '.cm-activeLineGutter': { backgroundColor: spec.activeBg, color: 'var(--text-muted)' },
       '.cm-cursor': { borderLeftColor: spec.cursor },
       // Keep mouse selections visible: CodeMirror puts its selection layer
       // below content by default, but this editor surface covers it.
@@ -254,7 +255,8 @@ function buildHighlightExt(spec: ThemeSpec) {
     { tag: t.processingInstruction, color: syntax.comment },
     { tag: t.heading, color: spec.fg, fontWeight: '600' },
     { tag: t.strong, fontWeight: '600' },
-    { tag: t.emphasis, fontStyle: 'italic' },
+    // Kai for Chinese emphasis in formatted Markdown (--emphasis-font); source keeps its font.
+    { tag: t.emphasis, fontStyle: 'italic', fontFamily: 'var(--emphasis-font, inherit)' },
     { tag: t.strikethrough, textDecoration: 'line-through' },
     { tag: [t.link, t.url], color: syntax.name, textDecoration: 'underline' },
     { tag: t.invalid, color: spec.dark ? '#e7a49b' : '#a14035' },
@@ -283,6 +285,8 @@ function buildFontExt(font: FontSpec) {
     // Smaller line numbers keep the text's line box, so they sit level with its first row.
     '.cm-lineNumbers .cm-gutterElement': {
       lineHeight: `${font.size * font.lineHeight}px`,
+      fontSize: '0.86em',
+      fontVariantNumeric: 'tabular-nums',
     },
   });
 }

@@ -111,16 +111,15 @@ def main() -> int:
 
     try:
         main_config = json.loads((ROOT / "tauri.conf.json").read_text(encoding="utf-8"))
-        windows_config = json.loads((ROOT / "tauri.windows.conf.json").read_text(encoding="utf-8"))
         main_window = main_config["app"]["windows"][0]
-        windows_window = windows_config["app"]["windows"][0]
-        for key in ("label", "title", "width", "height", "minWidth", "minHeight"):
-            if windows_window.get(key) != main_window.get(key):
-                errors.append(
-                    f"tauri.windows.conf.json replaces the windows array but does not preserve {key}"
-                )
+        for platform in ("windows", "macos"):
+            name = f"tauri.{platform}.conf.json"
+            platform_window = json.loads((ROOT / name).read_text(encoding="utf-8"))["app"]["windows"][0]
+            for key in ("label", "title", "width", "height", "minWidth", "minHeight", "titleBarStyle", "hiddenTitle"):
+                if platform_window.get(key) != main_window.get(key):
+                    errors.append(f"{name} replaces the windows array but does not preserve {key}")
     except (OSError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        errors.append(f"invalid Windows window override: {exc}")
+        errors.append(f"invalid platform window override: {exc}")
 
     if args.tag:
         expected = f"v{tauri}"

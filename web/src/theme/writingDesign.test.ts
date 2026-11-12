@@ -118,16 +118,21 @@ describe('editorial writing surfaces', () => {
     expect(rule('TitleBar', '.titlebar.mac')?.['padding-left']).toBe('var(--window-buttons)');
   });
 
-  it('sets the bars on the frame and the open document on the page', () => {
-    for (const [name, selector] of [['Sidebar', '.sidebar'], ['TitleBar', '.titlebar'], ['Toolbar', '.toolbar'],
-      ['StartActions', '.root'], ['Tabs', '.bar'], ['StatusBar', '.bar']]) {
-      expect(rule(name, selector)?.background, `${name} ${selector}`).toBe('var(--panel-solid)');
+  it('sets the bars on the frame and the open document, with its toolbar, on the page', () => {
+    expect(rule('Sidebar', '.sidebar')?.background).toBe('var(--panel-solid)');
+    // The bars of the work area are the top of the page, set off by rules rather than tones.
+    expect(rule('TitleBar', '.titlebar')?.background).toBe('var(--bg)');
+    for (const [name, selector] of [['Toolbar', '.toolbar'], ['StartActions', '.root'], ['Tabs', '.bar']]) {
+      expect(rule(name, selector)?.background, `${name} ${selector}`).toBe('var(--bg)');
+      expect(rule(name, selector)?.['border-bottom'], `${name} ${selector}`).toBe('1px solid var(--border)');
     }
     expect(rule('Tabs', '.tab.active')?.background).toBe('var(--bg)');
+    // The status is part of the toolbar, not a bar of its own.
+    expect(rule('StatusBar', '.bar')?.background).toBeUndefined();
   });
 
   it('starts every bar of the work area on one left edge', () => {
-    for (const [name, selector] of [['Toolbar', '.toolbar'], ['StartActions', '.root'], ['StatusBar', '.bar']]) {
+    for (const [name, selector] of [['Toolbar', '.toolbar'], ['StartActions', '.root']]) {
       expect(rule(name, selector)?.padding, `${name} ${selector}`).toMatch(/^\S+ var\(--bar-inset\)( \S+)?$/);
     }
     // The open tab is the page, so the strip starts on the page's own left
@@ -181,7 +186,7 @@ describe('editorial writing surfaces', () => {
     const previous = useSettingsStore.getState();
     try {
       expect(defaultSettings.editor_font_size).toBe(16);
-      expect(defaultSettings.preview_font_size).toBe(17);
+      expect(defaultSettings.preview_font_size).toBe(18);
       const saved = {
         editor_font_family: 'Custom Mono', editor_font_size: 15, editor_line_height: 2,
         preview_font_family: 'Custom Serif', preview_font_size: 24,

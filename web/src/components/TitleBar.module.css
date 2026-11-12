@@ -4,7 +4,8 @@
   height: var(--bar-h);
   flex: 0 0 var(--bar-h);
   min-width: 0;
-  background: var(--panel-solid);
+  /* The top of the page: the toolbar it holds is set on the document's colour. */
+  background: var(--bg);
   /* Follows the sidebar sliding away from, or back over, the window buttons. */
   transition: padding-left var(--dur-slow) var(--ease);
   user-select: none;

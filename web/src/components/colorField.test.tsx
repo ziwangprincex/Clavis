@@ -47,8 +47,8 @@ describe('color stylesheet contracts, not native visual acceptance', () => {
   });
   it('uses fixed neutral PDF surroundings for each brightness mode, never an accent token', () => {
     const style = rules(pdfCss);
-    expect(style.get('.root')?.['--pdf-desk']).toBe('#242424');
-    expect(style.get(":global(:root[data-theme='light']) .root")?.['--pdf-desk']).toBe('#e8e8e8');
+    expect(style.get('.root')?.['--pdf-desk']).toBe('#161616');
+    expect(style.get(":global(:root[data-theme='light']) .root")?.['--pdf-desk']).toBe('#e6e6e6');
     expect(style.get('.pages')?.background).toBe('var(--pdf-desk)');
     expect(style.get('.page')?.background).toBe('white');
     expect(pdfCss).not.toContain('var(--preview-desk)');

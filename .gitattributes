@@ -10,6 +10,7 @@
 *.woff binary
 *.woff2 binary
 *.ttf binary
+*.otf binary
 *.dmg binary
 *.exe binary
 *.AppImage binary

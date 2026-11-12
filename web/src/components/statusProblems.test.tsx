@@ -21,8 +21,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('says nothing about the log before the first build; the Problems view in the sidebar has it', () => {
+  act(() => { tree = create(<StatusBar onToggleProblems={vi.fn()} />); });
+  expect(tree!.root.findAllByProps({ title: 'Toggle problems panel' })).toHaveLength(0);
+});
+
 it.each([
-  ['idle', 'Compile Log'],
   ['compiling', 'Compiling…'],
   ['error', 'Compile failed'],
   ['ok', 'No issues'],
@@ -31,7 +35,7 @@ it.each([
   const toggle = vi.fn();
   act(() => { tree = create(<StatusBar onToggleProblems={toggle} />); });
   const button = tree!.root.findByProps({ title: 'Toggle problems panel' });
-  expect(button.children).toEqual([label]);
+  expect(button.children.filter(child => typeof child === 'string')).toEqual([label]);
   act(() => button.props.onClick());
   expect(toggle).toHaveBeenCalledOnce();
 });
