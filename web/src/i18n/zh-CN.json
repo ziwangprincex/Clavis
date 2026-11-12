@@ -543,5 +543,7 @@
   "Markdown": "Markdown",
   "Show Markdown source": "显示 Markdown 源码",
   "Toggle Markdown source": "切换 Markdown 源码",
-  "The main document is not at its saved location; it may have been moved or deleted. Save it again with Save As, then compile.": "主文档不在其保存位置，可能已被移动或删除。请使用“另存为”重新保存后再编译。"
+  "The main document is not at its saved location; it may have been moved or deleted. Save it again with Save As, then compile.": "主文档不在其保存位置，可能已被移动或删除。请使用“另存为”重新保存后再编译。",
+  "PDF tools": "PDF 工具",
+  "Pages and zoom": "翻页与缩放"
 }
