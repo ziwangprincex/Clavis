@@ -303,134 +303,6 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
 
   return (
     <div className={styles.root}>
-      <div className={styles.toolbar}>
-        {/* Zoom on the left, pages in the middle, tools on the right, as Texifier's viewer bar. */}
-        <div className={styles.group}>
-          <button className={styles.btn} aria-pressed={spread} title={t('Two pages side by side')} aria-label={t('Two pages side by side')}
-            onClick={() => void patchSettings({ pdf_spread: !spread })}>
-            <ToolIcon d="M2 3h4.5v10H2zM9.5 3H14v10H9.5z" />
-          </button>
-          <span className={styles.divider} />
-          <button className={styles.btn} aria-label={t("Zoom out")} title={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
-            <ToolIcon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.6 10.6 14 14M4.8 7h4.4" />
-          </button>
-          <button className={`${styles.btn} ${styles.info}`} aria-pressed={fit} title={t("Fit width")}
-            onClick={() => usePdfStore.setState({ fit: true })}>
-            {Math.round(zoom * 100)}%
-          </button>
-          <button className={styles.btn} aria-label={t("Zoom in")} title={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
-            <ToolIcon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.6 10.6 14 14M4.8 7h4.4M7 4.8v4.4" />
-          </button>
-        </div>
-        <div className={`${styles.group} ${styles.pagesGroup}`}>
-          <button className={styles.btn} onClick={() => scrollToPage(1)} disabled={!numPages || currentPage <= 1} aria-label={t("First page")} title={t("First page")}>
-            <ToolIcon d="M9 4 5 8l4 4M13 4 9 8l4 4" />
-          </button>
-          <button className={styles.btn} onClick={() => scrollToPage(Math.max(1, currentPage - 1))} disabled={!numPages || currentPage <= 1} aria-label={t("Previous page")} title={t("Previous page")}>
-            <ToolIcon d="M10 4 6 8l4 4" />
-          </button>
-          {/* Type a page and press Enter, as in Texifier's toolbar; leaving the field discards it. */}
-          <span className={styles.pageLabel}>
-            <input
-              className={styles.pageInput}
-              aria-label={t("Page number")}
-              disabled={!numPages}
-              value={pageDraft ?? (numPages ? String(currentPage) : '—')}
-              onFocus={event => { setPageDraft(String(currentPage)); event.currentTarget.select(); }}
-              onChange={event => setPageDraft(event.target.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') {
-                  const page = Number.parseInt(pageDraft ?? '', 10);
-                  if (page) scrollToPage(Math.min(numPages, Math.max(1, page)));
-                  event.currentTarget.blur();
-                } else if (event.key === 'Escape') event.currentTarget.blur();
-              }}
-              onBlur={() => setPageDraft(null)}
-            />
-            <span>{t('of {count}', { count: numPages || '—' })}</span>
-          </span>
-          <button className={styles.btn} onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))} disabled={!numPages || currentPage >= numPages} aria-label={t("Next page")} title={t("Next page")}>
-            <ToolIcon d="m6 4 4 4-4 4" />
-          </button>
-          <button className={styles.btn} onClick={() => scrollToPage(numPages)} disabled={!numPages || currentPage >= numPages} aria-label={t("Last page")} title={t("Last page")}>
-            <ToolIcon d="m3 4 4 4-4 4M7 4l4 4-4 4" />
-          </button>
-        </div>
-        <div className={`${styles.group} ${styles.toolsGroup}`}>
-          {activeTab?.lang === 'latex' && <button className={styles.btn} aria-pressed={scrollLock}
-            title={t('Follow the editor: the PDF scrolls with the source')} aria-label={t('Follow the editor: the PDF scrolls with the source')}
-            onClick={() => void patchSettings({ pdf_scroll_lock: !scrollLock })}>
-            <ToolIcon d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6.5H4z" />
-          </button>}
-          {onDetach && <button className={styles.btn} title={t('Show the PDF in its own window')} aria-label={t('Show the PDF in its own window')} onClick={onDetach}>
-            <ToolIcon d="M2 5v8.5h8.5M5 2h9v8.5H5z" />
-          </button>}
-          <button
-            className={styles.btn}
-            onClick={() => (findOpen ? closeFinder() : openFinder())}
-            disabled={!bytes}
-            aria-pressed={findOpen}
-            title={`${t('Find in PDF')} (${fmtShortcut('Ctrl+F')})`}
-            aria-label={t("Find in PDF")}
-          >
-            <IconSearch size={14} />
-          </button>
-        </div>
-      </div>
-
-      {findOpen && (
-        <div className={styles.finder}>
-          <input
-            ref={findInputRef}
-            type="text"
-            className={styles.finderInput}
-            value={findQuery}
-            onChange={e => setFindQuery(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                closeFinder();
-              } else if (e.key === 'Enter') {
-                e.preventDefault();
-                gotoMatch(e.shiftKey ? -1 : 1);
-              }
-            }}
-            placeholder={t("Find in PDF…")}
-          />
-          <span className={styles.finderInfo} aria-live="polite" title={searchError ?? undefined}>
-            {searchError ? t("Search failed") : searching ? t("Searching…")
-              : findQuery ? (findCount ? `${findIndex + 1}/${findCount}` : '0/0') : ''}
-          </span>
-          <button
-            className={styles.btn}
-            onClick={() => gotoMatch(-1)}
-            disabled={!findCount}
-            title={t("Previous (Shift+Enter)")}
-          >
-            ↑
-          </button>
-          <button
-            className={styles.btn}
-            onClick={() => gotoMatch(1)}
-            disabled={!findCount}
-            title={t("Next (Enter)")}
-          >
-            ↓
-          </button>
-          <label className={styles.finderCheckbox} title={t("Match case")}>
-            <input
-              type="checkbox"
-              checked={findCase}
-              onChange={e => setFindCase(e.target.checked)}
-            />
-            Aa
-          </label>
-          <button className={styles.btn} onClick={closeFinder} title={t("Close (Esc)")}>
-            ×
-          </button>
-        </div>
-      )}
-
       {/* The scroll container must stay mounted even while an error or the
         * empty state is showing — PdfPages writes into containerRef, and a
         * remount between a failed load and the next successful one would leave
@@ -443,6 +315,105 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
           onScroll={onScroll}
           onClick={onPageClick}
         />
+        {/* The pages fill the pane; the controls float over the desk, quiet
+          * until the pointer is over them: tools at the top right, pages and
+          * zoom at the bottom centre. */}
+        {bytes && !error && <>
+          <div className={styles.tools} role="toolbar" aria-label={t('PDF tools')} data-active={findOpen || undefined}>
+            <button className={styles.btn} aria-pressed={spread} title={t('Two pages side by side')} aria-label={t('Two pages side by side')}
+              onClick={() => void patchSettings({ pdf_spread: !spread })}>
+              <ToolIcon d="M2 3h4.5v10H2zM9.5 3H14v10H9.5z" />
+            </button>
+            {activeTab?.lang === 'latex' && <button className={styles.btn} aria-pressed={scrollLock}
+              title={t('Follow the editor: the PDF scrolls with the source')} aria-label={t('Follow the editor: the PDF scrolls with the source')}
+              onClick={() => void patchSettings({ pdf_scroll_lock: !scrollLock })}>
+              <ToolIcon d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6.5H4z" />
+            </button>}
+            {onDetach && <button className={styles.btn} title={t('Show the PDF in its own window')} aria-label={t('Show the PDF in its own window')} onClick={onDetach}>
+              <ToolIcon d="M2 5v8.5h8.5M5 2h9v8.5H5z" />
+            </button>}
+            <button
+              className={styles.btn}
+              onClick={() => (findOpen ? closeFinder() : openFinder())}
+              aria-pressed={findOpen}
+              title={`${t('Find in PDF')} (${fmtShortcut('Ctrl+F')})`}
+              aria-label={t("Find in PDF")}
+            >
+              <IconSearch size={14} />
+            </button>
+          </div>
+          {findOpen && (
+            <div className={styles.finder}>
+              <input
+                ref={findInputRef}
+                type="text"
+                className={styles.finderInput}
+                value={findQuery}
+                onChange={e => setFindQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeFinder();
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    gotoMatch(e.shiftKey ? -1 : 1);
+                  }
+                }}
+                placeholder={t("Find in PDF…")}
+              />
+              <span className={styles.finderInfo} aria-live="polite" title={searchError ?? undefined}>
+                {searchError ? t("Search failed") : searching ? t("Searching…")
+                  : findQuery ? (findCount ? `${findIndex + 1}/${findCount}` : '0/0') : ''}
+              </span>
+              <button className={styles.btn} onClick={() => gotoMatch(-1)} disabled={!findCount} title={t("Previous (Shift+Enter)")}>↑</button>
+              <button className={styles.btn} onClick={() => gotoMatch(1)} disabled={!findCount} title={t("Next (Enter)")}>↓</button>
+              <label className={styles.finderCheckbox} title={t("Match case")}>
+                <input type="checkbox" checked={findCase} onChange={e => setFindCase(e.target.checked)} />
+                Aa
+              </label>
+              <button className={styles.btn} onClick={closeFinder} title={t("Close (Esc)")}>×</button>
+            </div>
+          )}
+          <div className={styles.pager} role="toolbar" aria-label={t('Pages and zoom')}>
+            <button className={styles.btn} onClick={() => scrollToPage(Math.max(1, currentPage - 1))} disabled={!numPages || currentPage <= 1} aria-label={t("Previous page")} title={t("Previous page")}>
+              <ToolIcon d="M10 4 6 8l4 4" />
+            </button>
+            {/* Type a page and press Enter, as in Texifier's toolbar; leaving the field discards it. */}
+            <span className={styles.pageLabel}>
+              <input
+                className={styles.pageInput}
+                aria-label={t("Page number")}
+                disabled={!numPages}
+                value={pageDraft ?? (numPages ? String(currentPage) : '—')}
+                onFocus={event => { setPageDraft(String(currentPage)); event.currentTarget.select(); }}
+                onChange={event => setPageDraft(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    const page = Number.parseInt(pageDraft ?? '', 10);
+                    if (page) scrollToPage(Math.min(numPages, Math.max(1, page)));
+                    event.currentTarget.blur();
+                  } else if (event.key === 'Escape') event.currentTarget.blur();
+                }}
+                onBlur={() => setPageDraft(null)}
+              />
+              <span>{t('of {count}', { count: numPages || '—' })}</span>
+            </span>
+            <button className={styles.btn} onClick={() => scrollToPage(Math.min(numPages, currentPage + 1))} disabled={!numPages || currentPage >= numPages} aria-label={t("Next page")} title={t("Next page")}>
+              <ToolIcon d="m6 4 4 4-4 4" />
+            </button>
+            <span className={styles.divider} />
+            <button className={styles.btn} aria-label={t("Zoom out")} title={t("Zoom out")} onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}>
+              <ToolIcon d="M3.5 8h9" />
+            </button>
+            <button className={`${styles.btn} ${styles.info}`} aria-pressed={fit} title={t("Fit width")}
+              onClick={() => usePdfStore.setState({ fit: true })}>
+              {Math.round(zoom * 100)}%
+            </button>
+            <button className={styles.btn} aria-label={t("Zoom in")} title={t("Zoom in")} onClick={() => setZoom(Math.min(4, zoom + 0.25))}>
+              <ToolIcon d="M3.5 8h9M8 3.5v9" />
+            </button>
+          </div>
+        </>}
         {error ? (
           <div className={styles.overlay}>
             <div className={styles.error} role="alert">

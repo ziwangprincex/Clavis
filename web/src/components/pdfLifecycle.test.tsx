@@ -302,6 +302,6 @@ it('jumps to a typed page on Enter and discards a draft on leaving the field', a
   act(() => field().props.onChange({ target: { value: '2' } }));
   act(() => field().props.onBlur());
   expect(field().props.value).toBe('1');
-  act(() => tree.root.findByProps({ 'aria-label': 'Last page' }).props.onClick());
-  expect(host.querySelector).toHaveBeenLastCalledWith(expect.stringContaining('[data-page="10"]'));
+  act(() => tree.root.findByProps({ 'aria-label': 'Next page' }).props.onClick());
+  expect(host.querySelector).toHaveBeenLastCalledWith(expect.stringContaining('[data-page="2"]'));
 });

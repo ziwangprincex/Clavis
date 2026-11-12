@@ -15,29 +15,31 @@
   --pdf-desk: #e6e6e6;
 }
 
-/* Opaque, not frosted: this toolbar is a `flex: none` sibling ABOVE `.pages`,
- * not an overlay on top of it, so there is nothing behind it to blur — a
- * backdrop-filter here would cost a compositing layer for zero visual effect. */
-.toolbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+/* The controls float over the desk as two capsules: tools at the top right,
+ * pages and zoom at the bottom centre. Frosted, since pages scroll beneath. */
+.tools, .pager, .finder {
+  position: absolute;
+  z-index: 6;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border-radius: calc(var(--radius-md) + 3px);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 0 0 0.5px var(--border-strong), var(--shadow-md);
 }
-
-.group { display: flex; align-items: center; gap: 2px; min-width: 0; }
-.pagesGroup { justify-content: center; }
-.toolsGroup { justify-content: flex-end; }
-/* A narrow split pane drops the zoom readout's neighbours before the page controls. */
-@container (max-width: 440px) {
-  .toolbar { grid-template-columns: auto 1fr auto; gap: 4px; padding-inline: 6px; }
-  .divider, .pageLabel > span { display: none; }
-}
-.pageLabel { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; color: var(--text-muted); font-size: 0.8462rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tools { top: 10px; right: 12px; }
+.pager { bottom: 14px; left: 50%; transform: translateX(-50%); }
+/* Tools stay quiet until the pointer is over the PDF, a tool has focus, or a
+ * search is open. */
+.tools { opacity: 0.55; transition: opacity var(--dur) var(--ease); }
+.body:hover .tools, .tools:focus-within, .tools[data-active] { opacity: 1; }
+@media (hover: none) { .tools { opacity: 1; } }
+.pageLabel { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px; color: var(--text-muted); font-size: 0.9231rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A narrow pane keeps the page number and drops the page count. */
+@container (max-width: 360px) { .pageLabel > span { display: none; } }
 
 .btn {
   display: inline-flex;
@@ -82,13 +84,14 @@
 .pageInput {
   width: 3.2ch;
   padding: 1px 2px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   color: var(--text);
   font: inherit;
   text-align: center;
 }
+.pageInput:hover:not(:disabled) { border-color: var(--border); }
 .pageInput:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .pageInput:disabled { border-color: transparent; }
 
@@ -119,10 +122,11 @@
 .updateNotice {
   position: absolute;
   z-index: 5;
-  bottom: 16px;
+  /* At the top: the bottom centre is the pager's. */
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 200px);
   padding: 7px 14px;
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -140,7 +144,8 @@
   flex: 1;
   overflow: auto;
   overflow-anchor: none;
-  padding: 24px;
+  /* Room under the last page for the pager. */
+  padding: 24px 24px 72px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -244,15 +249,8 @@
   outline: 1px solid rgba(255, 80, 0, 0.9);
 }
 
-/* Finder bar */
-.finder {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--panel-soft);
-  border-bottom: 1px solid var(--border);
-}
+/* Finder: a capsule under the tools. */
+.finder { top: 48px; right: 12px; width: min(420px, calc(100% - 24px)); gap: 6px; padding: 4px 6px; }
 
 .finderInput {
   flex: 1;
