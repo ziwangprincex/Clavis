@@ -46,6 +46,20 @@ export function exportHtml() {
   void import('./exportMarkdown').then(module => module.exportMarkdownHtml(tab, language));
 }
 
+/** Markdown to a Word document. */
+export function exportMarkdownDocx() {
+  const tab = getActiveTab();
+  if (tab?.lang !== 'markdown') return;
+  void import('./exportMarkdown').then(module => module.exportMarkdownDocx(tab));
+}
+
+/** Markdown to PDF through the print dialog's "Save as PDF". */
+export function exportMarkdownPdf() {
+  const tab = getActiveTab();
+  if (tab?.lang !== 'markdown') return;
+  void import('./exportMarkdown').then(module => module.exportMarkdownPdf(tab));
+}
+
 export async function exportTypstPdf() {
   const tab = getActiveTab();
   if (!tab || tab.lang !== 'typst') return;

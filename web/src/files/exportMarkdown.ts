@@ -66,6 +66,77 @@ async function complete(html: string, documentPath: string): Promise<string> {
   return page.body.innerHTML;
 }
 
+const SHEET = 'clavis-print-sheet';
+const SHEET_STYLE = 'clavis-print-style';
+
+/** Markdown → PDF through the system print dialog ("Save as PDF"): the typeset
+ *  page is added to the document and shown only to the printer, so the app
+ *  itself never changes on screen. It stays until the dialog closes (or, where
+ *  no afterprint arrives, until the next export), however long that takes. */
+export async function exportMarkdownPdf(tab: Tab): Promise<void> {
+  if (!hasTauri()) return;
+  if (!tab.filePath) {
+    setStatus('Save the document first: images are stored beside it.', 'error');
+    return;
+  }
+  document.getElementById(SHEET)?.remove();
+  document.getElementById(SHEET_STYLE)?.remove();
+  const appTitle = document.title;
+  const cleanup = () => {
+    document.getElementById(SHEET)?.remove();
+    document.getElementById(SHEET_STYLE)?.remove();
+    document.title = appTitle;
+  };
+  try {
+    setStatus('Preparing PDF…', 'info');
+    const { title, html } = markdownDocument(tab.content);
+    const sheet = document.createElement('div');
+    sheet.id = SHEET;
+    sheet.innerHTML = `<article>${await complete(html, tab.filePath)}</article>`;
+    sheet.hidden = true;
+    const style = document.createElement('style');
+    style.id = SHEET_STYLE;
+    style.media = 'print';
+    style.textContent = STYLE + `\n#${SHEET} { display: block !important; }\nbody > *:not(#${SHEET}) { display: none !important; }\nhtml, body { height: auto !important; overflow: visible !important; }`;
+    // The print dialog offers the page title as the PDF's file name.
+    document.title = title || tab.title.replace(/\.[^.]+$/, '');
+    document.body.append(style, sheet);
+    window.addEventListener('afterprint', cleanup, { once: true });
+    await ipc.printPage();
+    setStatus('', 'info');
+  } catch (error) {
+    window.removeEventListener('afterprint', cleanup);
+    cleanup();
+    console.error('export PDF failed', error);
+    setStatus('Export failed', 'error');
+  }
+}
+
+/** Word document: the same rendered page, as .docx. */
+export async function exportMarkdownDocx(tab: Tab): Promise<void> {
+  if (!hasTauri()) return;
+  if (!tab.filePath) {
+    setStatus('Save the document first: images are stored beside it.', 'error');
+    return;
+  }
+  const target = await dialogSave({
+    defaultPath: tab.filePath.replace(/\.[^./\\]+$/, '') + '.docx',
+    filters: [{ name: 'Word', extensions: ['docx'] }],
+  });
+  if (typeof target !== 'string') return;
+  try {
+    setStatus('Exporting Word document…', 'info');
+    const { html } = markdownDocument(tab.content);
+    const body = await complete(html, tab.filePath);
+    const { markdownToDocx } = await import('./markdownDocx');
+    await ipc.saveBinaryFile(target, markdownToDocx(body));
+    setStatus('Word document exported', 'ok');
+  } catch (error) {
+    console.error('export docx failed', error);
+    setStatus('Export failed', 'error');
+  }
+}
+
 export async function exportMarkdownHtml(tab: Tab, language: string): Promise<void> {
   if (!hasTauri()) return;
   if (!tab.filePath) {

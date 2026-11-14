@@ -578,6 +578,12 @@ export const ipc = {
   /** The user's own stylesheet: `<config_dir>/clavis/user.css`. */
   readUserStylesheet: () => invoke<string>('read_user_stylesheet'),
   writeUserStylesheet: (css: string) => invoke<void>('write_user_stylesheet', { css }),
+  /** The highlights file beside a .tex source; empty when there is none. */
+  readPdfHighlights: (source: string) => invoke<string>('read_pdf_highlights', { source }),
+  writePdfHighlights: (source: string, json: string) => invoke<void>('write_pdf_highlights', { source, json }),
+  listThemes: () => invoke<string[]>('list_themes'),
+  readTheme: (name: string) => invoke<string>('read_theme', { name }),
+  openThemesFolder: () => invoke<void>('open_themes_folder'),
   userStylesheetPath: () => invoke<string>('user_stylesheet_path'),
   /** Shows the PDF in a window of its own (focuses it when already open). */
   openPdfWindow: () => invoke<void>('open_pdf_window'),
@@ -586,6 +592,7 @@ export const ipc = {
   /** Folder modification stamps (null for a missing folder), to notice added, removed or renamed entries. */
   folderStamps: (paths: string[]) => invoke<(string | null)[]>('folder_stamps', { paths }),
   /** Writes bytes to a path the user chose; the bytes travel unencoded. */
+  printPage: () => invoke<void>('print_page'),
   saveBinaryFile: (path: string, bytes: Uint8Array) =>
     invoke<void>('save_binary_file', bytes, { headers: { 'clavis-path': encodeURIComponent(path) } }),
   /** Main window: hand the shown PDF to the PDF window (null clears it). */

@@ -36,19 +36,10 @@ staging first and hard-fails when it is missing; workaround `brew reinstall
 
 ---
 
-## P1 — Release notes reach the updater automatically
-
-`release.yml` does not pass `releaseBody` to tauri-action, so `latest.json`
-ships with empty notes and is fixed by hand each release. Pass the contents of
-`docs/releases/<tag>.md`, and have `check_release.py --tag` require that file
-and enforce the 240-character budget.
-
----
-
 ## P1 — CI hardening
 
 - Add a macOS verification step to `release.yml` (`codesign --verify --deep
-  --strict`; `spctl -a -vv` once notarization exists).
+  --strict`).
 
 ---
 
@@ -86,12 +77,11 @@ Open:
 
 ---
 
-## P1 — Release profile `opt-level`
+## Measured — release profile `opt-level`
 
-`Cargo.toml` uses `opt-level = "s"` with `lto = true`. Benchmark compile/preview
-latency on a large document against `"2"`/`"3"` and switch if the difference is
-visible.
-
+2026-11-14: a 400-section Typst document, release build, `opt-level = "s"` vs
+`"3"`: PDF export 13 ms vs 12 ms, preview 67 ms vs 71 ms (warm, incremental).
+No visible difference, so `"s"` stays for the smaller binary.
 ---
 
 ## P3 — Native macOS shell (assessed 2026-10-15, not planned)
@@ -116,15 +106,6 @@ SyncTeX, dark mode); move vite and vitest to current majors together.
 
 ---
 
-## P2 — Surface embedded Typst compiler warnings
-
-Typst returns non-fatal warnings separately from its output; the IPC result
-exposes only success output or a fatal error. Add an optional bounded
-`warnings: string[]` to the existing result and show it in the current preview
-surface. No diagnostics service or new panel.
-
----
-
 ## P2 — Optional system Typst mode (strictly bounded)
 
 Only if demand justifies it: one optional engine choice, Built-in or
@@ -136,6 +117,7 @@ downloaded toolchain, LSP daemon, or second resident engine.
 
 ## P2 — Feature backlog
 
-- **Spell checking** for LaTeX/Markdown prose (native `NSSpellChecker` or a
-  CodeMirror extension; English first).
-- **PDF annotations/highlights**: the PDF view is read-only today.
+- **PDF annotations beyond highlights**: text highlights exist (LaTeX PDF,
+  `<main>.highlights.json`, re-anchored by text after each build). Not done:
+  notes on a highlight, colours, a list of highlights, highlights in the Typst
+  preview, and exporting them into the PDF file itself.

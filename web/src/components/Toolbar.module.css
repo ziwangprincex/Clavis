@@ -43,7 +43,8 @@
 .primaryBtn { background: var(--accent); color: var(--on-accent); font-weight: 500; padding: 0 12px; }
 .primaryBtn:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
 .primaryBtn:active:not(:disabled) { filter: brightness(0.94); }
-.keys { font: inherit; font-size: var(--font-size-small); opacity: 0.72; }
+.primaryBtn { gap: 6px; }
+.keys { font: inherit; font-size: var(--font-size-small); opacity: 0.72; padding: 0; border: 0; background: transparent; box-shadow: none; color: inherit; }
 .iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
 .layoutSwitch { display: flex; gap: 2px; }
 .layoutSwitch button { display: inline-flex; align-items: center; justify-content: center; width: var(--control-h); min-height: var(--control-h); padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }

@@ -22,6 +22,7 @@ vi.mock('../pdf/pages', () => ({
     prepare = mocks.prepare;
     attach = mocks.attach;
     setZoom = mocks.zoom;
+    setHighlights = vi.fn();
     destroy = mocks.destroy;
     elements = [];
     widest = 612;

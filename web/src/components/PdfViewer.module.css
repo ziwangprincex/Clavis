@@ -214,6 +214,25 @@
   text-align: initial;
 }
 
+/* Highlights: a marker stroke under the text layer. Multiplied, the ink stays
+ * black on yellow; dark or inverted paper is not white to multiply against, so
+ * it gets a plain tint instead. */
+.marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  border-radius: 2px;
+  background: rgb(255 214 0 / 0.55);
+  mix-blend-mode: multiply;
+}
+
+.pages.darkPaper .mark, .pages.invert .mark { background: rgb(255 214 0 / 0.32); mix-blend-mode: normal; }
+.markSelected { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* Link hit areas sit above the text layer but let clicks elsewhere fall
  * through to text selection and SyncTeX. */
 .linkLayer {
@@ -250,6 +269,19 @@
 }
 
 /* Finder: a capsule under the tools. */
+.markMenu {
+  position: absolute;
+  z-index: 7;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 3px;
+  border-radius: calc(var(--radius-md) + 3px);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 0 0 0.5px var(--border-strong), var(--shadow-md);
+}
+.markMenu .btn { color: var(--text); }
+
 .finder { top: 48px; right: 12px; width: min(420px, calc(100% - 24px)); gap: 6px; padding: 4px 6px; }
 
 .finderInput {

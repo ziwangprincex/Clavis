@@ -1,7 +1,7 @@
 .sidebar { display: flex; flex-direction: column; flex: 0 0 232px; width: 232px; min-width: 200px; min-height: 0; background: var(--panel-solid); font-size: 1em; }
 /* macOS: the frame's tone over the system sidebar material, so it stays the
  * same colour family as the page while the desktop shows faintly through. */
-.sidebar[data-vibrant] { background: color-mix(in srgb, var(--panel-solid) 58%, transparent); }
+.sidebar[data-vibrant] { background: color-mix(in srgb, var(--panel-solid) 88%, transparent); }
 /* Hiding slides the panel out to the left instead of removing it at once; the
  * work area grows into the space. It stays mounted, so state survives. */
 .sidebar { margin-left: 0; transition: margin-left var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease); }
@@ -14,6 +14,7 @@
 .views { display: flex; align-items: center; flex: none; height: var(--bar-h); gap: 4px; padding: 0 10px; -webkit-user-select: none; user-select: none; }
 /* The window buttons own the corner; the tabs keep to the far end of the row. */
 .views.mac { padding-left: var(--window-buttons); justify-content: flex-end; }
+.views { border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
 .view { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--control-h); height: var(--control-h); padding: 0; border: none; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
 .view:hover { background: var(--panel-soft); color: var(--text); }
 /* The selected view is a page-coloured key on the frame, as a segmented control. */
@@ -35,5 +36,5 @@
 .sectionBody { margin: 2px 0 4px 13px; padding: 0 0 0 7px; }
 .empty { margin: 8px; color: var(--text-muted); font-size: var(--font-size-small); line-height: 1.6; }
 .empty p { margin: 0 0 8px; }
-.openFolder { display: inline-flex; align-items: center; gap: 6px; min-height: var(--row-h); padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.openFolder { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: var(--control-h); padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
 .openFolder:hover { background: var(--panel-soft); }

@@ -2,6 +2,7 @@ import { OPS, TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTa
 import { capturePageAnchor, restorePageAnchor, type ZoomPoint } from './zoom';
 import { isLink, resolveLink, type LinkAnnotation, type PdfLinkTarget } from './links';
 import { gradeCanvas, imageRects } from './darkGrading';
+import type { PdfHighlight } from './highlights';
 import styles from '../components/PdfViewer.module.css';
 
 /** Dark paper that keeps colour: off, every grey pixel, or everything but raster images. */
@@ -17,6 +18,7 @@ type Slot = {
   task?: RenderTask;
   text?: TextLayer;
   layer?: HTMLDivElement;
+  marks?: HTMLDivElement;
   textPending?: boolean;
   textReady?: boolean;
   revision: number;
@@ -33,6 +35,8 @@ export class PdfPages {
   private disposed = false;
   private attached = false;
   private zoom: number;
+  private highlights: PdfHighlight[] = [];
+  private selectedHighlight: string | null = null;
 
   constructor(
     private host: HTMLDivElement,
@@ -55,6 +59,13 @@ export class PdfPages {
       slot.paintedZoom = undefined;
     }
     for (const slot of this.nearby) void this.paint(slot).catch(this.onError);
+  }
+
+  /** Highlights to draw, and the one shown as selected. Orphans are not drawn. */
+  setHighlights(highlights: PdfHighlight[], selected: string | null = null) {
+    this.highlights = highlights.filter(highlight => !highlight.orphan);
+    this.selectedHighlight = selected;
+    for (const slot of this.slots) if (slot.marks && slot.paintedZoom) this.drawMarks(slot, slot.marks, slot.paintedZoom);
   }
 
   get elements() {
@@ -111,6 +122,7 @@ export class PdfPages {
             slot.wrap.replaceChildren();
             slot.surface = undefined;
             slot.layer = undefined;
+            slot.marks = undefined;
             slot.textReady = false;
             slot.paintedZoom = undefined;
           }
@@ -191,7 +203,11 @@ export class PdfPages {
     canvas.style.height = `${viewport.height}px`;
     const layer = document.createElement('div');
     layer.className = `textLayer ${styles.textLayer}`;
-    surface.append(canvas, layer);
+    // Highlights lie between the page and its text, so text stays selectable across them.
+    const marks = document.createElement('div');
+    marks.className = styles.marks;
+    this.drawMarks(slot, marks, zoom);
+    surface.append(canvas, marks, layer);
     if (this.onLink) surface.append(this.linkLayer(slot, viewport));
     const grading = this.grading;
     // Read back once per paint to grade the pixels.
@@ -214,6 +230,7 @@ export class PdfPages {
       slot.surface = surface;
       slot.paintedZoom = zoom;
       slot.layer = layer;
+      slot.marks = marks;
       slot.textReady = false;
       if (this.attached) this.onPaint();
       // Selection/search must never gate a successfully painted page.
@@ -226,6 +243,20 @@ export class PdfPages {
         slot.task = undefined;
       }
     }
+  }
+
+  private drawMarks(slot: Slot, marks: HTMLDivElement, zoom: number) {
+    const page = Number(slot.wrap.dataset.page);
+    marks.replaceChildren(...this.highlights.filter(highlight => highlight.page === page).flatMap(highlight => highlight.rects.map(rect => {
+      const mark = document.createElement('div');
+      mark.className = highlight.id === this.selectedHighlight ? `${styles.mark} ${styles.markSelected}` : styles.mark;
+      mark.dataset.highlight = highlight.id;
+      mark.style.left = `${rect.x * zoom}px`;
+      mark.style.top = `${rect.y * zoom}px`;
+      mark.style.width = `${rect.w * zoom}px`;
+      mark.style.height = `${rect.h * zoom}px`;
+      return mark;
+    })));
   }
 
   // Hyperref targets (\cite, \ref, ToC) are Link annotations. One hit area per

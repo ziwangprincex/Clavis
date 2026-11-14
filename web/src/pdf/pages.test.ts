@@ -259,7 +259,8 @@ describe('PDF first paint failures', () => {
     await pages.prepare();
     pages.attach(1);
     expect(host.children[0].children).toHaveLength(1);
-    expect(host.children[0].children[0].children).toHaveLength(2);
+    // Canvas, highlight layer and the (still empty) text layer.
+    expect(host.children[0].children[0].children).toHaveLength(3);
     expect(painted).toHaveBeenCalled();
   });
 
@@ -453,5 +454,30 @@ describe('PDF link hit areas', () => {
     await click(linkLayer(host.children[0].children[0]).children[0]);
     expect(followed).toHaveBeenCalledWith({ kind: 'url', url: 'https://doi.org/10.1000/test' });
     expect(destination).not.toHaveBeenCalled();
+  });
+});
+
+describe('PDF highlights', () => {
+  const marksOf = (page: number) => host.children[page - 1].children[0].children.find(child => child.className === styles.marks)!;
+
+  it('draws highlights at the painted zoom, skips orphans, and redraws on change', async () => {
+    pages.setHighlights([
+      { id: 'a', page: 1, text: 'x', created: '', rects: [{ x: 10, y: 20, w: 30, h: 8 }] },
+      { id: 'b', page: 1, text: 'y', created: '', rects: [{ x: 1, y: 1, w: 1, h: 1 }], orphan: true },
+    ]);
+    await pages.prepare();
+    pages.attach(1);
+    observer.fire([host.children[0]], true);
+    pages.setZoom(2);
+    vi.advanceTimersByTime(200);
+    await flush();
+    const [mark, ...rest] = marksOf(1).children;
+    expect(rest).toHaveLength(0);
+    expect(mark.dataset.highlight).toBe('a');
+    expect([mark.style.left, mark.style.top, mark.style.width, mark.style.height]).toEqual(['20px', '40px', '60px', '16px']);
+    pages.setHighlights([], null);
+    expect(marksOf(1).children).toHaveLength(0);
+    pages.setHighlights([{ id: 'c', page: 1, text: 'z', created: '', rects: [{ x: 0, y: 0, w: 5, h: 5 }] }], 'c');
+    expect(marksOf(1).children[0].className).toContain(styles.markSelected);
   });
 });

@@ -9,6 +9,7 @@ mod cwl;
 mod document_io;
 mod local_history;
 mod markdown_images;
+mod pdf_highlights;
 mod templates;
 mod latex;
 mod project_config;
@@ -66,6 +67,13 @@ struct TreeNode {
     is_dir: bool,
     /// Only populated for directories
     children: Vec<TreeNode>,
+}
+
+/// Open the system print dialog for the calling window (Markdown → PDF: the
+/// dialog's "Save as PDF"). The page prepares its own print-only content first.
+#[tauri::command]
+fn print_page(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.print().map_err(|error| error.to_string())
 }
 
 /// Header naming the file `save_binary_file` writes, percent-encoded because
@@ -372,7 +380,13 @@ fn main() {
             user_stylesheet::user_stylesheet_path,
             user_stylesheet::read_user_stylesheet,
             user_stylesheet::write_user_stylesheet,
+            user_stylesheet::list_themes,
+            pdf_highlights::read_pdf_highlights,
+            pdf_highlights::write_pdf_highlights,
+            user_stylesheet::read_theme,
+            user_stylesheet::open_themes_folder,
             save_binary_file,
+            print_page,
             share_pdf,
             shared_pdf,
             read_text_file,

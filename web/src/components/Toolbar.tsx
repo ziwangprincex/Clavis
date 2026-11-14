@@ -7,7 +7,7 @@ import { isLatexError } from '../store/compile';
 import { LATEX_ENGINES, isUnknownEngine } from './engineStatus';
 import {
   IconClock, IconCommandPalette, IconDoc, IconExport,
-  IconFolder, IconGear, IconPin, IconSave, IconSigma, IconTarget,
+  IconFolder, IconGear, IconPin, IconPlay, IconStop, IconSave, IconSigma, IconTarget,
 } from './icons';
 import styles from './Toolbar.module.css';
 
@@ -34,6 +34,8 @@ export interface ToolbarProps {
   onExportLatexPdf?: () => void;
   onExportTypstPdf?: () => void;
   onExportHtml?: () => void;
+  onExportPdf?: () => void;
+  onExportDocx?: () => void;
   onOpenFile?: () => void;
   onOpenFolder?: () => void;
   onSave?: () => void;
@@ -83,6 +85,7 @@ export function Toolbar(props: ToolbarProps) {
         {props.status}
         {latex && (
           <button className={styles.primaryBtn} aria-label={compiling ? t('Stop compilation') : t('Compile')} aria-busy={compiling} onClick={compiling ? props.onStopCompile : props.onCompile} title={`${t('Compile')} (${fmtShortcut('Ctrl+B')})`}>
+            {compiling ? <IconStop aria-hidden="true" /> : <IconPlay aria-hidden="true" />}
             <span className={styles.actionLabel}>{compiling ? t('Stop') : t('Compile')}</span>
             {!compiling && <kbd className={styles.keys}>{fmtShortcut('Ctrl+B')}</kbd>}
             {!compiling && errorCount > 0 && <span className={styles.errorCount} aria-label={t('{count} issues', { count: errorCount })}>{errorCount}</span>}
@@ -111,7 +114,11 @@ export function Toolbar(props: ToolbarProps) {
             <button className={styles.menuItem} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}>{t('Local version timeline…')}</button>
             {typeset
               ? <button className={styles.menuItem} disabled={!canExport} title={canExport ? undefined : t('Compile to export PDF')} onClick={() => run(latex ? props.onExportLatexPdf : props.onExportTypstPdf)}><IconExport aria-hidden="true" />{t('Export PDF')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>
-              : <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onExportHtml)}><IconExport aria-hidden="true" />{t('Export HTML…')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>}
+              : <>
+                <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onExportHtml)}><IconExport aria-hidden="true" />{t('Export HTML…')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>
+                <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onExportPdf)}><IconExport aria-hidden="true" />{t('Export PDF…')}</button>
+                <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onExportDocx)}><IconExport aria-hidden="true" />{t('Export Word…')}</button>
+              </>}
             {typeset && <>
               <div className={styles.menuHeading}>{t('Typesetting')}</div>
               {latex && <>

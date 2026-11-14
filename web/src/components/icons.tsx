@@ -62,6 +62,12 @@ export const IconGear = (p: IconProps) => (
   </svg>
 );
 
+export const IconStop = (p: IconProps) => (
+  <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}>
+    <rect x="4" y="4" width="8" height="8" rx="1.6" />
+  </svg>
+);
+
 export const IconPlay = (p: IconProps) => (
   <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}>
     <path d="M5 3.2c0-.6.65-.97 1.17-.66l7 4.3a.78.78 0 0 1 0 1.33l-7 4.3A.78.78 0 0 1 5 12.8z" />

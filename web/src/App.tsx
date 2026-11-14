@@ -25,7 +25,7 @@ import { BibSection } from './components/BibSection';
 import { ReferencesSection } from './components/ReferencesSection';
 import { AssetsSection } from './components/AssetsSection';
 import { WritingSection } from './components/WritingSection';
-import { exportHtml, exportLatexPdf, exportTypstPdf, setProjectMain } from './files/documentActions';
+import { exportHtml, exportMarkdownDocx, exportMarkdownPdf, exportLatexPdf, exportTypstPdf, setProjectMain } from './files/documentActions';
 import { RenameReferenceDialog } from './components/RenameReferenceDialog';
 import { TableConvertDialog } from './components/TableConvertDialog';
 import type { EditorPaneRef } from './components/EditorPane';
@@ -41,6 +41,7 @@ import { checkForUpdates } from './update/updater';
 import { restoreSession } from './files/session';
 import { useAppTheme } from './hooks/useAppTheme';
 import { loadUserStylesheet } from './theme/userStylesheet';
+import { loadSelectedTheme } from './theme/userTheme';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
 import { useLatexAutoCompile } from "./hooks/useLatexAutoCompile";
 import { useDocumentSync } from './hooks/useDocumentSync';
@@ -174,7 +175,7 @@ export function App() {
 
   // Apply UI theme / fonts / accent / color overrides to :root.
   useAppTheme(settings);
-  useEffect(() => { void loadUserStylesheet(); }, []);
+  useEffect(() => { void loadSelectedTheme().then(loadUserStylesheet); }, []);
   /** A click in the PDF (this window's or the PDF window's) goes to its source line. */
   const syncFromPdf = (page: number, x: number, y: number) =>
     syncTexBackwardFromPdf(page, x, y, (absPath, line) =>
@@ -544,6 +545,18 @@ export function App() {
         when: () => lang === 'markdown',
         run: exportHtml,
       }),
+      reg({
+        id: 'markdown.exportPdf',
+        name: 'Export PDF…',
+        when: () => lang === 'markdown',
+        run: exportMarkdownPdf,
+      }),
+      reg({
+        id: 'markdown.exportDocx',
+        name: 'Export Word…',
+        when: () => lang === 'markdown',
+        run: exportMarkdownDocx,
+      }),
       reg({ id: 'typeset.jump', name: 'Typst: jump to preview', when: () => lang === 'typst', run: jumpToPreview }),
       reg({ id: 'latex.quick', name: 'LaTeX: quick preview (one pass)', when: () => lang === 'latex', run: () => runLatexCompile('quick').then(() => {}) }),
       reg({ id: 'latex.clean', name: 'LaTeX: clean rebuild', when: () => lang === 'latex', run: () => runLatexCompile('clean').then(() => {}) }),
@@ -701,6 +714,8 @@ export function App() {
             onExportLatexPdf={exportLatexPdf}
             onExportTypstPdf={exportTypstPdf}
             onExportHtml={exportHtml}
+            onExportPdf={exportMarkdownPdf}
+            onExportDocx={exportMarkdownDocx}
             onOpenFile={openFileDialog}
             onOpenFolder={openFolder}
             onSave={() => saveActiveTab()}

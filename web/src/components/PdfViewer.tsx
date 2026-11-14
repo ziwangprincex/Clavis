@@ -18,6 +18,7 @@ import { IconSearch } from './icons';
 import { usePdfStore, useSettingsStore, useTabsStore, useCompileStore, type Settings } from '../store';
 import { headlineProblem } from '../store/compile';
 import { usePdfSearch } from '../hooks/usePdfSearch';
+import { highlightSource, usePdfHighlights } from '../hooks/usePdfHighlights';
 import { fmtShortcut } from '../platform';
 import { belongsToPdf } from '../compile/target';
 import { guidance } from '../compile/guidance';
@@ -118,6 +119,10 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     gotoMatch,
   } = usePdfSearch(containerRef, visible && bytes ? searchDoc : null);
 
+  const marks = usePdfHighlights(containerRef, pagesRef, zoomRef, visible && bytes ? searchDoc : null, highlightSource(pdf.sourceRoot));
+  const seedRef = useRef(marks.seed);
+  seedRef.current = marks.seed;
+
   const highlightRef = useRef(applyHighlights);
   highlightRef.current = applyHighlights;
   zoomRef.current = zoom;
@@ -211,6 +216,7 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
           },
           gradingRef.current,
         );
+        seedRef.current(candidate);
         await candidate.prepare();
         if (cancelled) return;
         pagesRef.current?.destroy();
@@ -277,11 +283,11 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
       y: box.top + container.clientHeight / 3,
     });
     if (anchor && anchor.index + 1 !== currentPage) setCurrentPage(anchor.index + 1);
+    if (marks.menu) marks.setMenu(null);
   }
 
   function onPageClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (!onSyncTexBackward) return;
-    // Don't fire SyncTeX if the user is selecting text — let the selection happen.
+    // Don't act if the user is selecting text — let the selection happen.
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
     const target = e.target as HTMLElement;
@@ -291,7 +297,18 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const page = Number(wrap.dataset.page) || 1;
-    onSyncTexBackward(page, x / zoom, y / zoom);
+    // A click on a highlight offers to remove it instead of jumping to the source.
+    const hit = marks.highlightAt(page, x / zoom, y / zoom);
+    const body = containerRef.current?.parentElement?.getBoundingClientRect();
+    if (hit && body) {
+      marks.setMenu({ id: hit, x: e.clientX - body.left, y: e.clientY - body.top });
+      return;
+    }
+    if (marks.menu) {
+      marks.setMenu(null);
+      return;
+    }
+    onSyncTexBackward?.(page, x / zoom, y / zoom);
   }
 
   function scrollToPage(n: number) {
@@ -329,6 +346,14 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
               onClick={() => void patchSettings({ pdf_scroll_lock: !scrollLock })}>
               <ToolIcon d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6.5H4z" />
             </button>}
+            {marks.available && <button className={styles.btn} disabled={!marks.canHighlight}
+              title={marks.canHighlight ? `${t('Highlight selection')} (${fmtShortcut('Ctrl+Shift+H')})` : t('Select text in the PDF to highlight it')}
+              aria-label={t('Highlight selection')}
+              // Keep the selection: a press on the button must not clear it before the click.
+              onMouseDown={event => event.preventDefault()}
+              onClick={() => void marks.highlightSelection()}>
+              <ToolIcon d="M9.5 2.5 13.5 6.5 7 13H3v-4zM2.5 14.5h11" />
+            </button>}
             {onDetach && <button className={styles.btn} title={t('Show the PDF in its own window')} aria-label={t('Show the PDF in its own window')} onClick={onDetach}>
               <ToolIcon d="M2 5v8.5h8.5M5 2h9v8.5H5z" />
             </button>}
@@ -342,6 +367,11 @@ export function PdfViewer({ onSyncTexBackward, visible = true, onCompile, onEnvi
               <IconSearch size={14} />
             </button>
           </div>
+          {marks.menu && (
+            <div className={styles.markMenu} style={{ left: marks.menu.x, top: marks.menu.y }} role="menu">
+              <button className={styles.btn} role="menuitem" autoFocus onClick={() => void marks.removeHighlight(marks.menu!.id)}>{t('Remove highlight')}</button>
+            </div>
+          )}
           {findOpen && (
             <div className={styles.finder}>
               <input

@@ -30,7 +30,7 @@ export function usePdfWindowFeed(onSyncTex: (page: number, x: number, y: number)
       const { bytes } = usePdfStore.getState();
       if (!open || (!force && bytes === sent)) return;
       sent = bytes;
-      void ipc.sharePdf(bytes).then(() => emit(DOCUMENT)).catch(error => console.error('could not send the PDF to its window', error));
+      void ipc.sharePdf(bytes).then(() => emit(DOCUMENT, { sourceRoot: usePdfStore.getState().sourceRoot })).catch(error => console.error('could not send the PDF to its window', error));
     };
     const offs = [
       listen(READY, () => { open = true; send(true); }),
@@ -59,10 +59,11 @@ export function usePdfWindowFollow(): void {
     // Only the newest read counts, should two answers arrive out of order.
     let latest = 0;
     const offs = [
-      listen(DOCUMENT, () => {
+      // The source names the highlights file; the PDF window shows them too.
+      listen<{ sourceRoot?: string | null } | undefined>(DOCUMENT, payload => {
         const read = ++latest;
         void ipc.sharedPdf()
-          .then(bytes => { if (read === latest) usePdfStore.setState({ bytes, stale: false }); })
+          .then(bytes => { if (read === latest) usePdfStore.setState({ bytes, stale: false, sourceRoot: payload?.sourceRoot ?? null }); })
           .catch(error => console.error('could not read the PDF', error));
       }),
       listen<{ page: number; y: number | null }>(SCROLL, ({ page, y }) => usePdfStore.getState().requestScroll(page, y)),

@@ -19,7 +19,7 @@ fn viewable(path: &Path) -> bool {
         .is_some_and(|extension| VIEWABLE.contains(&extension.to_ascii_lowercase().as_str()))
 }
 
-fn open_with_system(target: &OsStr) -> std::io::Result<()> {
+pub(crate) fn open_with_system(target: &OsStr) -> std::io::Result<()> {
     let program = if cfg!(windows) {
         "explorer.exe"
     } else if cfg!(target_os = "macos") {

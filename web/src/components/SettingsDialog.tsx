@@ -3,6 +3,7 @@ import { useSettingsStore, defaultSettings } from '../store';
 import type { Settings } from '../store/settings';
 import { BUILTIN_THEMES } from '../theme/themes';
 import { applyUserStylesheet } from '../theme/userStylesheet';
+import { selectTheme, selectedTheme } from '../theme/userTheme';
 import { resolveThemeSpec, useOsDark } from '../theme/appTheme';
 import { ThemePicker } from './ThemePicker';
 import { getAppVersion, hasTauri, ipc } from '../api/tauri';
@@ -37,6 +38,34 @@ const BIB_ENGINE_CHOICES = ['auto', 'none', ...BIB_ENGINES] as const;
 
 /** The image folder presets offered; anything else is a custom folder. */
 const IMAGE_FOLDERS = ['assets', '${filename}.assets', '.'];
+/** Typora-style themes: CSS files in the themes folder, one active at a time. */
+function ThemePickerField() {
+  const [names, setNames] = useState<string[]>([]);
+  const [current, setCurrent] = useState(selectedTheme());
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => { void ipc.listThemes().then(setNames).catch(reason => setError(String(reason))); };
+  useEffect(() => { if (hasTauri()) refresh(); }, []);
+  if (!hasTauri()) return null;
+  const choose = async (name: string) => {
+    setCurrent(name);
+    try { await selectTheme(name); setError(null); } catch (reason) { setCurrent(''); setError(String(reason)); }
+  };
+  const missing = current && !names.includes(current);
+  return <>
+    <label>{t('Theme file')}
+      <select value={current} onChange={event => void choose(event.target.value)}>
+        <option value="">{t('Default')}</option>
+        {missing && <option value={current}>{current}</option>}
+        {names.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
+    </label>
+    <p className={styles.hint}>{t('A theme is a .css file in the themes folder; it applies before your custom CSS.')}</p>
+    {error && <p className={styles.hint}>{error}</p>}
+    <button type="button" className={styles.secondary} onClick={() => { void ipc.openThemesFolder(); setTimeout(refresh, 4000); }}>{t('Open themes folder')}</button>
+    <button type="button" className={styles.secondary} onClick={refresh}>{t('Refresh themes')}</button>
+  </>;
+}
+
 /** Typora's theme folder in one file: the user's own stylesheet. */
 function UserStylesheetEditor() {
   const [css, setCss] = useState<string | null>(null);
@@ -265,6 +294,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   overridden={!!draft.ui_accent_color}
                   onChange={value => update('ui_accent_color', value)}
                   onReset={() => update('ui_accent_color', '')} />
+                <ThemePickerField />
                 <details className={styles.advanced}>
                   <summary>{t('Custom CSS')}</summary>
                   <UserStylesheetEditor />

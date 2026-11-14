@@ -42,8 +42,66 @@ pub fn write_user_stylesheet(css: String) -> Result<(), String> {
     std::fs::write(&path, css).map_err(|error| format!("cannot write {}: {error}", path.display()))
 }
 
+fn themes_dir() -> Result<std::path::PathBuf, String> {
+    let dir = clavis_config_dir().ok_or_else(|| "no configuration directory".to_string())?.join("themes");
+    std::fs::create_dir_all(&dir).map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
+    Ok(dir)
+}
+
+/// A theme is a file name without extension; separators or dots would reach
+/// outside the themes folder.
+fn valid_theme_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains(['/', '\\', '\0']) && !name.starts_with('.') && !name.contains("..")
+}
+
+/// Theme names: every `*.css` file in `<config_dir>/clavis/themes`, sorted.
+#[tauri::command]
+pub fn list_themes() -> Result<Vec<String>, String> {
+    let dir = themes_dir()?;
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .map_err(|error| format!("cannot read {}: {error}", dir.display()))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let stem = path.file_stem()?.to_str()?.to_string();
+            let is_css = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("css"));
+            (is_css && path.is_file() && valid_theme_name(&stem)).then_some(stem)
+        })
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+#[tauri::command]
+pub fn read_theme(name: String) -> Result<String, String> {
+    if !valid_theme_name(&name) {
+        return Err("invalid theme name".into());
+    }
+    let path = themes_dir()?.join(format!("{name}.css"));
+    let meta = std::fs::metadata(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    if meta.len() > MAX_BYTES {
+        return Err(format!("the theme is larger than {} KB", MAX_BYTES / 1024));
+    }
+    std::fs::read_to_string(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
+}
+
+/// Show the themes folder in the file manager.
+#[tauri::command]
+pub async fn open_themes_folder() -> Result<(), String> {
+    let dir = themes_dir()?;
+    crate::system_open::open_with_system(dir.as_os_str()).map_err(|error| format!("cannot open folder: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn theme_names_cannot_leave_the_folder() {
+        for bad in ["", "../x", "a/b", "a\\b", ".hidden", "a..b"] {
+            assert!(!super::valid_theme_name(bad), "{bad}");
+        }
+        assert!(super::valid_theme_name("Paper 2"));
+    }
+
     #[test]
     fn reads_an_absent_file_as_empty() {
         // Depends on the machine having a config directory; on CI that is the

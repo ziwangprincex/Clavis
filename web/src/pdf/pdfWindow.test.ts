@@ -36,7 +36,7 @@ beforeEach(() => {
   emitted.length = 0;
   mailbox.bytes = null;
   vi.clearAllMocks();
-  usePdfStore.setState({ bytes: null, scrollRequest: null });
+  usePdfStore.setState({ bytes: null, scrollRequest: null, sourceRoot: null });
   vi.stubGlobal('window', Object.assign(new EventTarget(), { location: { search: '' } }));
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -46,10 +46,11 @@ describe('PDF window', () => {
     const synctex = vi.fn();
     const tree = mount(() => usePdfWindowFeed(synctex));
     await act(async () => {});
-    usePdfStore.setState({ bytes: new Uint8Array([1, 2, 3]) });
+    usePdfStore.setState({ bytes: new Uint8Array([1, 2, 3]), sourceRoot: '/p/paper.tex' });
     expect(emitted).toEqual([]);
     fire('pdf-window-ready');
-    await vi.waitFor(() => expect(emitted).toEqual([['pdf-window-document', undefined]]));
+    // The source travels along: it names the highlights file the PDF window shows.
+    await vi.waitFor(() => expect(emitted).toEqual([['pdf-window-document', { sourceRoot: '/p/paper.tex' }]]));
     expect(sharePdf).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
     usePdfStore.getState().requestScroll(4, 120);
     expect(emitted.at(-1)).toEqual(['pdf-window-scroll', { page: 4, y: 120 }]);
@@ -69,8 +70,9 @@ describe('PDF window', () => {
     await act(async () => {});
     expect(emitted).toEqual([['pdf-window-ready', undefined]]);
     mailbox.bytes = new Uint8Array([1, 2, 3]);
-    fire('pdf-window-document');
+    fire('pdf-window-document', { sourceRoot: '/p/paper.tex' });
     await vi.waitFor(() => expect([...usePdfStore.getState().bytes ?? []]).toEqual([1, 2, 3]));
+    expect(usePdfStore.getState().sourceRoot).toBe('/p/paper.tex');
     fire('pdf-window-scroll', { page: 3, y: null });
     expect(usePdfStore.getState().scrollRequest).toMatchObject({ page: 3, y: null });
     sendSyncTex(1, 2, 3);
