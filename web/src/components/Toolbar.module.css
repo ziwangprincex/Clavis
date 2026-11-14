@@ -13,10 +13,12 @@
   -webkit-user-select: none;
   user-select: none;
 }
-.identity { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 2px; }
-.documentName { font-size: 1em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.identity { display: flex; align-items: center; gap: 8px; flex: 1; padding-left: 2px; }
+/* When the bar runs short the status message gives way first; the name keeps a few characters. */
+.documentName { min-width: 3.5em; font-size: 1em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dirty { width: 6px; height: 6px; background: var(--text-dim); border-radius: 50%; flex: none; }
-.actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.actions { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
+.actions > :not(:first-child) { flex: none; }
 /* Errors of the last build, on the compile button (Texifier's red count). */
 .errorCount { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--error); color: #fff; font-size: var(--font-size-small); font-weight: 600; line-height: 18px; font-variant-numeric: tabular-nums; }
 .iconBtn, .primaryBtn {
@@ -60,6 +62,8 @@
 .menuItem:hover, .menuItem:focus-visible { background: var(--panel-soft); }
 .menuItem svg { color: var(--text-muted); flex: none; }
 .menuItem kbd { margin-left: auto; }
+/* Items without an icon, and the option rows, keep their text in the column of the others. */
+.textOnly, .optionRow { padding-left: 36px; }
 .optionRow { justify-content: space-between; }
 .optionRow select { min-height: var(--control-h); max-width: 140px; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-solid); color: var(--text); font: inherit; font-size: var(--font-size-small); }
 .optionRow input { accent-color: var(--accent); width: 16px; height: 16px; }

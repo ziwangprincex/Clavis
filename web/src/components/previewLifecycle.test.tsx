@@ -16,6 +16,8 @@ const updateTab = (content: string) => act(() => useTabsStore.getState().patchTa
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
+  // The reader listens for Cmd/Ctrl+F on the window.
+  vi.stubGlobal('window', new EventTarget());
   vi.mocked(ipc.compileTypst).mockResolvedValue(preview('<svg>latest</svg>'));
   useProjectStore.getState().reset();
   useSettingsStore.setState({ settings: defaultSettings });
@@ -25,6 +27,7 @@ afterEach(() => {
   act(() => tree?.unmount());
   tree = undefined;
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('preview lifecycle without a browser', () => {

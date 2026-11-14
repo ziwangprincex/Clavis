@@ -5,7 +5,9 @@ import { EditorView } from '@codemirror/view';
 
 export const livePreviewTheme = EditorView.baseTheme({
   // Text, quote bars, code backgrounds, rules and tables share one left edge.
-  '.cm-line': { paddingInline: '0' },
+  // Scoped to the live editor: a base theme stays mounted for every editor
+  // once used, and a bare '.cm-line' rule would also move LaTeX and Typst text.
+  '&.cm-md-live .cm-line': { paddingInline: '0' },
   // A heading sits closer to what it introduces than to what came before, and
   // its tracking and leading tighten as it grows.
   '.cm-line.cm-md-h1, .cm-line.cm-md-h2, .cm-line.cm-md-h3, .cm-line.cm-md-h4, .cm-line.cm-md-h5, .cm-line.cm-md-h6': {

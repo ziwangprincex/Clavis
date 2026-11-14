@@ -69,7 +69,8 @@ export function writingAssist(language: Lang, workspace?: () => CompletionWorksp
       '.cm-writing-hover svg': { maxWidth: '400px', maxHeight: '220px' },
       '.cm-writing-hover img': { display: 'block', maxWidth: '400px', maxHeight: '220px', objectFit: 'contain' },
       '.cm-writing-hover pre': { whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: '4px 0' },
-      '.cm-foldGutter': { opacity: '.5' },
+      // Dim the arrows, not the column: the column also carries the current-line band.
+      '.cm-foldGutter .cm-gutterElement > *': { opacity: '.5' },
     }),
     hoverTooltip(
       async (view, pos) => {

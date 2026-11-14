@@ -7,6 +7,7 @@ import { documentRoot, typstInput, inside } from '../compile/project';
 import { pathsEqual } from '../files/projectPaths';
 import { useTypstPreviewStore } from '../store/typstPreview';
 import styles from './PreviewPane.module.css';
+import controls from './PdfViewer.module.css';
 import { TypstReader } from './TypstReader';
 import { previewDocuments, revisionCounter } from '../compile/previewRevision';
 import { guidance } from '../compile/guidance';
@@ -247,7 +248,7 @@ export function PreviewPane({
       >
         {/* Recompiles while typing stay silent; only a preview left behind says so. */}
         <span role="status">{stale && !busy ? t("Preview not updated") : ''}</span>
-        <button onClick={() => setRetry((n) => n + 1)} disabled={busy}>{t("Refresh")}</button>
+        <button className={controls.btn} onClick={() => setRetry((n) => n + 1)} disabled={busy}>{t("Refresh")}</button>
       </TypstReader>
     </div>
   );

@@ -13,9 +13,16 @@
 .host :global(.cm-scroller) {
   /* Normal writing stays close to the sidebar, including in Split.
    * Only explicit Focus mode supplies a centered reading measure. */
-  padding-inline: var(--editor-inline-padding, 12px);
+  padding-inline: var(--editor-inline-padding, var(--editor-edge, 12px));
   overscroll-behavior: contain;
 }
+/* LaTeX and Typst source: the current line is one band from edge to edge,
+ * through the gutters, so the insets sit inside the first gutter and the
+ * lines instead of around them (where they left gaps in the band). */
+.host:not([data-language='markdown']) { --editor-edge: 0px; }
+.host:not([data-language='markdown']) :global(.cm-content) { padding-inline: 0; }
+.host:not([data-language='markdown']) :global(.cm-line) { padding-inline: 8px 20px; }
+.host:not([data-language='markdown']) :global(.cm-gutters > .cm-gutter:first-child .cm-gutterElement) { padding-left: 18px; }
 .host :global(.cm-content) { min-width: 0; padding-block: var(--editor-top-padding, 24px) 120px; }
 .host :global(.cm-lineNumbers .cm-gutterElement) { padding-inline: 4px 12px; font-size: 0.82em; font-variant-numeric: tabular-nums; }
 .host :global(.cm-gutters) { -webkit-user-select: none; user-select: none; }
@@ -36,7 +43,7 @@
 
 @container writing-pane (max-width: 560px) {
   .host :global(.cm-scroller),
-  .host[data-language='markdown'] :global(.cm-scroller) { padding-inline: 12px; }
+  .host[data-language='markdown'] :global(.cm-scroller) { padding-inline: var(--editor-edge, 12px); }
   .host :global(.cm-content) { padding-top: 24px; }
   .host[data-live] :global(.cm-scroller) { padding-inline: 20px; }
 }

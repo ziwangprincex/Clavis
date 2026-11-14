@@ -757,6 +757,7 @@ function jumpToAnchor(view: EditorView, href: string) {
 export function markdownLivePreview(host: LivePreviewHost): Extension {
   return [
     livePreviewTheme,
+    EditorView.editorAttributes.of({ class: 'cm-md-live' }),
     focused,
     tableToolbar(revealing),
     EditorView.focusChangeEffect.of((_state, focusing) => markdownFocus.of(focusing)),

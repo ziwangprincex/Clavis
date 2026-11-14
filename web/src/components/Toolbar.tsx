@@ -110,7 +110,7 @@ export function Toolbar(props: ToolbarProps) {
             <button className={styles.menuItem} onClick={() => run(props.onOpenFolder)}><IconFolder aria-hidden="true" />{t('Open folder')}</button>
             <button className={styles.menuItem} onClick={() => run(props.onToggleRecent)}><IconClock aria-hidden="true" />{t('Recent files')}</button>
             <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onSave)}><IconSave aria-hidden="true" />{t('Save')}<kbd>{fmtShortcut('Ctrl+S')}</kbd></button>
-            <button className={styles.menuItem} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}>{t('Local version timeline…')}</button>
+            <button className={`${styles.menuItem} ${styles.textOnly}`} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}>{t('Local version timeline…')}</button>
             {typeset
               ? <button className={styles.menuItem} disabled={!canExport} title={canExport ? undefined : t('Compile to export PDF')} onClick={() => run(latex ? props.onExportLatexPdf : props.onExportTypstPdf)}><IconExport aria-hidden="true" />{t('Export PDF')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>
               : <>
@@ -132,12 +132,12 @@ export function Toolbar(props: ToolbarProps) {
               <button className={styles.menuItem} onClick={() => run(props.onSynctexForward)}><IconTarget aria-hidden="true" />{latex ? t('Jump to PDF') : t('Jump to preview')}</button>
               <button className={styles.menuItem} disabled={!tab?.filePath} onClick={() => run(props.onSetMain)}><IconPin aria-hidden="true" />{t('Set as project main')}</button>
               {latex && <>
-                <button className={styles.menuItem} onClick={() => run(() => props.onWriterTool?.('environment'))}>{t('Check environment…')}</button>
+                <button className={`${styles.menuItem} ${styles.textOnly}`} onClick={() => run(() => props.onWriterTool?.('environment'))}>{t('Check environment…')}</button>
                 <details className={styles.advanced}>
                   <summary>{t('Build options')}</summary>
-                  <button className={styles.menuItem} onClick={() => run(props.onQuickCompile)}>{t('Quick preview · one pass')}</button>
-                  <button className={styles.menuItem} onClick={() => run(props.onCleanCompile)}>{t('Clean rebuild')}</button>
-                  <button className={styles.menuItem} onClick={() => run(props.onFullCompile)}>{t('Full build · latexmk')}</button>
+                  <button className={`${styles.menuItem} ${styles.textOnly}`} onClick={() => run(props.onQuickCompile)}>{t('Quick preview · one pass')}</button>
+                  <button className={`${styles.menuItem} ${styles.textOnly}`} onClick={() => run(props.onCleanCompile)}>{t('Clean rebuild')}</button>
+                  <button className={`${styles.menuItem} ${styles.textOnly}`} onClick={() => run(props.onFullCompile)}>{t('Full build · latexmk')}</button>
                 </details>
               </>}
             </>}

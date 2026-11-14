@@ -1,53 +1,26 @@
-.toolbar {
+/* The preview pane is the scroll container, so the PDF viewer's floating
+ * capsules ride on zero-height sticky rows: the tools at the top right, pages
+ * and zoom at the bottom centre. */
+.overlayTop,
+.overlayBottom {
   position: sticky;
-  top: 0;
-  z-index: 3;
+  z-index: 6;
   flex: none;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 7px 12px;
-  font-size: 0.8462rem;
-  color: var(--text-muted);
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  height: 0;
 }
-.toolbar button,
-.toolbar select,
-.toolbar input {
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 4px 6px;
-  min-width: 0;
-}
-.toolbar button {
-  cursor: pointer;
-}
-.toolbar button:disabled {
-  opacity: 0.35;
-}
-.toolbar input {
-  width: 130px;
-}
-.toolbar .pageInput {
-  width: 38px;
-  text-align: center;
-}
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  white-space: nowrap;
-}
+.overlayTop { top: 0; }
+.overlayBottom { bottom: 0; }
+/* Tools stay quiet until the pointer is over the preview (the pane hovered). */
+:hover > .overlayTop > [role='toolbar'] { opacity: 1; }
+/* Status and actions handed in by the pane, set as the capsule's own. */
+.overlayTop [role='status'] { padding: 0 6px; color: var(--text-muted); font-size: 0.8462rem; white-space: nowrap; }
+.overlayTop [role='status']:empty { display: none; }
 .pages {
-  flex: none;
+  /* Fills a short preview, so the pager still sits at the bottom of the pane. */
+  flex: 1 0 auto;
   overflow-anchor: none;
-  padding: 22px;
+  /* Room under the last page for the pager. */
+  padding: 22px 22px 64px;
   margin: 0 auto;
   box-sizing: border-box;
 }

@@ -56,6 +56,10 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* The field is the palette: its caret is focus enough. The app's focus ring,
+ * clipped by the rounded panel, showed only as a heavy line under it. */
+.input:focus-visible { outline: none; }
+
 .input::placeholder {
   color: var(--text-dim);
 }

@@ -103,10 +103,10 @@ export function OutlineSection({ onJumpTo }: OutlineSectionProps) {
       {[1, 2, 3, 4].map(level => <option key={level} value={level}>{t('{count} levels', { count: level })}</option>)}
     </select>
     <button type="button" className={styles.action} title={t('Expand all')} aria-label={t('Expand all')} onClick={() => setCollapsed(new Set())}>
-      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3M3 1.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l3 3 3-3M3 6l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
     </button>
     <button type="button" className={styles.action} title={t('Collapse all')} aria-label={t('Collapse all')} onClick={() => setCollapsed(new Set(branches))}>
-      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5l3-3 3 3M3 10.5l3-3 3 3" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6l3-3 3 3M3 9l3-3 3 3" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
     </button>
   </> : undefined;
   return <SidebarSection title={t('Outline')} defaultOpen actions={actions}>

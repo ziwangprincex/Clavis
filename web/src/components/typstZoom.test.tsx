@@ -22,6 +22,7 @@ afterEach(() => {
 
 it('keeps SVG and text nodes mounted and restores the reading anchor while scaling from fit width', () => {
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('window', new EventTarget());
   const host = Object.assign(new EventTarget(), { querySelectorAll: () => [] });
   const scroll = { current: host as unknown as HTMLDivElement };
   const page: TypstPage = {
@@ -38,8 +39,7 @@ it('keeps SVG and text nodes mounted and restores the reading anchor while scali
   });
   const art = tree.root.findAllByType('div').find((div) => div.props.dangerouslySetInnerHTML)!;
   const text = tree.root.findByType('text');
-  const select = tree.root.findByProps({ 'aria-label': 'Zoom' });
-  act(() => select.props.onChange({ target: { value: '125' } }));
+  act(() => tree.root.findByProps({ 'aria-label': 'Zoom in' }).props.onClick());
   expect(tree.root.findAllByType('div').find((div) => div.props.dangerouslySetInnerHTML)).toBe(art);
   expect(tree.root.findByType('text')).toBe(text);
   expect(
@@ -64,7 +64,14 @@ it('keeps search selection and scroll across recompiles, clamping only when a re
     svg: '<svg/>', svgHash: String(i), width: 600, height: 800, points: [], links: [],
     text: [{ text: 'needle', size: 12, width: 50, matrix: [1,0,0,1,0,100] }],
   }));
+  vi.stubGlobal('requestAnimationFrame', vi.fn());
+  const keys = new EventTarget();
+  vi.stubGlobal('window', keys);
+  vi.stubGlobal('document', { body: {}, activeElement: null });
   act(() => { tree = create(<TypstReader pages={pages} scroll={scroll} stale={false} />); });
+  expect(tree.root.findAllByProps({ 'aria-label': 'Find in document' })).toHaveLength(0);
+  // Cmd/Ctrl+F opens the find bar under the tools capsule.
+  act(() => { keys.dispatchEvent(Object.assign(new Event('keydown'), { key: 'f', metaKey: true, ctrlKey: false, shiftKey: false, preventDefault() {} })); });
   const search = () => tree.root.findByProps({ 'aria-label': 'Find in document' });
   act(() => search().props.onChange({ target: { value: 'needle' } }));
   act(() => tree.root.findByProps({ 'aria-label': 'Next match' }).props.onClick());
