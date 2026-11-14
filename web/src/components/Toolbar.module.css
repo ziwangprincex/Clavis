@@ -44,7 +44,6 @@
 .primaryBtn:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
 .primaryBtn:active:not(:disabled) { filter: brightness(0.94); }
 .primaryBtn { gap: 6px; }
-.keys { font: inherit; font-size: var(--font-size-small); opacity: 0.72; padding: 0; border: 0; background: transparent; box-shadow: none; color: inherit; }
 .iconBtn:disabled, .primaryBtn:disabled { opacity: 0.5; cursor: default; }
 .layoutSwitch { display: flex; gap: 2px; }
 .layoutSwitch button { display: inline-flex; align-items: center; justify-content: center; width: var(--control-h); min-height: var(--control-h); padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); cursor: pointer; transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease); }
@@ -66,7 +65,7 @@
 .optionRow input { accent-color: var(--accent); width: 16px; height: 16px; }
 .optionRow kbd { margin-left: 8px; color: var(--text-muted); }
 @media (max-width: 1000px) { .actions { gap: 4px; } }
-@media (max-width: 760px) { .toolbar { gap: 4px; } .keys { display: none; } .primaryBtn { padding-inline: 8px; } }
+@media (max-width: 760px) { .toolbar { gap: 4px; } .primaryBtn { padding-inline: 8px; } }
 
 .menuItem:disabled { opacity: 0.5; cursor: default; }
 .advanced { margin-top: 6px; border-top: 1px solid var(--border); }

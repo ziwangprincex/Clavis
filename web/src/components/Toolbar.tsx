@@ -87,7 +87,6 @@ export function Toolbar(props: ToolbarProps) {
           <button className={styles.primaryBtn} aria-label={compiling ? t('Stop compilation') : t('Compile')} aria-busy={compiling} onClick={compiling ? props.onStopCompile : props.onCompile} title={`${t('Compile')} (${fmtShortcut('Ctrl+B')})`}>
             {compiling ? <IconStop aria-hidden="true" /> : <IconPlay aria-hidden="true" />}
             <span className={styles.actionLabel}>{compiling ? t('Stop') : t('Compile')}</span>
-            {!compiling && <kbd className={styles.keys}>{fmtShortcut('Ctrl+B')}</kbd>}
             {!compiling && errorCount > 0 && <span className={styles.errorCount} aria-label={t('{count} issues', { count: errorCount })}>{errorCount}</span>}
           </button>
         )}
