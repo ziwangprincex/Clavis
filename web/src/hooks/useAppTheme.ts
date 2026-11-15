@@ -15,6 +15,7 @@ import { resolveLocale } from '../i18n';
 import { useResolvedThemeSpec } from '../theme/appTheme';
 import { accentTokens, chromeTokens, overrideTokens } from '../theme/chromeTokens';
 import { setRootTokens } from '../theme/rootTokens';
+import { appWindow, hasTauri } from '../api/tauri';
 
 export function useAppTheme(settings: Settings): void {
   const spec = useResolvedThemeSpec();
@@ -51,4 +52,15 @@ export function useAppTheme(settings: Settings): void {
     settings.ui_accent_color,
     settings.ui_color_overrides,
   ]);
+
+  // macOS draws the title bar, the traffic lights and the material behind the
+  // translucent sidebar in the window's own appearance, which follows the
+  // system. A dark theme on a light system put light material behind the page:
+  // a washed-out grey sidebar. A chosen theme sets the appearance; 'auto' hands
+  // it back to the system, so the page's prefers-color-scheme keeps following it.
+  const theme = settings.editor_theme === 'auto' ? null : spec.dark ? 'dark' : 'light';
+  useEffect(() => {
+    if (!hasTauri()) return;
+    void appWindow.setTheme(theme).catch(error => console.warn('could not set the window appearance', error));
+  }, [theme]);
 }

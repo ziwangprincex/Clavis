@@ -102,6 +102,8 @@ export const appWindow = {
   toggleMaximize: () => { requireTauri(); return getCurrentWindow().toggleMaximize(); },
   close: () => { requireTauri(); return getCurrentWindow().close(); },
   isMaximized: () => { requireTauri(); return getCurrentWindow().isMaximized(); },
+  /** The window's own appearance (title bar, traffic lights, system material); null follows the system. */
+  setTheme: (theme: 'dark' | 'light' | null) => { requireTauri(); return getCurrentWindow().setTheme(theme); },
   /** Subscribe to native window-resize events. Returns an unlisten fn. */
   onResized: (handler: () => void) => { requireTauri(); return getCurrentWindow().onResized(() => handler()); },
 };

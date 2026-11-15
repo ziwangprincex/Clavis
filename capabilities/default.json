@@ -12,6 +12,7 @@
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-theme",
     "dialog:default",
     "process:allow-restart",
     "updater:default"

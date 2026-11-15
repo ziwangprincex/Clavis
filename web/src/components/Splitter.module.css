@@ -1,10 +1,12 @@
 /* Side-by-side panes meet at a 1px hairline. The transparent ::after
  * hit area overlaps their edges instead of reserving a blank layout strip. */
 
+/* Opaque: on macOS the window behind the panes is transparent (the sidebar's
+ * system material), and a see-through hairline showed the desktop. */
 .splitter {
   position: relative;
   flex: 0 0 1px;
-  background: transparent;
+  background: var(--bg);
   z-index: 1;
   touch-action: none;
   cursor: col-resize;
