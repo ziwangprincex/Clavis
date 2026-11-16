@@ -6,6 +6,9 @@
   min-width: 0;
   /* The top of the page: the toolbar it holds is set on the document's colour. */
   background: var(--bg);
+  /* The toolbar's rule, carried on under the window buttons where the toolbar
+   * does not reach. Inset, so the toolbar covers it with its own identical rule. */
+  box-shadow: inset 0 -1px 0 var(--border);
   /* Follows the sidebar sliding away from, or back over, the window buttons. */
   transition: padding-left var(--dur-slow) var(--ease);
   user-select: none;

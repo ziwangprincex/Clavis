@@ -50,9 +50,16 @@ export function nonProseRanges(text: string, lang: Lang): TextRange[] {
 }
 export function mathAt(text: string, pos: number, lang: Lang): MathRange | null {
   if (lang === 'markdown' || lang === 'latex' || lang === 'typst') {
-    const masked = (lang === 'typst' ? text.replace(/"(?:\\.|[^"\\])*"/g, blank) : text).replace(/`[^`]*`/g, blank)
-      .replace(lang === 'latex' ? /(?<!\\)%[^\n]*/g : /\/\/[^\n]*|\/\*[\s\S]*?\*\//g, blank);
-    const re = /(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$|(?<!\\)\$([^$]*?)(?<!\\)\$|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g;
+    const unquoted = lang === 'typst' ? text.replace(/"(?:\\.|[^"\\])*"/g, blank) : text;
+    // Whole fences before inline spans, as proseMask does: pairing backticks two
+    // at a time lets a template literal inside a fence split it open.
+    const uncoded = lang === 'latex'
+      ? unquoted.replace(/`[^`]*`/g, blank)
+      : unquoted.replace(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1/g, blank).replace(/`[^`\n]*`/g, blank);
+    const masked = uncoded.replace(lang === 'latex' ? /(?<!\\)%[^\n]*/g : /\/\/[^\n]*|\/\*[\s\S]*?\*\//g, blank);
+    // A Markdown inline formula stays inside its paragraph: no blank line within.
+    const inline = lang === 'markdown' ? String.raw`(?<!\\)\$((?:[^$\n]|\n(?![ \t]*\n))*?)(?<!\\)\$` : String.raw`(?<!\\)\$([^$]*?)(?<!\\)\$`;
+    const re = new RegExp(String.raw`(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$|${inline}|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)`, 'g');
     for (const match of masked.matchAll(re)) {
       if (match.index! > pos) break;
       if (pos >= match.index! && pos < match.index! + match[0].length) return { from: match.index!, to: match.index! + match[0].length, content: match[1] ?? match[2] ?? match[3] ?? match[4], display: match[1] !== undefined || match[3] !== undefined };

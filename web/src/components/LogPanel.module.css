@@ -175,7 +175,7 @@
   font-size: 0.8077rem;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 .stream-stderr {

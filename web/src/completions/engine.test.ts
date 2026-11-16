@@ -257,3 +257,19 @@ describe('completion engine', () => {
   });
 
 });
+
+describe('Markdown snippets', () => {
+  // Regression: in Markdown every word is prose, and Enter accepts an open
+  // popup. Typing "I wrote it" and pressing Enter replaced "it" with the
+  // italic snippet's `*text*` (and "table", "note", "in", "on" alike).
+  it('stay out of the way while typing prose', async () => {
+    for (const text of ['I wrote it', 'See the table', 'a quick note', 'Log in', 'my code']) {
+      expect(await complete(request(text, { language: 'markdown' }))).toBeNull();
+    }
+  });
+
+  it('are still offered when asked for', async () => {
+    const result = await complete(request('ta', { language: 'markdown', explicit: true }));
+    expect(result?.candidates.map(c => c.label)).toContain('table');
+  });
+});

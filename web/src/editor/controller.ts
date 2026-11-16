@@ -143,7 +143,27 @@ function buildThemeExt(spec: ThemeSpec) {
         border: '1px solid var(--border)', borderRadius: '10px',
         boxShadow: 'var(--shadow-md)',
       },
-      '.cm-panels': { backgroundColor: 'var(--panel-solid)', color: spec.fg },
+      // CodeMirror's own #888 is 3:1 on these pages; the hint is text and needs 4.5:1.
+      '.cm-placeholder': { color: 'var(--text-muted)' },
+      // The search panel speaks the app's control language: UI type, the
+      // dialogs' soft buttons and page-coloured fields, one rule against the
+      // text. CodeMirror's gradient buttons and serif labels read as another program.
+      '.cm-panels': { backgroundColor: 'var(--panel-solid)', color: `var(--text, ${spec.fg})`, fontFamily: 'var(--font-sans)', fontSize: '1rem' },
+      '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--border)' },
+      '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--border)' },
+      '.cm-button': {
+        backgroundImage: 'none', backgroundColor: 'var(--panel-soft)',
+        border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+        fontSize: 'inherit', padding: '2px 10px', cursor: 'pointer',
+      },
+      '.cm-button:hover, .cm-button:active': { backgroundImage: 'none', backgroundColor: 'var(--tint-accent)' },
+      '.cm-textfield': {
+        backgroundColor: 'var(--bg)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-sm)', fontSize: 'inherit', padding: '2px 7px',
+      },
+      // Like the editor's own hint: WebKit's placeholder grey is 2.3:1 on a light page.
+      '.cm-textfield::placeholder': { color: 'var(--text-muted)' },
+      '.cm-panel.cm-search label': { fontSize: 'var(--font-size-small)' },
       '.cm-searchMatch': { backgroundColor: withAlpha(spec.accent, 0.20) },
       '.cm-searchMatch.cm-searchMatch-selected': { outline: `1px solid ${spec.accent}` },
       '.cm-foldPlaceholder': {
@@ -572,14 +592,19 @@ export class EditorController {
 
   private localeExtensions() {
     const chinese = resolveLocale(this.locale) === 'zh-CN';
-    return [placeholder(translate('Start writing…')), EditorState.phrases.of(chinese ? {
+    return [
+      placeholder(translate('Start writing…')),
+      // On the text area itself: a label on a role-less wrapper is never announced.
+      EditorView.contentAttributes.of({ 'aria-label': translate('Document editor') }),
+      EditorState.phrases.of(chinese ? {
       'Find': '查找', 'Replace': '替换', 'next': '下一个', 'previous': '上一个',
       'all': '全部', 'match case': '区分大小写', 'by word': '整词匹配',
       'regexp': '正则表达式', 'replace': '替换', 'replace all': '全部替换',
       'close': '关闭', 'Go to line': '跳转到行', 'go': '跳转',
       'current match': '当前匹配', 'replaced $ matches': '已替换 $ 处',
       'replaced match on line $': '已替换第 $ 行的匹配',
-    } : {})];
+    } : {}),
+    ];
   }
   setLocale(locale: string) {
     this.locale = locale;

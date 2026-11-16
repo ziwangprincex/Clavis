@@ -61,7 +61,7 @@
 .input:focus-visible { outline: none; }
 
 .input::placeholder {
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 .list {

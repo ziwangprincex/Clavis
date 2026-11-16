@@ -28,7 +28,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 .item {
@@ -54,7 +54,7 @@
 }
 
 .full {
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: 0.7692rem;
   font-family: var(--font-mono);
   overflow: hidden;

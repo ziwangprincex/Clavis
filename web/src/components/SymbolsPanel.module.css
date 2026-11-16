@@ -103,7 +103,7 @@
 .cmd {
   font-family: var(--font-mono);
   font-size: 0.6923rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;

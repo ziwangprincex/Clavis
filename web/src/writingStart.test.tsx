@@ -14,7 +14,17 @@ import { shortcutLabel, useCommandsStore } from './store/commands';
 import { restoreSession } from './files/session';
 import { ipc, dialogConfirm } from './api/tauri';
 
-vi.mock('./components/EditorPane', () => ({ EditorPane: () => null }));
+const editorApi = vi.hoisted(() => ({ focus: vi.fn() }));
+// The editor announces itself the way the real one does: once, after it mounts.
+vi.mock('./components/EditorPane', async () => {
+  const { useEffect } = await import('react');
+  return {
+    EditorPane: ({ onReady }: { onReady?: (api: unknown) => void }) => {
+      useEffect(() => { onReady?.(editorApi); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      return null;
+    },
+  };
+});
 vi.mock('./components/PreviewPane', () => ({ PreviewPane: () => null }));
 vi.mock('./components/PdfViewer', () => ({ PdfViewer: () => null }));
 vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
@@ -280,4 +290,12 @@ it('does not resurrect Problems after leaving LaTeX and returning', async () => 
   act(() => useTabsStore.getState().setActive('paper'));
   expect(sidebar().props.problems).not.toBeNull();
   expect(sidebar().props.view).toBe('documents');
+});
+it('opens ready to type: the caret goes into the editor once the session is restored', async () => {
+  let finishRestore: (restored: boolean) => void = () => {};
+  vi.mocked(restoreSession).mockImplementation(() => new Promise(resolve => { finishRestore = resolve; }));
+  await mount();
+  expect(editorApi.focus).not.toHaveBeenCalled();
+  await act(async () => finishRestore(false));
+  expect(editorApi.focus).toHaveBeenCalledTimes(1);
 });

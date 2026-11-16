@@ -51,6 +51,8 @@ export function chromeTokens(spec: ThemeSpec): Record<string, string> {
     '--border-strong': withAlpha(fg, dark ? 0.24 : 0.20),
     '--text': fg,
     '--text-muted': readableMix(textSurface, fg, 0.65),
+    // 3:1 only: marks, icons and disabled controls (WCAG 1.4.11), never text.
+    // Secondary text of any size uses --text-muted; at 4.5:1 the two would merge.
     '--text-dim': readableMix(textSurface, fg, 0.46, 3),
     '--selection': spec.selection,
     '--error': error,

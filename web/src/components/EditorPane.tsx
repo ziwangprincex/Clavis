@@ -1,4 +1,3 @@
-import { t } from '../i18n';
 // EditorPane — React wrapper around the CodeMirror EditorController.
 //
 // Strategy:
@@ -412,5 +411,5 @@ export function EditorPane({ onReady, onOpenInclude, onShowProblems, focusMode =
   const typography = live
     ? { ...previewTypography(settings), '--writing-measure': MEASURES[settings.preview_reading_width] ?? MEASURES.narrow } as CSSProperties
     : undefined;
-  return <div ref={hostRef} className={styles.host} data-language={activeTab?.lang ?? 'markdown'} data-live={live || undefined} style={typography} aria-label={t("Document editor")} />;
+  return <div ref={hostRef} className={styles.host} data-language={activeTab?.lang ?? 'markdown'} data-live={live || undefined} style={typography} />;
 }

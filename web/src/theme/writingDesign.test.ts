@@ -6,7 +6,7 @@ import { ipc } from '../api/tauri';
 vi.mock('../api/tauri', () => ({ ipc: { getSettings: vi.fn() } }));
 const sources = import.meta.glob<string>([
   '../components/*.module.css', '../App.module.css', '../styles/tokens.css', '../editor/controller.ts',
-  '../editor/livePreviewTheme.ts', '../components/EditorPane.tsx',
+  '../editor/livePreviewTheme.ts', '../components/EditorPane.tsx', '../styles/global.css',
 ], { query: '?raw', import: 'default', eager: true });
 const read = (path: string) => sources[path];
 const sheet = (name: string) => postcss.parse(read(`../components/${name}.module.css`));
@@ -127,8 +127,35 @@ describe('editorial writing surfaces', () => {
       expect(rule(name, selector)?.['border-bottom'], `${name} ${selector}`).toBe('1px solid var(--border)');
     }
     expect(rule('Tabs', '.tab.active')?.background).toBe('var(--bg)');
+    // The toolbar's rule runs on under the window buttons: the title bar draws it
+    // across its padding, where the toolbar does not reach.
+    expect(rule('TitleBar', '.titlebar')?.['box-shadow']).toBe('inset 0 -1px 0 var(--border)');
     // The status is part of the toolbar, not a bar of its own.
     expect(rule('StatusBar', '.bar')?.background).toBeUndefined();
+  });
+
+  it('sets small text that carries information on the readable tier', () => {
+    // --text-dim is mixed to 3:1 only; a 12px control value needs 4.5:1, which
+    // --text-muted is mixed to (theme/chromeTokens.ts).
+    expect(rule('OutlineSection', '.depth')?.color).toBe('var(--text-muted)');
+  });
+
+  it('keeps --text-dim for marks, icons and disabled controls, never for text', () => {
+    // Small text needs 4.5:1, which --text-muted is mixed to; --text-dim's 3:1
+    // is enough only for non-text (WCAG 1.4.11) and inactive controls.
+    const allowed = /(^|[\s.])(icon|action)\b|:disabled/;
+    const offenders: string[] = [];
+    for (const [path, text] of Object.entries(sources)) {
+      if (path.endsWith('.css')) {
+        postcss.parse(text).walkDecls('color', decl => {
+          const selector = (decl.parent as Rule).selector;
+          if (decl.value.includes('var(--text-dim)') && !allowed.test(selector)) offenders.push(`${path} ${selector}`);
+        });
+      } else {
+        for (const match of text.matchAll(/'([^']+)':\s*\{[^}]*\bcolor:\s*'var\(--text-dim\)'/g)) offenders.push(`${path} ${match[1]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('starts every bar of the work area on one left edge', () => {

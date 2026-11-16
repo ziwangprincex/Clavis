@@ -23,6 +23,21 @@ describe('writing syntax assistance', () => {
     expect(mathAt('% $bad$', 4, 'latex')).toBeNull();
     expect(mathAt('`$bad$`', 4, 'typst')).toBeNull();
   });
+  it('does not pair a dollar inside a fenced code block with a later formula', () => {
+    // Regression: backticks were paired two at a time, so a template literal in
+    // a fence split it open and its `${name}` reached the `$$` below; hovering
+    // the table in between previewed it all as one garbled formula.
+    const text = 'Inline $E=mc^2$.\n\n```js\nreturn `hi, ${name}`;\n```\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n$$\nx^2\n$$\n';
+    expect(mathAt(text, text.indexOf('| 1 |'), 'markdown')).toBeNull();
+    expect(mathAt(text, text.indexOf('${name}') + 1, 'markdown')).toBeNull();
+    expect(mathAt(text, text.indexOf('E=mc'), 'markdown')?.content).toBe('E=mc^2');
+    expect(mathAt(text, text.indexOf('x^2'), 'markdown')).toMatchObject({ content: '\nx^2\n', display: true });
+  });
+  it('keeps a Markdown inline formula inside one paragraph', () => {
+    const text = 'It costs $5 today.\n\nTomorrow it costs $6.';
+    expect(mathAt(text, text.indexOf('today'), 'markdown')).toBeNull();
+    expect(mathAt('Wrapped $a +\nb$ formula', 10, 'markdown')?.content).toBe('a +\nb');
+  });
   it('folds a complete section without consuming the next heading', () => {
     const text = '= First\nbody\n== Child\nmore\n= Second\nnext';
     const range = foldRange(text, 0, 'typst');

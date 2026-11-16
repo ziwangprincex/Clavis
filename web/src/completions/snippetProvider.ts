@@ -37,6 +37,10 @@ const SNIPPET_BOOST = -2;
 export const snippetProvider: CompletionProvider = {
   complete(request, site) {
     if (NON_SNIPPET_SITES.has(site.kind)) return [];
+    // A Markdown word is prose, and Enter accepts an open popup: offered while
+    // typing, "I wrote it⏎" became "I wrote *text*". An explicit request
+    // (Ctrl-Space, or ⌥I on macOS) still offers them.
+    if (request.language === 'markdown' && !request.explicit) return [];
     // Typst has two syntaxes, and a candidate valid in one is wrong in the other:
     // markup calls carry a leading `#` (`#figure`), while math is its own scope
     // written without one (`frac(a, b)`, `alpha`). The completion site starts at

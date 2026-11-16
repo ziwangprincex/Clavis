@@ -218,6 +218,17 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSettings, addTab]);
 
+  // A writing app opens ready to type. The caret goes into the editor once the
+  // session is restored and the (lazily loaded) editor exists, whichever comes
+  // last, unless something such as a dialog has already taken focus.
+  const bootReadyRef = useRef(bootReady);
+  bootReadyRef.current = bootReady;
+  const focusEditorIfIdle = () => {
+    const active = typeof document === 'undefined' ? null : document.activeElement;
+    if (!active || active === document.body) editorApiRef.current?.focus();
+  };
+  useEffect(() => { if (bootReady) focusEditorIfIdle(); }, [bootReady]);
+
   // Start actions belong only to the untouched first-run buffer, never restored work.
   useEffect(() => {
     if (startTabId && (tabCount !== 1 || activeTab?.id !== startTabId || !activeTab.empty || activeTab.isDirty || activeTab.filePath)) setStartTabId(null);
@@ -743,6 +754,7 @@ export function App() {
                   <EditorPane
                     onReady={api => {
                       editorApiRef.current = api;
+                      if (bootReadyRef.current) focusEditorIfIdle();
                     }}
                     focusMode={focusMode}
                     onShowProblems={() => { if (getActiveTab()?.lang === 'latex') showProblems(); }}

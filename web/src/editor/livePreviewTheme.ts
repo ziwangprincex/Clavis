@@ -35,7 +35,8 @@ export const livePreviewTheme = EditorView.baseTheme({
   '.cm-line.cm-md-code-last': { borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px', paddingBottom: '0.5em' },
   '.cm-line.cm-md-fence': { lineHeight: '1.2', fontSize: '0.72em' },
   '.cm-line.cm-md-fence-label-line': { textAlign: 'right' },
-  '.cm-md-fence-label': { color: 'var(--text-dim)', fontFamily: 'var(--font-sans)', letterSpacing: '0.02em' },
+  // Information at a small size: the readable tier, not --text-dim's 3:1.
+  '.cm-md-fence-label': { color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', letterSpacing: '0.02em' },
   // Tables and formulas being edited: their source in a quiet box, as Typora's input fields.
   // Ligatures would turn a table's `--` delimiters into dashes.
   '.cm-line.cm-md-source-block': {
@@ -75,8 +76,8 @@ export const livePreviewTheme = EditorView.baseTheme({
     padding: '0.6em 0', textAlign: 'center', overflowX: 'auto',
     borderBottom: '1px solid var(--border)', marginBottom: '0.3em',
   },
-  '.cm-md-math-pending': { color: 'var(--text-dim)', fontSize: '0.85em' },
-  '.cm-md-diagram': { padding: '0.6em 0', textAlign: 'center', overflowX: 'auto', cursor: 'text', color: 'var(--text-dim)', fontSize: '0.85em' },
+  '.cm-md-math-pending': { color: 'var(--text-muted)', fontSize: '0.85em' },
+  '.cm-md-diagram': { padding: '0.6em 0', textAlign: 'center', overflowX: 'auto', cursor: 'text', color: 'var(--text-muted)', fontSize: '0.85em' },
   '.cm-md-diagram svg': { maxWidth: '100%', height: 'auto' },
   '.cm-md-diagram-preview': { borderBottom: '1px solid var(--border)', marginBottom: '0.3em', cursor: 'default' },
   '.cm-md-diagram-error': { color: 'var(--error)', textAlign: 'left' },
@@ -100,7 +101,7 @@ export const livePreviewTheme = EditorView.baseTheme({
   '.cm-md-table mark': { background: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'inherit' },
   '.cm-md-footnote-ref': { fontSize: '0.72em', verticalAlign: 'super', lineHeight: '0', color: 'var(--accent)', padding: '0 0.1em' },
   '.cm-line.cm-md-footnote': { fontSize: '0.9em', color: 'var(--text-muted)' },
-  '.cm-md-footnote-label': { color: 'var(--text-dim)' },
+  '.cm-md-footnote-label': { color: 'var(--text-muted)' },
   '.cm-md-image img': { maxHeight: '1.5em', verticalAlign: 'middle' },
   // An image alone in its paragraph is centred, as Typora does.
   '.cm-md-image-block img': { display: 'block', maxWidth: '100%', maxHeight: 'none', margin: '0.4em auto', borderRadius: '4px' },

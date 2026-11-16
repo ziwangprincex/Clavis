@@ -12,6 +12,7 @@
         "fullscreen": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
+        "trafficLightPosition": { "x": 9, "y": 22 },
         "useHttpsScheme": true,
         "transparent": true,
         "windowEffects": {

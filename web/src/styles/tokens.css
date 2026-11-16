@@ -99,7 +99,11 @@
   --control-h: 28px;
   --row-h: 26px;
   /* macOS draws the window buttons over the first ~70px of whichever bar is
-   * at the window's top-left: the sidebar's, or the toolbar's without one. */
+   * at the window's top-left: the sidebar's, or the toolbar's without one.
+   * tauri.macos.conf.json's trafficLightPosition sets them on that bar's
+   * centre line: x 9 keeps their default 8pt inset, y 22 puts the drawn circles
+   * at 19.5pt, level with the toolbar icons (measured; AppKit keeps them at a
+   * fixed distance from the bottom of their container, which y grows). */
   --window-buttons: 76px;
   /* The one left and right edge of every bar in the work area: toolbar,
    * start actions, tab strip and status bar begin and end on it. */
