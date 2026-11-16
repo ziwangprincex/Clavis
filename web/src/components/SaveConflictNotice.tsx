@@ -110,9 +110,10 @@ export function SaveConflictNotice() {
   const affected = tabs.filter(t => t.conflict || t.diskError);
   const tab = affected.find(t => t.id === active) ?? affected[0];
   if (!tab && !review) return null;
+  const detail = tab && `${tab.conflict ? t("Disk changes need review. The draft is preserved.") : `Disk could not be checked: ${tab.diskError}`}${affected.length > 1 ? ` · ${affected.length} documents need attention` : ''}`;
   return <>
     {tab && <aside className={styles.notice} aria-label={t("Document save protection")}>
-      <span role="status"><strong>{tab.title}</strong><span>{tab.conflict ? t("Disk changes need review. The draft is preserved.") : `Disk could not be checked: ${tab.diskError}`}{affected.length > 1 ? ` · ${affected.length} documents need attention` : ''}</span></span>
+      <span role="status" title={detail}><strong>{tab.title}</strong><span>{detail}</span></span>
       {tab.conflict && <button onClick={() => { useTabsStore.getState().setActive(tab.id); setReview({ id: tab.id, ...tab.conflict!, buffer: tab.content }); }}>{t("Review")}</button>}
       {!tab.conflict && <button onClick={() => void checkExternalDocuments(true).catch(() => {})}>{t("Retry")}</button>}
       <button onClick={() => void saveTabToDisk(tab.id, { saveAs: true }).catch(() => {})}>{t("Save as…")}</button>

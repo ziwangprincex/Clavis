@@ -31,6 +31,7 @@ import {
   closeCompletion,
 } from '@codemirror/autocomplete';
 import { highlightSelectionMatches } from '@codemirror/search';
+import { searchCount } from './searchCount';
 import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown';
 import { GFM } from '@lezer/markdown';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
@@ -164,8 +165,11 @@ function buildThemeExt(spec: ThemeSpec) {
       // Like the editor's own hint: WebKit's placeholder grey is 2.3:1 on a light page.
       '.cm-textfield::placeholder': { color: 'var(--text-muted)' },
       '.cm-panel.cm-search label': { fontSize: 'var(--font-size-small)' },
-      '.cm-searchMatch': { backgroundColor: withAlpha(spec.accent, 0.20) },
-      '.cm-searchMatch.cm-searchMatch-selected': { outline: `1px solid ${spec.accent}` },
+      // The tint alone was 1.35:1 against the page; the accent underline marks
+      // each match at the 3:1 a state needs, and the current one is filled deeper.
+      '.cm-searchMatch': { backgroundColor: withAlpha(spec.accent, 0.20), boxShadow: `inset 0 -2px 0 ${spec.accent}` },
+      '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: withAlpha(spec.accent, 0.34), outline: `1px solid ${spec.accent}` },
+      '.cm-search-count': { color: 'var(--text-muted)', fontSize: 'var(--font-size-small)', fontVariantNumeric: 'tabular-nums', margin: '0 .6em 0 0' },
       '.cm-foldPlaceholder': {
         backgroundColor: spec.activeBg, color: spec.fg,
         border: '1px solid var(--border)', borderRadius: '4px',
@@ -443,6 +447,7 @@ export class EditorController {
         }),
       ),
       highlightSelectionMatches(),
+      searchCount,
       // Parameter signature panel. It publishes through the same `showTooltip`
       // facet as the completion popup, so it asks to sit above the cursor and
       // leaves the space below to the completion list.

@@ -4,10 +4,10 @@ import {
   nextSnippetField,
   prevSnippetField,
 } from '@codemirror/autocomplete';
-import { defaultKeymap, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { cursorDocStart, defaultKeymap, historyKeymap, indentWithTab, selectDocStart } from '@codemirror/commands';
 import { foldKeymap } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
-import type { KeyBinding } from '@codemirror/view';
+import type { Command, KeyBinding } from '@codemirror/view';
 
 /**
  * Build the editor keymap in handling priority order.
@@ -20,8 +20,22 @@ import type { KeyBinding } from '@codemirror/view';
  * when there is nothing to accept. Shift-Tab walks snippet fields backwards
  * and otherwise outdents.
  */
+/**
+ * Document start, with the top of the page in view. CodeMirror scrolls only
+ * the caret's line into view, which left the page's top padding above the
+ * window and the first heading cut under the toolbar. Scrolling to 0 first
+ * leaves its own scroll-into-view nothing to do.
+ */
+const toDocumentTop = (command: Command): Command => view => {
+  if (!command(view)) return false;
+  view.scrollDOM.scrollTop = 0;
+  return true;
+};
+
 export function buildEditorKeymap(): readonly KeyBinding[] {
   return [
+    { key: 'Mod-Home', run: toDocumentTop(cursorDocStart), shift: toDocumentTop(selectDocStart) },
+    { mac: 'Cmd-ArrowUp', run: toDocumentTop(cursorDocStart), shift: toDocumentTop(selectDocStart) },
     { key: 'Tab', run: acceptCompletion },
     { key: 'Tab', run: nextSnippetField, shift: prevSnippetField },
     indentWithTab,

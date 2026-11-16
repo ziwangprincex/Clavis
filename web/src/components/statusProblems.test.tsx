@@ -52,3 +52,14 @@ it('does not expose LaTeX problems for a note', () => {
   act(() => { tree = create(<StatusBar />); });
   expect(tree!.root.findAllByProps({ title: 'Toggle problems panel' })).toHaveLength(0);
 });
+
+it('says what a failed settings save means and how to retry, keeping the raw error as detail', () => {
+  // Regression: the status showed "Settings were not saved: Error: …" cut off at the window edge.
+  useSettingsStore.setState({ saveError: 'Error: No space left on device (os error 28)' });
+  act(() => { tree = create(<StatusBar onToggleProblems={vi.fn()} />); });
+  const status = tree!.root.findByProps({ role: 'status' });
+  const shown = status.findAllByType('span').map(span => span.children.filter(child => typeof child === 'string').join('')).join('');
+  expect(shown).toBe('Settings not saved; they apply until you quit');
+  expect(status.props.title).toContain('Check free disk space and permissions, then change a setting to try again.');
+  expect(status.props.title).toContain('No space left on device');
+});

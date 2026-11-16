@@ -140,6 +140,33 @@ describe('editorial writing surfaces', () => {
     expect(rule('OutlineSection', '.depth')?.color).toBe('var(--text-muted)');
   });
 
+  it('gives the outline’s controls a 24px target and lets headings wrap', () => {
+    // WCAG 2.5.8: 22px buttons 23px apart, and a 20px fold arrow beside its row, were under 24px.
+    expect(rule('OutlineSection', '.action')).toMatchObject({ width: 'var(--row-h)', height: 'var(--row-h)' });
+    expect(parseInt(rule('OutlineSection', '.toggle')?.width ?? '0')).toBeGreaterThanOrEqual(24);
+    // A heading is text the writer chose: it wraps rather than ending in an ellipsis.
+    const title = rule('OutlineSection', '.title');
+    expect(title?.['white-space']).toBeUndefined();
+    expect(title?.['text-overflow']).toBeUndefined();
+  });
+
+  it('puts every shortcut in the document menu on its right side', () => {
+    // Option rows set theirs just after the label, the plain items at the right edge.
+    expect(rule('Toolbar', '.optionRow > span')).toMatchObject({ display: 'flex', flex: '1' });
+    expect(rule('Toolbar', '.optionRow kbd')?.['margin-left']).toBe('auto');
+  });
+
+  it('keeps the save notice to one short row in a narrow window', () => {
+    // Regression: at 720px it was a two-line card over the code and table below it.
+    const narrow: Record<string, Record<string, string>> = {};
+    sheet('SaveConflictNotice').walkAtRules('media', media => {
+      if (!/max-width:\s*900px/.test(media.params)) return;
+      media.walkRules(item => { narrow[item.selector] = { ...narrow[item.selector], ...declarations(item) }; });
+    });
+    expect(narrow['.notice span span']?.['clip-path']).toBe('inset(50%)');
+    expect(narrow['.notice']?.['flex-wrap']).toBe('nowrap');
+  });
+
   it('keeps --text-dim for marks, icons and disabled controls, never for text', () => {
     // Small text needs 4.5:1, which --text-muted is mixed to; --text-dim's 3:1
     // is enough only for non-text (WCAG 1.4.11) and inactive controls.

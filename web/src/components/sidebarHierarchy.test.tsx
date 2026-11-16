@@ -116,7 +116,8 @@ describe('sidebar hierarchy and automatic refresh', () => {
     expect(parent.findAllByType('li')).toContain(child);
     expect(child.findAllByType('li')).toContain(row('Grandchild', 3).parent!.parent!);
     expect(parent.findAllByType('li')).not.toContain(row('Next', 4).parent!.parent!);
-    const toggle = tree.root.findByProps({ 'aria-label': 'Parent', 'aria-expanded': true });
+    // The fold arrow names what it folds, not the heading it sits beside, which the row button already says.
+    const toggle = tree.root.findByProps({ 'aria-label': 'Subheadings of Parent', 'aria-expanded': true });
     act(() => toggle.props.onClick());
     expect(toggle.props['aria-expanded']).toBe(false);
     expect(parent.findAllByType('ul')[0].props.hidden).toBe(true);
@@ -131,7 +132,9 @@ describe('sidebar hierarchy and automatic refresh', () => {
     useTabsStore.getState().patchTab('draft', { lang: 'latex', content });
     const jump = vi.fn();
     await act(async () => { tree = create(<OutlineSection onJumpTo={jump} />); });
-    const group = tree.root.findByProps({ 'aria-label': 'Tables', 'aria-expanded': false });
+    // One control per group: the row itself discloses, the arrow is its picture.
+    const group = tree.root.find(node => node.type === 'button' && node.props['aria-expanded'] === false && text(node).startsWith('Tables'));
+    expect(tree.root.findAll(node => node.type === 'button' && text(node).trim() === '' && node.props['aria-label'] === 'Tables')).toHaveLength(0);
     act(() => group.props.onClick());
     act(() => button('TotalsL9')!.props.onClick());
     expect(jump).toHaveBeenCalledWith(null, 9);
@@ -150,7 +153,7 @@ describe('sidebar hierarchy and automatic refresh', () => {
       useSettingsStore.setState({ settings: { ...useSettingsStore.getState().settings, ...patch } });
     } } as never);
     await act(async () => { tree = create(<OutlineSection />); });
-    const toggles = () => tree.root.findAll(node => node.type === 'button' && node.props['aria-expanded'] !== undefined && ['A', 'A1', 'B'].includes(node.props['aria-label']));
+    const toggles = () => tree.root.findAll(node => node.type === 'button' && node.props['aria-expanded'] !== undefined && ['A', 'A1', 'B'].map(title => `Subheadings of ${title}`).includes(node.props['aria-label']));
     expect(toggles().map(node => node.props['aria-expanded'])).toEqual([true, true, true]);
     act(() => tree.root.findByProps({ 'aria-label': 'Collapse all' }).props.onClick());
     expect(toggles().map(node => node.props['aria-expanded'])).toEqual([false, false, false]);
@@ -158,7 +161,7 @@ describe('sidebar hierarchy and automatic refresh', () => {
     expect(toggles().map(node => node.props['aria-expanded'])).toEqual([true, true, true]);
     // Two levels: A1 is shown, but its own child is not, so it has no toggle.
     await act(async () => { tree.root.findByProps({ 'aria-label': 'Heading levels shown' }).props.onChange({ target: { value: '2' } }); });
-    expect(toggles().map(node => node.props['aria-label'])).toEqual(['A', 'B']);
+    expect(toggles().map(node => node.props['aria-label'])).toEqual(['Subheadings of A', 'Subheadings of B']);
     expect(button('A1')).toBeDefined();
     expect(button('A1a')).toBeUndefined();
   });

@@ -6,7 +6,7 @@ import { belongsToPdf } from '../compile/target';
 import { isLatexError } from '../store/compile';
 import { LATEX_ENGINES, isUnknownEngine } from './engineStatus';
 import {
-  IconClock, IconCommandPalette, IconDoc, IconExport,
+  IconClock, IconHistory, IconCommandPalette, IconDoc, IconExport,
   IconFolder, IconGear, IconPin, IconPlay, IconStop, IconSave, IconSigma, IconTarget,
 } from './icons';
 import styles from './Toolbar.module.css';
@@ -110,7 +110,7 @@ export function Toolbar(props: ToolbarProps) {
             <button className={styles.menuItem} onClick={() => run(props.onOpenFolder)}><IconFolder aria-hidden="true" />{t('Open folder')}</button>
             <button className={styles.menuItem} onClick={() => run(props.onToggleRecent)}><IconClock aria-hidden="true" />{t('Recent files')}</button>
             <button className={styles.menuItem} disabled={!tab} onClick={() => run(props.onSave)}><IconSave aria-hidden="true" />{t('Save')}<kbd>{fmtShortcut('Ctrl+S')}</kbd></button>
-            <button className={`${styles.menuItem} ${styles.textOnly}`} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}>{t('Local version timeline…')}</button>
+            <button className={styles.menuItem} disabled={!tab} onClick={() => run(() => props.onWriterTool?.('history'))}><IconHistory aria-hidden="true" />{t('Local version timeline…')}</button>
             {typeset
               ? <button className={styles.menuItem} disabled={!canExport} title={canExport ? undefined : t('Compile to export PDF')} onClick={() => run(latex ? props.onExportLatexPdf : props.onExportTypstPdf)}><IconExport aria-hidden="true" />{t('Export PDF')}<kbd>{fmtShortcut('Ctrl+Shift+E')}</kbd></button>
               : <>

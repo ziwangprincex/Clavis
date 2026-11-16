@@ -70,7 +70,12 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const problemsLabel = shownProblemCount > 0 ? t('{count} issues', { count: shownProblemCount })
     : compiling ? t('Compiling…') : compileStatus === 'error' ? t('Compile failed')
     : compileStatus === 'ok' ? t('No issues') : t('Compile Log');
-  const statusText = settingsError ? t('Settings were not saved: {error}', { error: settingsError }) : text;
+  // A failed settings write: what it means and how to retry fit the bar; the
+  // raw error, which says nothing to most people, stays in the tooltip.
+  const statusText = settingsError ? t('Settings not saved; they apply until you quit') : text;
+  const statusDetail = settingsError
+    ? `${statusText}. ${t('Check free disk space and permissions, then change a setting to try again.')} (${settingsError})`
+    : statusText;
 
   // Shown only when it says something: a build running, a fresh message, an
   // error. The unsaved state is the dot beside the document name.
@@ -80,7 +85,7 @@ export function StatusBar({ problemCount, onToggleProblems }: StatusBarProps) {
   const problemsShown = isLatex && (compileStatus !== 'idle' || shownProblemCount > 0);
   return (
     <div className={styles.bar}>
-      <span className={`${styles.status} ${styles[noticeKind]}`} role="status" aria-live="polite" title={statusText} hidden={!notice}>
+      <span className={`${styles.status} ${styles[noticeKind]}`} role="status" aria-live="polite" title={statusDetail} hidden={!notice}>
         <span className={styles.dot} />
         <span className={styles.statusText}>{statusText}</span>
       </span>

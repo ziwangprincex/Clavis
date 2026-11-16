@@ -299,3 +299,11 @@ it('opens ready to type: the caret goes into the editor once the session is rest
   await act(async () => finishRestore(false));
   expect(editorApi.focus).toHaveBeenCalledTimes(1);
 });
+it('puts the caret in the editor when the first-run actions are dismissed', async () => {
+  // Regression: Enter on "Hide start actions" removed the strip and left focus nowhere.
+  await mount();
+  editorApi.focus.mockClear();
+  act(() => starter()[0].props.onDismiss());
+  expect(starter()).toHaveLength(0);
+  expect(editorApi.focus).toHaveBeenCalledTimes(1);
+});

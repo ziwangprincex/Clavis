@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { EditorView } from '@codemirror/view';
+import { openSearchPanel, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { EditorController } from './controller';
 import { livePreviewTheme } from './livePreviewTheme';
 import { BUILTIN_THEMES } from '../theme/themes';
@@ -50,5 +51,17 @@ describe('editor theme', () => {
     expect(rulesFor('.cm-textfield::placeholder').join('\n')).toContain('var(--text-muted)');
     expect(rulesFor('.cm-panels-bottom').join('\n')).toContain('1px solid var(--border)');
     expect(rulesFor('.cm-panels').join('\n')).toContain('var(--font-sans)');
+  });
+
+  it('marks every search match visibly and counts them in the panel', async () => {
+    // Regression: matches were a 20% accent tint, 1.35:1 against the page, with no count.
+    mountEditor();
+    const match = rulesFor('.cm-searchMatch').join('\n');
+    expect(match).toMatch(/box-shadow: inset 0 -2px 0 #[0-9a-f]{6}/);
+    const view = controller!.view;
+    openSearchPanel(view);
+    view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: 'code' })) });
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(view.dom.querySelector('.cm-search-count')?.textContent).toBe('1 match');
   });
 });

@@ -147,10 +147,11 @@ function OutlineList({ kind, items, onJumpTo }: { kind: OutlineListKind; items: 
   const [open, setOpen] = useState(false);
   return <li>
     <div className={styles.row}>
-      <button type="button" className={styles.toggle} aria-label={t(LIST_TITLES[kind])} aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      {/* The row is the disclosure; the arrow only pictures it, so it is not a second control. */}
+      <span className={styles.toggle} aria-hidden="true" onClick={() => setOpen(value => !value)}>
         <IconChevronDown size={10} aria-hidden="true" className={open ? undefined : styles.closed} />
-      </button>
-      <button type="button" className={`${styles.item} ${styles.group}`} onClick={() => setOpen(value => !value)}>
+      </span>
+      <button type="button" className={`${styles.item} ${styles.group}`} aria-expanded={open} onClick={() => setOpen(value => !value)}>
         <svg className={styles.groupIcon} width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.15" aria-hidden="true"><path d={LIST_ICONS[kind]} /></svg>
         <span className={styles.title}>{t(LIST_TITLES[kind])}</span><span className={styles.count}>{items.length}</span>
       </button>
@@ -177,7 +178,7 @@ function OutlineRow({ node, path, level, tree, lines, current, onJumpTo }: { nod
   const open = !tree.collapsed.has(path);
   return <li>
     <div className={styles.row}>
-      {branch ? <button type="button" className={styles.toggle} aria-label={node.title} aria-expanded={open} onClick={() => tree.toggle(path)}>
+      {branch ? <button type="button" className={styles.toggle} aria-label={t('Subheadings of {title}', { title: node.title })} aria-expanded={open} onClick={() => tree.toggle(path)}>
         <IconChevronDown size={10} aria-hidden="true" className={open ? undefined : styles.closed} />
       </button> : <span className={styles.toggle} />}
       <button type="button" className={`${styles.item} ${rowKey(node) === current ? styles.current : ''}`} aria-current={rowKey(node) === current ? 'location' : undefined} onClick={() => onJumpTo?.(node.sourceFileAbsPath ?? null, node.line)}

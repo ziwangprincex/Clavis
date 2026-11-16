@@ -47,6 +47,15 @@ export const IconClock = (p: IconProps) => (
   </svg>
 );
 
+/** A clock wound back: earlier versions of this document. */
+export const IconHistory = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M2.4 8a5.6 5.6 0 1 0 1.65-3.96" />
+    <path d="M2.25 2.25v2.5h2.5" />
+    <path d="M8 5v3l2 1.4" />
+  </svg>
+);
+
 export const IconSave = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M8 2v7.5" />

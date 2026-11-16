@@ -98,7 +98,6 @@
   "Save": "保存",
   "Saving…": "保存中…",
   "Could not save settings: {error}": "无法保存设置：{error}",
-  "Settings were not saved: {error}": "设置未保存：{error}",
   "Close": "关闭",
   "Workspace": "工作区",
   "Workspace views": "工作区视图",
@@ -560,5 +559,12 @@
   "Toggle Markdown source": "切换 Markdown 源码",
   "The main document is not at its saved location; it may have been moved or deleted. Save it again with Save As, then compile.": "主文档不在其保存位置，可能已被移动或删除。请使用“另存为”重新保存后再编译。",
   "PDF tools": "PDF 工具",
-  "Pages and zoom": "翻页与缩放"
+  "Pages and zoom": "翻页与缩放",
+  "Commands": "命令",
+  "Subheadings of {title}": "{title} 的下级标题",
+  "Settings not saved; they apply until you quit": "设置未保存到磁盘，退出前仍然有效",
+  "Check free disk space and permissions, then change a setting to try again.": "请检查磁盘空间和权限，然后再修改一次设置以重试。",
+  "{count} matches": "共 {count} 处",
+  "{current} of {total}": "第 {current} 处，共 {total} 处",
+  "1 match": "共 1 处"
 }

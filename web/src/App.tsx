@@ -741,7 +741,7 @@ export function App() {
             onOpenCommandPalette={() => setPaletteOpen(true)}
           />
           </TitleBar>
-          {bootReady && !focusMode && ((startTabId && activeTab?.id === startTabId && activeTab.empty && !activeTab.filePath && !activeTab.isDirty && tabCount === 1) || !tabCount) && <StartActions onOpen={openFileDialog} onFolder={openFolder} onNew={() => setWriterTool('templates')} onDismiss={() => { setStartTabId(null); if (!tabCount) newBlankNote(); }} />}
+          {bootReady && !focusMode && ((startTabId && activeTab?.id === startTabId && activeTab.empty && !activeTab.filePath && !activeTab.isDirty && tabCount === 1) || !tabCount) && <StartActions onOpen={openFileDialog} onFolder={openFolder} onNew={() => setWriterTool('templates')} onDismiss={() => { setStartTabId(null); if (!tabCount) newBlankNote(); editorApiRef.current?.focus(); }} />}
           <div className={styles.tabStrip} hidden={focusMode}><Tabs /></div>
           <div className={styles.editorRow} ref={editorRowRef}>
             <div

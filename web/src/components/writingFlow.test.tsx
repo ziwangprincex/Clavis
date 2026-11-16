@@ -79,6 +79,8 @@ describe('task-oriented toolbar', () => {
     expect(button('Export PDF')).toBeUndefined();
     expect(button('Export HTML…')).toBeDefined();
     expect(button('Local version timeline…')).toBeDefined();
+    // Every item in the Document group has its icon; this one alone had none.
+    expect(button('Local version timeline…').findAllByType('svg')).toHaveLength(1);
     act(() => button('Open file').props.onClick());
     expect(props.onOpenFile).toHaveBeenCalledOnce();
     expect(button('Document tools').props['aria-expanded']).toBe(false);

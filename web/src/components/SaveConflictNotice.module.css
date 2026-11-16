@@ -25,4 +25,11 @@
 .dialog footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 24px 20px; }
 .dialog .primary { background: var(--accent); color: var(--on-accent); }
 .dialog .primary:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent-hover); }
-@media (max-width: 700px) { .comparison { grid-template-columns: 1fr; } .comparison textarea { height: 22vh; min-height: 150px; } .notice { flex-wrap: wrap; } }
+@media (max-width: 700px) { .comparison { grid-template-columns: 1fr; } .comparison textarea { height: 22vh; min-height: 150px; } }
+/* A narrow window: one short row, the file and its actions. The toolbar's
+ * status already says what happened; the sentence stays for screen readers
+ * and in the tooltip, so the card no longer covers the text below it. */
+@media (max-width: 900px) {
+  .notice { flex-wrap: nowrap; gap: 8px; padding: 8px 10px 8px 14px; }
+  .notice span span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
